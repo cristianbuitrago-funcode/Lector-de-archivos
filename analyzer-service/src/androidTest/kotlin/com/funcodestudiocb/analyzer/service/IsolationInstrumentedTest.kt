@@ -21,7 +21,7 @@ class IsolationInstrumentedTest {
     private val context = InstrumentationRegistry.getInstrumentation().targetContext
 
     @Test
-    fun elMotorCorreEnUnProcesoAisladoSinRedNiArchivos() = runBlocking {
+    fun elMotorCorreEnUnProcesoAisladoSinRedNiArchivos() = runBlocking<Unit> {
         val report = IsolationDiagnostics(context).run()
         val isolation = assertNotNull(report.isolation, report.run.message)
 
@@ -35,7 +35,7 @@ class IsolationInstrumentedTest {
     }
 
     @Test
-    fun elVigilanteDetieneUnAnalisisBloqueado() = runBlocking {
+    fun elVigilanteDetieneUnAnalisisBloqueado() = runBlocking<Unit> {
         val client = AnalyzerClient(context, watchdogGraceMillis = 1_000, shutdownWaitMillis = 15_000)
         val started = System.nanoTime()
         val report = IsolationDiagnostics(context, client).run(
@@ -52,7 +52,7 @@ class IsolationInstrumentedTest {
     }
 
     @Test
-    fun cadaAnalisisUsaUnProcesoNuevo() = runBlocking {
+    fun cadaAnalisisUsaUnProcesoNuevo() = runBlocking<Unit> {
         val first = assertNotNull(IsolationDiagnostics(context).run(sampleRecords = 1).isolation)
         val second = assertNotNull(IsolationDiagnostics(context).run(sampleRecords = 1).isolation)
         assertNotEquals(first.pid, second.pid)

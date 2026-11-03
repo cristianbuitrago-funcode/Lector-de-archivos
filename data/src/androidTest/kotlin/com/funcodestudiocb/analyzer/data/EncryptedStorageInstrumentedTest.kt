@@ -33,7 +33,7 @@ class EncryptedStorageInstrumentedTest {
     private fun newKey() = ByteArray(32).also(SecureRandom()::nextBytes)
 
     @Test
-    fun laBaseDeDatosQuedaCifradaEnDisco() = runBlocking {
+    fun laBaseDeDatosQuedaCifradaEnDisco() = runBlocking<Unit> {
         val key = newKey()
         val db = FuncodeDatabase.open(context, key.copyOf())
         db.runs().insert(RunEntity("r1", "DIAGNOSTIC", "COMPLETED", 1, 2, "MARCADOR-EN-CLARO", true))
