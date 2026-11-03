@@ -1,7 +1,7 @@
 # Funcode Code Analyzer — Arquitectura técnica
 
 **Funcode Studio CB** · Documento de arquitectura **v0.2** · Fecha: 2026-11-03
-**Estado: arquitectura revisada para Android, pendiente de confirmación** (ver §15). Aún no hay código de la aplicación.
+**Estado: aprobada** (decisión N1 = A, 2026-11-03). Implementación en curso: Fase 1 terminada (ver `docs/fases/`).
 
 ---
 
@@ -166,7 +166,7 @@
 | Lenguaje | **Kotlin** | Estándar de Android, seguro frente a nulos, corrutinas |
 | Interfaz | **Jetpack Compose + Material 3** con tema oscuro Funcode | UI declarativa moderna, animaciones discretas, accesibilidad |
 | Diseño adaptable | Barra inferior en teléfono; *navigation rail* y paneles dobles en tablet | Explorador y Arquitectura aprovechan pantallas grandes |
-| Arquitectura | MVVM + capas `ui` / `domain` / `data`, **Hilt**, Corrutinas + Flow | Separación clara, testeable |
+| Arquitectura | MVVM + capas `ui` / `domain` / `data`, inyección de dependencias manual (`AppContainer`, ver ADR 0003), Corrutinas + Flow | Separación clara, testeable |
 | Base de datos | **Room + SQLCipher** | Cifrado completo de la BD |
 | Claves | **Android Keystore** (StrongBox si el dispositivo lo tiene), clave ligada a la autenticación del usuario | La clave no puede extraerse del dispositivo |
 | Autenticación | **AndroidX Biometric** (clase fuerte) + contraseña propia con **Argon2id** (Bouncy Castle) | Solo el propietario |
@@ -657,15 +657,13 @@ Lector-de-archivos/
 | D6 | Comprimidos con contraseña | Detectar y permitir introducir la contraseña (solo en memoria) |
 | D7 | Acceso | **Exclusivo del propietario** (biometría + contraseña propia) |
 
-### 15.2 Pendiente de confirmar
+### 15.2 Confirmadas después
 
-| # | Decisión | Recomendación | Alternativa |
-|---|----------|---------------|-------------|
-| N1 | Dónde se ejecuta el análisis | **Todo en el teléfono** (esta v0.2): privado, sin servidor, funciona sin conexión | APK como cliente + servidor propio que analiza (mantendría Semgrep y Dependency-Check y más potencia, pero necesita un PC/servidor siempre accesible y el código viaja del teléfono al servidor) |
+| # | Decisión | Resultado |
+|---|----------|-----------|
+| N1 | Dónde se ejecuta el análisis | **Todo en el teléfono** (proceso aislado), confirmado por el propietario |
 
-### 15.3 Requisito del entorno de desarrollo
+### 15.3 Entorno de desarrollo
 
-Para compilar el APK hacen falta el Android SDK y el NDK, que se descargan de `dl.google.com`. La política de red
-de este entorno de desarrollo en la nube bloquea actualmente ese dominio. Hay que permitirlo en la configuración
-de red del entorno (ver la respuesta del asistente para los pasos). Mientras tanto se puede avanzar con los
-módulos del motor, que no dependen de Android.
+El acceso a `dl.google.com` (Android SDK y NDK) quedó habilitado. Las decisiones técnicas tomadas durante la
+implementación se registran en `docs/adr/`.

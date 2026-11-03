@@ -2,13 +2,58 @@
 
 **Funcode Studio CB** · Herramienta interna
 
-Aplicación Android (APK) que analiza proyectos de software completos. Recibe un único archivo `.zip` o `.rar`,
-lo examina de forma segura dentro de un proceso aislado del propio teléfono (sin ejecutar nada y sin enviar el
-código a ningún servicio) y genera un diagnóstico técnico: estructura, tecnologías, arquitectura, relaciones entre
-archivos, dependencias y auditoría de seguridad, exportable en PDF, HTML y JSON.
+Aplicación Android (APK) que analiza proyectos de software completos. Recibe un único archivo `.zip` o `.rar`, lo
+examina dentro de un proceso aislado del propio teléfono, sin ejecutar nada y sin enviar el código a ningún servicio,
+y genera un diagnóstico técnico: estructura, tecnologías, arquitectura, relaciones entre archivos, dependencias y
+auditoría de seguridad, exportable en PDF, HTML y JSON.
 
 ## Estado
 
-**Fase 0 — Arquitectura v0.2 (Android) pendiente de confirmación.** Todavía no hay código de la aplicación.
+| Fase | Estado |
+|------|--------|
+| 1. Arquitectura y configuración inicial | ✅ Terminada, pendiente de aprobación ([informe](docs/fases/FASE-1.md)) |
+| 2. Carga y extracción ZIP/RAR | Pendiente |
+| 3–10 | Pendientes |
 
-- Arquitectura técnica, tecnologías, módulos, limitaciones y plan por fases: [`docs/ARQUITECTURA.md`](docs/ARQUITECTURA.md)
+- Arquitectura: [`docs/ARQUITECTURA.md`](docs/ARQUITECTURA.md)
+- Decisiones técnicas: [`docs/adr/`](docs/adr/)
+
+## Estructura
+
+```
+app/                interfaz (Compose), acceso, bloqueo automático, diagnóstico
+analyzer-service/   servicio de análisis en proceso aislado + cliente con vigilante (AIDL)
+data/               bóveda de acceso (Argon2id, Keystore, biometría) y BD cifrada (SQLCipher + Room)
+engine/api/         protocolo de resultados entre procesos y validación
+engine/core/        orquestador del pipeline de análisis
+```
+
+## Compilar y probar
+
+Requisitos: JDK 21 y Android SDK (plataforma 37, build-tools 37). Indica la ruta del SDK en `local.properties`
+(`sdk.dir=…`) o con `ANDROID_HOME`.
+
+```bash
+./gradlew test lint                 # pruebas JVM (motor, bóveda, interfaz con Robolectric) y Lint
+./gradlew assembleDebug             # APK de prueba: app/build/outputs/apk/debug/app-debug.apk
+./gradlew connectedDebugAndroidTest # pruebas en dispositivo o emulador (aislamiento, cifrado, recorrido completo)
+```
+
+El APK de prueba de cada ejecución del CI se puede descargar en GitHub → *Actions* → ejecución → artefacto
+`funcode-analyzer-debug-apk`.
+
+### Firma de publicación
+
+El APK de publicación se firma con una clave propia que **nunca** se sube al repositorio. Hay dos formas de
+indicarla: con un archivo `keystore.properties` en la raíz (ignorado por git), con las claves `storeFile`,
+`storePassword`, `keyAlias` y `keyPassword`, o con las variables de entorno `FUNCODE_KEYSTORE_FILE`,
+`FUNCODE_KEYSTORE_PASSWORD`, `FUNCODE_KEY_ALIAS` y `FUNCODE_KEY_PASSWORD`. La clave de `keystore/debug.keystore`
+es solo de depuración y es pública a propósito.
+
+### Dependencias
+
+Las dependencias se verifican por SHA-256 (`gradle/verification-metadata.xml`). Tras añadir o actualizar una:
+
+```bash
+./gradlew --write-verification-metadata sha256 test lint assembleDebug assembleDebugAndroidTest :app:assembleRelease
+```

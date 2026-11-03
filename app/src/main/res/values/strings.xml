@@ -1,0 +1,169 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Funcode Code Analyzer</string>
+    <string name="brand_studio">Funcode Studio CB</string>
+
+    <!-- Acciones comunes -->
+    <string name="action_cancel">Cancelar</string>
+    <string name="action_confirm">Confirmar</string>
+    <string name="action_save">Guardar</string>
+    <string name="action_activate">Activar</string>
+    <string name="action_not_now">Ahora no</string>
+    <string name="action_wipe">Borrar</string>
+    <string name="action_show">Ver</string>
+    <string name="action_hide">Ocultar</string>
+    <string name="action_show_password">Mostrar contraseña</string>
+    <string name="action_hide_password">Ocultar contraseña</string>
+
+    <!-- Contraseñas -->
+    <string name="field_password">Contraseña</string>
+    <string name="field_password_confirm">Repite la contraseña</string>
+    <string name="field_current_password">Contraseña actual</string>
+    <string name="field_new_password">Contraseña nueva</string>
+    <string name="password_hint">Mínimo 8 caracteres combinando letras, números o símbolos, o una frase de 16 caracteres o más.</string>
+    <string name="issue_too_short">Debe tener al menos 8 caracteres.</string>
+    <string name="issue_too_long">No puede superar los 128 caracteres.</string>
+    <string name="issue_too_simple">Combina al menos dos tipos: letras, números o símbolos (o usa una frase de 16 caracteres o más).</string>
+    <string name="issue_trivial">Es demasiado predecible (caracteres repetidos o secuencias).</string>
+    <string name="issue_mismatch">Las contraseñas no coinciden.</string>
+
+    <!-- Configuración inicial -->
+    <string name="setup_title">Configura tu acceso</string>
+    <string name="setup_intro">Solo tú podrás entrar en esta app. Crea una contraseña propia: protegerá todos los análisis con un cifrado ligado a este teléfono.</string>
+    <string name="setup_warning">Si olvidas la contraseña y la biometría deja de estar disponible, los datos no se podrán recuperar.</string>
+    <string name="setup_create">Crear acceso</string>
+    <string name="setup_working">Protegiendo tu acceso…</string>
+    <string name="biometric_offer_title">¿Activar huella o rostro?</string>
+    <string name="biometric_offer_text">Podrás entrar con la biometría fuerte del teléfono. La contraseña seguirá funcionando siempre.</string>
+
+    <!-- Desbloqueo -->
+    <string name="unlock_title">Acceso restringido</string>
+    <string name="unlock_subtitle">Introduce tu contraseña para continuar.</string>
+    <string name="unlock_action">Entrar</string>
+    <string name="unlock_biometric">Usar huella o rostro</string>
+    <string name="unlock_checking">Comprobando…</string>
+    <plurals name="unlock_wrong">
+        <item quantity="one">Contraseña incorrecta (%1$d intento fallido).</item>
+        <item quantity="many">Contraseña incorrecta (%1$d intentos fallidos seguidos).</item>
+        <item quantity="other">Contraseña incorrecta (%1$d intentos fallidos seguidos).</item>
+    </plurals>
+    <plurals name="unlock_wrong_wipe">
+        <item quantity="one">Contraseña incorrecta. Queda %1$d intento antes del borrado automático de todos los datos.</item>
+        <item quantity="many">Contraseña incorrecta. Quedan %1$d intentos antes del borrado automático de todos los datos.</item>
+        <item quantity="other">Contraseña incorrecta. Quedan %1$d intentos antes del borrado automático de todos los datos.</item>
+    </plurals>
+    <string name="unlock_locked_out">Demasiados intentos. Espera %1$s.</string>
+    <string name="unlock_wiped">Se superó el número máximo de intentos y se borraron todos los datos.</string>
+    <string name="unlock_device_key_lost">Los datos no se pueden descifrar en este dispositivo: su clave de seguridad ya no existe. Solo es posible borrarlos y empezar de nuevo.</string>
+    <string name="unlock_corrupted">Los datos de acceso están dañados. Solo es posible borrarlos y empezar de nuevo.</string>
+    <string name="unlock_biometric_invalidated">La biometría del teléfono cambió y el acceso biométrico se desactivó por seguridad. Entra con tu contraseña y vuelve a activarlo en Ajustes.</string>
+    <string name="unlock_biometric_failed">No se pudo usar la biometría. Entra con tu contraseña.</string>
+    <string name="unlock_wipe_everything">Borrar todo y empezar de nuevo</string>
+
+    <!-- Biometría -->
+    <string name="biometric_prompt_subtitle_unlock">Confirma tu identidad para entrar</string>
+    <string name="biometric_prompt_subtitle_enroll">Confirma tu identidad para activar el acceso biométrico</string>
+    <string name="biometric_prompt_negative">Usar contraseña</string>
+
+    <!-- Navegación -->
+    <string name="nav_dashboard">Panel</string>
+    <string name="nav_new_analysis">Nuevo análisis</string>
+    <string name="nav_explorer">Explorador</string>
+    <string name="nav_architecture">Arquitectura</string>
+    <string name="nav_security">Seguridad</string>
+    <string name="nav_reports">Informes</string>
+    <string name="nav_settings">Ajustes</string>
+    <string name="nav_open_menu">Abrir menú</string>
+    <string name="nav_lock">Bloquear</string>
+
+    <!-- Pantallas aún no implementadas -->
+    <string name="placeholder_badge">En construcción · Fase %1$d</string>
+    <string name="placeholder_intro">Esta pantalla todavía no está implementada. Cuando lo esté, mostrará:</string>
+    <string-array name="placeholder_dashboard">
+        <item>Proyectos analizados y últimos análisis</item>
+        <item>Vulnerabilidades encontradas por severidad</item>
+        <item>Tecnologías más utilizadas</item>
+    </string-array>
+    <string-array name="placeholder_new_analysis">
+        <item>Carga del ZIP o RAR (selector, «Abrir con…» y arrastrar en pantallas grandes)</item>
+        <item>Nombre, tamaño y formato del archivo</item>
+        <item>Configuración de exclusiones y límites</item>
+        <item>Progreso por etapas en tiempo real</item>
+    </string-array>
+    <string-array name="placeholder_explorer">
+        <item>Árbol interactivo de carpetas y archivos</item>
+        <item>Visor de código con los hallazgos marcados</item>
+        <item>Ficha de cada archivo: función, dependencias y relaciones</item>
+    </string-array>
+    <string-array name="placeholder_architecture">
+        <item>Diagrama de arquitectura por capas</item>
+        <item>Mapa de conexiones entre archivos, con su nivel de verificación</item>
+        <item>Flujos de información y dependencias</item>
+    </string-array>
+    <string-array name="placeholder_security">
+        <item>Vulnerabilidades clasificadas por severidad y certeza</item>
+        <item>Ficha detallada con recomendación y ejemplo corregido</item>
+        <item>Pruebas dinámicas recomendadas</item>
+    </string-array>
+    <string-array name="placeholder_reports">
+        <item>Historial de análisis</item>
+        <item>Exportación en PDF, HTML y JSON</item>
+        <item>Comparación entre análisis del mismo proyecto</item>
+    </string-array>
+
+    <!-- Panel: estado actual -->
+    <string name="status_title">Estado de la instalación</string>
+    <string name="status_phase">Fase 1 de 10: arquitectura y configuración inicial</string>
+    <string name="status_access">Acceso exclusivo con contraseña propia</string>
+    <string name="status_biometric_on">Acceso biométrico activado</string>
+    <string name="status_biometric_off">Acceso biométrico desactivado</string>
+    <string name="status_database">Base de datos cifrada (SQLCipher, clave en el Keystore)</string>
+    <string name="status_diagnostics">Diagnósticos de aislamiento realizados: %1$d</string>
+
+    <!-- Ajustes -->
+    <string name="settings_section_access">Acceso</string>
+    <string name="settings_biometric">Entrar con huella o rostro</string>
+    <string name="settings_biometric_unavailable">No hay biometría fuerte configurada en el teléfono.</string>
+    <string name="settings_change_password">Cambiar contraseña</string>
+    <string name="settings_background_lock">Bloquear al salir de la app</string>
+    <string name="settings_inactivity_lock">Bloquear por inactividad</string>
+    <string name="settings_lock_immediate">Inmediatamente</string>
+    <string name="settings_after_seconds">Tras %1$d s</string>
+    <string name="settings_after_minutes">Tras %1$d min</string>
+    <string name="settings_wipe_after_failures">Borrar todo tras 10 intentos fallidos</string>
+    <string name="settings_wipe_after_failures_desc">Si alguien prueba contraseñas, los datos se borran tras 10 errores seguidos.</string>
+    <string name="settings_lock_now">Bloquear ahora</string>
+    <string name="settings_section_isolation">Aislamiento del análisis</string>
+    <string name="settings_diagnostics">Diagnóstico del aislamiento</string>
+    <string name="settings_diagnostics_desc">Comprueba en este teléfono que el motor no puede usar la red ni leer tus archivos.</string>
+    <string name="settings_section_data">Datos</string>
+    <string name="settings_wipe_all">Borrar todos los datos</string>
+    <string name="settings_wipe_all_desc">Elimina análisis, ajustes y claves. No se puede deshacer.</string>
+    <string name="settings_section_about">Acerca de</string>
+    <string name="settings_version">Versión %1$s</string>
+    <string name="settings_about_text">Herramienta interna de Funcode Studio CB. Los proyectos se analizan dentro de este teléfono; el código nunca sale de él.</string>
+    <string name="dialog_confirm_password_title">Confirma tu contraseña</string>
+    <string name="dialog_change_password_title">Cambiar contraseña</string>
+    <string name="dialog_wipe_title">¿Borrar todos los datos?</string>
+    <string name="dialog_wipe_text">Se eliminarán los análisis, los ajustes y las claves de este teléfono. No se puede deshacer. Confirma con tu contraseña.</string>
+    <string name="msg_wrong_password">Contraseña incorrecta.</string>
+    <string name="msg_password_changed">Contraseña cambiada.</string>
+    <string name="msg_biometric_enabled">Acceso biométrico activado.</string>
+    <string name="msg_biometric_disabled">Acceso biométrico desactivado.</string>
+    <string name="msg_biometric_cancelled">No se activó la biometría.</string>
+
+    <!-- Diagnóstico -->
+    <string name="diag_title">Diagnóstico del aislamiento</string>
+    <string name="diag_intro">Ejecuta el motor en su proceso aislado e intenta, desde dentro, usar la red, leer un archivo privado de la app y listar el almacenamiento compartido. Todo eso debe fallar. También verifica que los resultados llegan completos e íntegros.</string>
+    <string name="diag_debug_note">Compilación de prueba: la app tiene permiso de red, así que si la red aparece bloqueada es por el aislamiento del motor, no por falta de permiso.</string>
+    <string name="diag_run">Ejecutar diagnóstico</string>
+    <string name="diag_running">Ejecutando…</string>
+    <string name="diag_result_ok">Aislamiento verificado</string>
+    <string name="diag_result_fail">El aislamiento NO se pudo verificar</string>
+    <string name="diag_check_passed">Correcto</string>
+    <string name="diag_check_failed">Fallo</string>
+    <string name="diag_check_inconclusive">No concluyente</string>
+    <string name="diag_history">Diagnósticos anteriores</string>
+    <string name="diag_history_empty">Todavía no hay diagnósticos.</string>
+    <string name="diag_error">El diagnóstico no pudo completarse: %1$s</string>
+</resources>

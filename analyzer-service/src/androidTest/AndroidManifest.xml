@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- La app de prueba SÍ tiene permiso de red: así la prueba demuestra que el proceso aislado
+         no puede usarla aunque la app la tenga. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+</manifest>
