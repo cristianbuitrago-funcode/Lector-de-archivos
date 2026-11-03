@@ -48,7 +48,8 @@ Se ejecutan en **Android 8.0 (API 26), 15 (API 35) y 16 (API 36)**. Las pruebas 
 | `FullAnalysisInstrumentedTest` (3) | Un ZIP y dos RAR5 (uno con nombres cifrados) se analizan de verdad en el proceso aislado, con UnRAR nativo leyendo por el descriptor heredado; el RAR con nombres cifrados pide la contraseña y con ella se lee completo. |
 | `MigrationInstrumentedTest` (1) | La BD de la Fase 1 migra a la versión 2 sin perder los diagnósticos. |
 
-El resultado de la ejecución del CI se indica en el mensaje de entrega de la fase.
+**Resultado: 11 de 11 correctas en las tres versiones** (ejecución n.º 8 del CI: 3 de aislamiento, 3 de cifrado, 1 de
+migración, 3 de análisis completo y 1 recorrido de extremo a extremo).
 
 ### Errores encontrados y corregidos durante la fase
 
