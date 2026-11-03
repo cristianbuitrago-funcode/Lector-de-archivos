@@ -25,27 +25,36 @@ la identidad de Funcode y la integración continua.
 
 | Módulo | Pruebas | Qué cubren |
 |--------|---------|------------|
-| `engine:api` | 22 | Ida y vuelta de todos los registros; cabeceras y tramas truncadas; longitudes inválidas o gigantes (rechazadas sin reservar memoria); límites de tramas y bytes; JSON mal formado, tipos desconocidos y claves extra; UTF-8 inválido; reglas de sesión (inicio, final, recuento, datos fuera de orden); validación de campos; validación de configuración y rutas peligrosas. |
+| `engine:api` | 23 | Ida y vuelta de todos los registros; cabeceras y tramas truncadas; longitudes inválidas o gigantes (rechazadas sin reservar memoria); límites de tramas y bytes; JSON mal formado, tipos desconocidos y claves extra; UTF-8 inválido; reglas de sesión (inicio, final, recuento, datos fuera de orden); validación de campos; validación de configuración, rutas peligrosas y límite del bloqueo simulado. |
 | `engine:core` | 9 | Orden por dependencias y errores de definición; sesión completa; aislamiento de fallos sin filtrar mensajes; cancelaciones internas; tiempo máximo por etapa y total; cancelación externa; progreso monótono; compatibilidad de extremo a extremo con el lector del proceso principal. |
 | `data` | 18 | Configurar y desbloquear; la bóveda no contiene ni la clave ni la contraseña; política de contraseñas; contraseña incorrecta, esperas crecientes y reinicio del contador; borrado automático; pérdida de la clave del dispositivo; bóveda manipulada; cambio de contraseña; biometría (activar, desbloquear, invalidación); Argon2id contra la implementación de referencia; AES-GCM ante clave incorrecta, alteración y AAD distinto. |
 | `analyzer-service` | 1 | Detección de procesos aislados por rango de UID (Android 8.x). |
 | `app` (Robolectric) | 8 | Rechazo de contraseñas débiles; creación del acceso y navegación con pantallas marcadas por fase; bloqueo y desbloqueo con contraseña incorrecta y correcta; borrado total desde Ajustes; bloqueo automático en segundo plano, inmediato y por inactividad; escape de caracteres invisibles. |
-| **Total** | **58** | **0 fallos** |
+| **Total** | **59** | **0 fallos** |
 
 Además: **Android Lint sin ningún hallazgo** en los tres módulos Android, compilación del APK de publicación con R8
 comprobando que se conservan el servicio aislado, la interfaz AIDL y SQLCipher, y el motor compila con los avisos
 tratados como errores.
 
-### En emulador (CI)
+### En emulador (CI de GitHub Actions)
 
-Este entorno no permite ejecutar un emulador de Android porque no tiene KVM. Estas 7 pruebas se ejecutan en GitHub
-Actions (API 26 y 35):
+Este entorno de desarrollo no puede ejecutar un emulador de Android porque no tiene KVM. Las pruebas instrumentadas se
+ejecutan en el CI con dos versiones: **Android 8.0 (API 26, la mínima admitida) y Android 15 (API 35)**.
+**Resultado: 7 de 7 correctas en ambas versiones** (ejecución n.º 4 del CI).
 
-- `IsolationInstrumentedTest`: el motor corre en un proceso aislado con otro UID; sin red ni acceso a archivos; canal íntegro; el vigilante detiene un análisis bloqueado; cada análisis usa un proceso nuevo.
-- `EncryptedStorageInstrumentedTest`: la BD queda cifrada en disco (ni la cabecera de SQLite ni los datos en claro); no se abre con otra clave; la clave del dispositivo protege y se destruye.
-- `EndToEndTest`: crear el acceso → entrar → Ajustes → diagnóstico de aislamiento correcto.
+| Prueba | Qué demuestra |
+|--------|---------------|
+| `IsolationInstrumentedTest` (3) | El motor corre en un proceso aislado con un UID distinto; no puede usar la red (aunque la app de prueba tiene el permiso) ni leer archivos de la app; el canal de resultados llega íntegro. El vigilante detiene en ~4 s un análisis bloqueado sin cooperar y conserva los resultados parciales. Cada análisis usa un proceso nuevo. |
+| `EncryptedStorageInstrumentedTest` (3) | La BD queda cifrada en disco: ni la cabecera de SQLite ni los datos aparecen en claro. No se abre con otra clave. La clave del dispositivo protege los datos y, una vez destruida, ya no pueden recuperarse. |
+| `EndToEndTest` (1) | Recorrido real en la app: crear el acceso, entrar, ir a Ajustes y ejecutar el diagnóstico de aislamiento, que sale correcto. |
 
-El resultado de estas pruebas se indica en la respuesta de entrega de la fase.
+Problemas que el CI detectó y que ya están corregidos:
+
+1. La verificación de dependencias fallaba en una máquina limpia porque faltaban variantes de metadatos. Se regeneró desde una caché de Gradle vacía.
+2. JUnit rechazaba una clase de pruebas entera porque una prueba devolvía un valor en lugar de `Unit`.
+3. La prueba del vigilante usaba un bloqueo simulado mayor del que admite el validador, y el servicio la rechazaba como debía. Se ajustó la prueba.
+
+También hubo un fallo puntual de la infraestructura de GitHub (una imagen del emulador descargada dañada), que se resolvió relanzando ese trabajo.
 
 ## Cómo probarlo en tu teléfono
 
