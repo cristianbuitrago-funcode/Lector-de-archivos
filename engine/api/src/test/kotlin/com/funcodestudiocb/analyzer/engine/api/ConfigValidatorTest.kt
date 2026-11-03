@@ -38,6 +38,15 @@ class ConfigValidatorTest {
     }
 
     @Test
+    fun `el bloqueo simulado esta acotado a dos veces el limite total`() {
+        val limits = AnalysisLimits(maxTotalMillis = 3_000, maxStageMillis = 3_000)
+        val ok = valid.copy(limits = limits, diagnostic = valid.diagnostic!!.copy(simulateHangMillis = 6_000))
+        assertTrue(ConfigValidator.validate(ok).isEmpty())
+        val tooLong = ok.copy(diagnostic = ok.diagnostic!!.copy(simulateHangMillis = 6_001))
+        assertTrue(ConfigValidator.validate(tooLong).isNotEmpty())
+    }
+
+    @Test
     fun `el modo diagnostico exige opciones y el completo aun no esta disponible`() {
         assertTrue(ConfigValidator.validate(valid.copy(diagnostic = null)).isNotEmpty())
         assertTrue(ConfigValidator.validate(valid.copy(mode = AnalysisMode.FULL)).isNotEmpty())

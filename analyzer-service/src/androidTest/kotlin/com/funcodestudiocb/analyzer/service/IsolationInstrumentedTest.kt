@@ -40,7 +40,9 @@ class IsolationInstrumentedTest {
         val started = System.nanoTime()
         val report = IsolationDiagnostics(context, client).run(
             sampleRecords = 10,
-            simulateHangMillis = 120_000,
+            // El bloqueo (6 s) dura más que el vigilante (3 s de límite + 1 s de margen) y respeta el máximo
+            // que admite el validador (2 × el límite total).
+            simulateHangMillis = 6_000,
             limits = AnalysisLimits(maxTotalMillis = 3_000, maxStageMillis = 3_000),
         )
         val elapsedMs = (System.nanoTime() - started) / 1_000_000
