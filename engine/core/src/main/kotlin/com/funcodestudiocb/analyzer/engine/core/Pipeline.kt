@@ -85,11 +85,28 @@ data class PipelineResult(
  */
 class PipelineRunner(private val engineVersion: String) {
 
+    private companion object {
+        const val MAX_STOP_MESSAGE = 1_000
+    }
+
     suspend fun run(
         config: AnalysisConfig,
         stages: List<Stage>,
         sink: RecordSink,
+        attributes: Attributes = Attributes(),
         listener: ProgressListener = ProgressListener { },
+    ): PipelineResult = try {
+        execute(config, stages, sink, listener, attributes)
+    } finally {
+        attributes.closeAll()
+    }
+
+    private suspend fun execute(
+        config: AnalysisConfig,
+        stages: List<Stage>,
+        sink: RecordSink,
+        listener: ProgressListener,
+        attributes: Attributes,
     ): PipelineResult {
         val counter = AtomicLong(0)
         val countingSink = RecordSink { record ->
@@ -113,7 +130,7 @@ class PipelineRunner(private val engineVersion: String) {
             val finished = withTimeoutOrNull(config.limits.maxTotalMillis) {
                 stages.forEachIndexed { index, stage ->
                     currentIndex = index
-                    statuses[stage.id] = runStage(config, stage, index, stages.size, statuses, countingSink, listener)
+                    statuses[stage.id] = runStage(config, attributes, stage, index, stages.size, statuses, countingSink, listener)
                 }
                 true
             }
@@ -139,6 +156,7 @@ class PipelineRunner(private val engineVersion: String) {
 
     private suspend fun runStage(
         config: AnalysisConfig,
+        attributes: Attributes,
         stage: Stage,
         index: Int,
         count: Int,
@@ -154,7 +172,7 @@ class PipelineRunner(private val engineVersion: String) {
             return StageStatus.SKIPPED
         }
 
-        val context = DefaultStageContext(config, stage, index, count, sink, listener)
+        val context = DefaultStageContext(config, attributes, stage, index, count, sink, listener)
         val mark = TimeSource.Monotonic.markNow()
         context.progress(0f)
         val status = try {
@@ -168,6 +186,9 @@ class PipelineRunner(private val engineVersion: String) {
             // pipeline sigue activo, la excepción salió de la propia etapa: se trata como un fallo.
             if (!currentCoroutineContext().isActive) throw e
             failure(stage, e, mark, sink)
+            return StageStatus.FAILED
+        } catch (e: StageStoppedException) {
+            stopped(stage, e.message.orEmpty(), mark, sink)
             return StageStatus.FAILED
         } catch (e: Exception) {
             failure(stage, e, mark, sink)
@@ -187,6 +208,12 @@ class PipelineRunner(private val engineVersion: String) {
         }
         context.progress(1f)
         return status
+    }
+
+    private fun stopped(stage: Stage, message: String, mark: TimeSource.Monotonic.ValueTimeMark, sink: RecordSink) {
+        val detail = message.take(MAX_STOP_MESSAGE).ifEmpty { "La etapa se detuvo" }
+        sink.accept(StageEvent(stage.id, StageStatus.FAILED, mark.elapsedNow().inWholeMilliseconds, detail))
+        sink.accept(CoverageNote(stage.id, CoverageReason.STAGE_FAILED, detail))
     }
 
     private fun failure(stage: Stage, error: Throwable, mark: TimeSource.Monotonic.ValueTimeMark, sink: RecordSink) {

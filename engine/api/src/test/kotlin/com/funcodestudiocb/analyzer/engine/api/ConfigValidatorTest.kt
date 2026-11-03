@@ -47,8 +47,24 @@ class ConfigValidatorTest {
     }
 
     @Test
-    fun `el modo diagnostico exige opciones y el completo aun no esta disponible`() {
+    fun `cada modo exige sus opciones`() {
         assertTrue(ConfigValidator.validate(valid.copy(diagnostic = null)).isNotEmpty())
         assertTrue(ConfigValidator.validate(valid.copy(mode = AnalysisMode.FULL)).isNotEmpty())
+        val full = AnalysisConfig("a1", AnalysisMode.FULL, ingest = IngestOptions("proyecto.zip"))
+        assertTrue(ConfigValidator.validate(full).isEmpty())
+    }
+
+    @Test
+    fun `opciones de ingesta fuera de rango se rechazan`() {
+        val base = AnalysisConfig("a1", AnalysisMode.FULL, ingest = IngestOptions("proyecto.zip"))
+        fun with(transform: (IngestOptions) -> IngestOptions) = ConfigValidator.validate(base.copy(ingest = transform(base.ingest!!)))
+        assertTrue(with { it.copy(displayName = "") }.isNotEmpty())
+        assertTrue(with { it.copy(limits = it.limits.copy(maxEntries = 0)) }.isNotEmpty())
+        assertTrue(with { it.copy(limits = it.limits.copy(maxArchiveBytes = 10L * 1024 * IngestLimits.MIB)) }.isNotEmpty())
+        assertTrue(with { it.copy(limits = it.limits.copy(maxEntryBytes = it.limits.maxTotalUncompressedBytes + 1)) }.isNotEmpty())
+        assertTrue(with { it.copy(exclusions = it.exclusions.copy(directoryNames = listOf("a/b"))) }.isNotEmpty())
+        assertTrue(with { it.copy(exclusions = it.exclusions.copy(directoryNames = listOf(".."))) }.isNotEmpty())
+        assertTrue(with { it.copy(exclusions = it.exclusions.copy(directoryNames = List(201) { i -> "d$i" })) }.isNotEmpty())
+        assertTrue(with { it.copy(exclusions = it.exclusions.copy(directoryNames = listOf("node_modules", "mi carpeta"))) }.isEmpty())
     }
 }

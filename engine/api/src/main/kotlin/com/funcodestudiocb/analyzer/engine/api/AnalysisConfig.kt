@@ -14,9 +14,11 @@ data class AnalysisConfig(
     val mode: AnalysisMode,
     val limits: AnalysisLimits = AnalysisLimits(),
     val diagnostic: DiagnosticOptions? = null,
+    /** Obligatorio en el modo [AnalysisMode.FULL]. */
+    val ingest: IngestOptions? = null,
 )
 
-/** Límites de tiempo del análisis. Los límites de tamaño de los archivos se añaden en la Fase 2. */
+/** Límites de tiempo del análisis. Los límites de tamaño están en [IngestLimits]. */
 @Serializable
 data class AnalysisLimits(
     /** Tiempo máximo total del análisis. */
@@ -83,7 +85,10 @@ object ConfigValidator {
                     }
                 }
             }
-            AnalysisMode.FULL -> errors += "El análisis completo estará disponible a partir de la Fase 2"
+            AnalysisMode.FULL -> {
+                val ingest = config.ingest
+                if (ingest == null) errors += "El análisis completo requiere opciones de ingesta" else errors += IngestOptionsValidator.validate(ingest)
+            }
         }
         return errors
     }

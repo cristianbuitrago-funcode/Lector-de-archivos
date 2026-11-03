@@ -114,7 +114,7 @@ class AnalyzerService : Service() {
         val writer = FrameWriter(output)
         val progress = ThrottledProgress(callback) { running.get()?.cancel() }
         try {
-            val result = PipelineRunner(ENGINE_VERSION).run(config, stagesFor(config), FlushingSink(writer), progress)
+            val result = PipelineRunner(ENGINE_VERSION).run(config, stagesFor(config), FlushingSink(writer), listener = progress)
             writer.flush()
             progress.finished(result.outcome.ordinal, null)
         } catch (e: IOException) {

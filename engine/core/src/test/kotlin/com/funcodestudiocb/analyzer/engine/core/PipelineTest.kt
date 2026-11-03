@@ -188,3 +188,35 @@ class PipelineTest {
         assertEquals(SessionOutcome.COMPLETED, session.end!!.outcome)
     }
 }
+
+class AttributesTest {
+    private val key = AttributeKey<String>("dato")
+
+    @Test
+    fun `las etapas comparten datos y los recursos se cierran al final aunque haya fallos`() = runTest {
+        val attributes = Attributes()
+        var closed = 0
+        val stages = listOf(
+            object : Stage {
+                override val id = "a"
+                override val title = "A"
+                override suspend fun run(context: StageContext) {
+                    context.attributes[key] = "hola"
+                    context.attributes.closeLater(AutoCloseable { closed++ })
+                }
+            },
+            object : Stage {
+                override val id = "b"
+                override val title = "B"
+                override suspend fun run(context: StageContext) {
+                    assertEquals("hola", context.attributes.require(key))
+                    error("fallo")
+                }
+            },
+        )
+        val config = AnalysisConfig("t", AnalysisMode.DIAGNOSTIC, diagnostic = DiagnosticOptions("/a/b", "/a"))
+        PipelineRunner("t").run(config, stages, CollectingSink(), attributes = attributes)
+        assertEquals(1, closed)
+        assertFailsWith<IllegalStateException> { Attributes().require(key) }
+    }
+}

@@ -25,6 +25,10 @@ androidxTestExtJunit = "1.3.0"
 androidxTestRunner = "1.7.0"
 androidxTestCore = "1.7.0"
 iconsCore = "1.7.8"
+commonsCompress = "1.28.0"
+zip4j = "2.11.6"
+ndk = "29.0.14206865"
+cmake = "3.31.0"
 
 [libraries]
 kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "coroutines" }
@@ -47,6 +51,8 @@ androidx-room-compiler = { module = "androidx.room:room-compiler", version.ref =
 androidx-sqlite = { module = "androidx.sqlite:sqlite", version.ref = "sqlite" }
 sqlcipher-android = { module = "net.zetetic:sqlcipher-android", version.ref = "sqlcipher" }
 bouncycastle-prov = { module = "org.bouncycastle:bcprov-jdk18on", version.ref = "bouncycastle" }
+commons-compress = { module = "org.apache.commons:commons-compress", version.ref = "commonsCompress" }
+zip4j = { module = "net.lingala.zip4j:zip4j", version.ref = "zip4j" }
 
 compose-bom = { module = "androidx.compose:compose-bom", version.ref = "composeBom" }
 compose-ui = { module = "androidx.compose.ui:ui" }

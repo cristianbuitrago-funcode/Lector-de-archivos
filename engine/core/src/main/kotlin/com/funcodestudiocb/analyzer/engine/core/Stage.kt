@@ -30,6 +30,9 @@ interface Stage {
 interface StageContext {
     val config: AnalysisConfig
 
+    /** Datos compartidos con las demás etapas de esta ejecución. */
+    val attributes: Attributes
+
     /** Emite un registro de resultado. */
     fun emit(record: ResultRecord)
 
@@ -42,6 +45,12 @@ interface StageContext {
     /** Lanza una excepción de cancelación si el análisis fue cancelado o agotó su tiempo. */
     suspend fun checkActive()
 }
+
+/**
+ * Detención controlada de una etapa con un mensaje redactado por el propio motor (nunca con texto del
+ * proyecto sin escapar). Las etapas que dependen de ella se omiten.
+ */
+class StageStoppedException(message: String) : Exception(message)
 
 /** Destino de los registros producidos por el pipeline. */
 fun interface RecordSink {
@@ -70,6 +79,7 @@ data class ProgressUpdate(
 
 internal class DefaultStageContext(
     override val config: AnalysisConfig,
+    override val attributes: Attributes,
     private val stage: Stage,
     private val stageIndex: Int,
     private val stageCount: Int,

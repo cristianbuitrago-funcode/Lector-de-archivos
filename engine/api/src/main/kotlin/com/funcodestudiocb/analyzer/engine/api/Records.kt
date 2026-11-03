@@ -7,7 +7,7 @@ import kotlinx.serialization.Serializable
  * Versión del esquema de registros que el motor envía al proceso principal.
  * Se incrementa cada vez que cambia la forma de algún registro.
  */
-const val RESULT_SCHEMA_VERSION: Int = 1
+const val RESULT_SCHEMA_VERSION: Int = 2
 
 /**
  * Registro producido por el motor de análisis.
@@ -88,7 +88,7 @@ enum class AnalysisMode {
     /** Autodiagnóstico del aislamiento y del canal de resultados. */
     DIAGNOSTIC,
 
-    /** Análisis completo de un proyecto (disponible a partir de la Fase 2). */
+    /** Análisis completo de un proyecto. */
     FULL,
 }
 

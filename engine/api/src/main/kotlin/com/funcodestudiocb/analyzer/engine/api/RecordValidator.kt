@@ -14,6 +14,10 @@ object RecordValidator {
     const val MAX_PAYLOAD_LENGTH = 4_096
     const val MAX_PROCESS_NAME_LENGTH = 256
     const val MAX_STAGES = 128
+    const val MAX_PATH_LENGTH = 8_192
+    const val MAX_DUPLICATE_PATHS = 1_000
+
+    private val SHA256_PATTERN = Regex("^[0-9a-f]{64}$")
 
     private val ID_PATTERN = Regex("^[A-Za-z0-9_.-]{1,64}$")
     private val VERSION_PATTERN = Regex("^[A-Za-z0-9_.+-]{1,64}$")
@@ -57,12 +61,60 @@ object RecordValidator {
                 if (record.recordCount < 0) errors += "Recuento negativo"
                 checkText(errors, "message", record.message, MAX_MESSAGE_LENGTH)
             }
+            is ArchiveSummary -> {
+                if (record.sizeBytes < 0 || record.entryCount < 0 || record.directoryCount < 0 || record.declaredUncompressedBytes < 0) {
+                    errors += "Valores negativos en el resumen del comprimido"
+                }
+            }
+            is ArchiveRejected -> checkText(errors, "detail", record.detail, MAX_DETAIL_LENGTH)
+            is PasswordRequired -> checkText(errors, "detail", record.detail, MAX_DETAIL_LENGTH)
+            is FileEntry -> {
+                checkPath(errors, record.path)
+                if (record.sizeBytes < 0 || record.compressedBytes < 0) errors += "Tamaños negativos"
+                record.sha256?.let { if (!SHA256_PATTERN.matches(it)) errors += "Huella SHA-256 inválida" }
+                checkText(errors, "encoding", record.encoding, 32)
+            }
+            is ExcludedDirectory -> {
+                checkPath(errors, record.path)
+                checkText(errors, "rule", record.rule, 200)
+                if (record.fileCount < 0 || record.totalBytes < 0) errors += "Valores negativos"
+            }
+            is ExcludedFile -> {
+                checkPath(errors, record.path)
+                checkText(errors, "rule", record.rule, 200)
+                if (record.sizeBytes < 0) errors += "Tamaño negativo"
+            }
+            is IngestFinding -> {
+                record.path?.let { checkPath(errors, it) }
+                checkText(errors, "detail", record.detail, MAX_DETAIL_LENGTH)
+            }
+            is DuplicateGroup -> {
+                if (!SHA256_PATTERN.matches(record.sha256)) errors += "Huella SHA-256 inválida"
+                if (record.paths.size > MAX_DUPLICATE_PATHS || record.paths.size < 2 || record.count < record.paths.size) {
+                    errors += "Grupo de duplicados inválido"
+                }
+                if (record.sizeBytes < 0) errors += "Tamaño negativo"
+                record.paths.forEach { checkPath(errors, it) }
+            }
+            is IngestSummary -> {
+                val values = listOf(
+                    record.files, record.analyzedFiles, record.notAnalyzedFiles, record.excludedFiles,
+                    record.excludedDirectories, record.duplicateGroups, record.duplicateFiles, record.findings,
+                )
+                if (values.any { it < 0 } || record.analyzedBytes < 0 || record.excludedBytes < 0) errors += "Totales negativos"
+            }
         }
         return errors
     }
 
     private fun checkPattern(errors: MutableList<String>, field: String, value: String, pattern: Regex) {
         if (!pattern.matches(value)) errors += "Campo '$field' con formato inválido"
+    }
+
+    /** Las rutas llegan normalizadas y con los caracteres de control ya escapados por el motor. */
+    private fun checkPath(errors: MutableList<String>, path: String) {
+        if (path.isEmpty() || path.length > MAX_PATH_LENGTH) errors += "Ruta vacía o demasiado larga"
+        if (path.any { it.isISOControl() }) errors += "Ruta con caracteres de control sin escapar"
     }
 
     private fun checkText(errors: MutableList<String>, field: String, value: String?, max: Int) {
