@@ -1,15 +1,19 @@
 package com.funcodestudiocb.analyzer.data.db
 
 import android.content.Context
+import androidx.room.AutoMigration
 import androidx.room.ColumnInfo
 import androidx.room.Dao
 import androidx.room.Database
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.Insert
 import androidx.room.PrimaryKey
 import androidx.room.Query
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.Transaction
+import androidx.room.Upsert
 import kotlinx.coroutines.flow.Flow
 import net.zetetic.database.sqlcipher.SupportOpenHelperFactory
 
@@ -44,9 +48,105 @@ interface RunDao {
     fun countByMode(mode: String): Flow<Int>
 }
 
-@Database(entities = [RunEntity::class], version = 1, exportSchema = true)
+/** Un análisis de proyecto (Fase 2+): metadatos y contadores para el historial y el panel. */
+@Entity(tableName = "analyses")
+data class AnalysisEntity(
+    @PrimaryKey val id: String,
+    @ColumnInfo(name = "archive_name") val archiveName: String,
+    @ColumnInfo(name = "archive_size") val archiveSize: Long,
+    @ColumnInfo(name = "archive_sha256") val archiveSha256: String,
+    /** ZIP, RAR4 o RAR5; `null` si se rechazó antes de identificarlo. */
+    val format: String?,
+    /** Resultado final (ver `AnalysisOutcome` en la app). */
+    val status: String,
+    @ColumnInfo(name = "started_at") val startedAtEpochMs: Long,
+    @ColumnInfo(name = "finished_at") val finishedAtEpochMs: Long,
+    @ColumnInfo(name = "file_count") val fileCount: Int,
+    @ColumnInfo(name = "analyzed_count") val analyzedCount: Int,
+    @ColumnInfo(name = "excluded_count") val excludedCount: Int,
+    @ColumnInfo(name = "finding_count") val findingCount: Int,
+    @ColumnInfo(name = "duplicate_groups") val duplicateGroups: Int,
+    val message: String?,
+)
+
+/** Cada registro validado que produjo el motor, tal cual (JSON del protocolo). */
+@Entity(
+    tableName = "analysis_records",
+    primaryKeys = ["analysis_id", "seq"],
+    indices = [Index(value = ["analysis_id", "type"])],
+)
+data class AnalysisRecordEntity(
+    @ColumnInfo(name = "analysis_id") val analysisId: String,
+    val seq: Int,
+    val type: String,
+    val json: String,
+)
+
+/** Ajustes de la app que se guardan cifrados (p. ej. las exclusiones por defecto). */
+@Entity(tableName = "app_settings")
+data class SettingEntity(
+    @PrimaryKey val key: String,
+    val value: String,
+)
+
+@Dao
+abstract class AnalysisDao {
+    @Insert
+    protected abstract suspend fun insertAnalysis(analysis: AnalysisEntity)
+
+    @Insert
+    protected abstract suspend fun insertRecords(records: List<AnalysisRecordEntity>)
+
+    @Transaction
+    open suspend fun insert(analysis: AnalysisEntity, records: List<AnalysisRecordEntity>) {
+        insertAnalysis(analysis)
+        records.chunked(500).forEach { insertRecords(it) }
+    }
+
+    @Query("SELECT * FROM analyses ORDER BY started_at DESC LIMIT :limit")
+    abstract fun recent(limit: Int): Flow<List<AnalysisEntity>>
+
+    @Query("SELECT * FROM analyses WHERE id = :id")
+    abstract suspend fun get(id: String): AnalysisEntity?
+
+    @Query("SELECT * FROM analysis_records WHERE analysis_id = :id ORDER BY seq")
+    abstract suspend fun records(id: String): List<AnalysisRecordEntity>
+
+    @Query("SELECT COUNT(*) FROM analyses")
+    abstract fun count(): Flow<Int>
+
+    @Query("DELETE FROM analysis_records WHERE analysis_id = :id")
+    protected abstract suspend fun deleteRecords(id: String)
+
+    @Query("DELETE FROM analyses WHERE id = :id")
+    protected abstract suspend fun deleteAnalysis(id: String)
+
+    @Transaction
+    open suspend fun delete(id: String) {
+        deleteRecords(id)
+        deleteAnalysis(id)
+    }
+}
+
+@Dao
+interface SettingsDao {
+    @Query("SELECT value FROM app_settings WHERE `key` = :key")
+    suspend fun get(key: String): String?
+
+    @Upsert
+    suspend fun put(setting: SettingEntity)
+}
+
+@Database(
+    entities = [RunEntity::class, AnalysisEntity::class, AnalysisRecordEntity::class, SettingEntity::class],
+    version = 2,
+    exportSchema = true,
+    autoMigrations = [AutoMigration(from = 1, to = 2)],
+)
 abstract class FuncodeDatabase : RoomDatabase() {
     abstract fun runs(): RunDao
+    abstract fun analyses(): AnalysisDao
+    abstract fun settings(): SettingsDao
 
     companion object {
         const val FILE_NAME = "funcode.db"

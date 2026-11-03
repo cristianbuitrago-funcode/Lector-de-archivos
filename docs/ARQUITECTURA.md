@@ -1,7 +1,9 @@
 # Funcode Code Analyzer — Arquitectura técnica
 
 **Funcode Studio CB** · Documento de arquitectura **v0.2** · Fecha: 2026-11-03
-**Estado: aprobada** (decisión N1 = A, 2026-11-03). Implementación en curso: Fase 1 terminada (ver `docs/fases/`).
+**Estado: aprobada** (decisión N1 = A, 2026-11-03). Implementación en curso: fases 1 y 2 terminadas (ver `docs/fases/`).
+Las decisiones tomadas durante la implementación y sus desviaciones respecto a este documento se registran en
+`docs/adr/` (en particular, ADR 0004 sobre la copia temporal del comprimido).
 
 ---
 
@@ -132,8 +134,8 @@
 ### 2.3 Flujo de un análisis
 
 1. **Selección.** El usuario elige el archivo con el selector del sistema, lo abre desde otra app ("Abrir con…/Compartir") o lo arrastra (tablets, multiventana, Samsung DeX).
-2. **Importación.** El coordinador copia el archivo a la caché privada de la app **cifrándolo con una clave efímera que solo existe en memoria**, contando bytes (corta al superar el límite), comprueba la firma real del archivo (ZIP `PK\x03\x04`/`PK\x05\x06`; RAR4 `Rar!\x1A\x07\x00`; RAR5 `Rar!\x1A\x07\x01\x00`) sin fiarse de la extensión y calcula su SHA-256.
-3. **Lanzamiento.** Se inicia un servicio en primer plano (con notificación de progreso, para que Android no lo detenga) que enlaza el servicio aislado y le entrega: descriptor de solo lectura de la copia, clave efímera, configuración y el extremo de escritura de una tubería para los resultados.
+2. **Importación.** El coordinador copia el archivo al almacenamiento privado sin copia de seguridad de la app (protegido por el cifrado basado en archivos de Android; ver ADR 0004), contando bytes (corta al superar el límite), comprueba la firma real del archivo (ZIP `PK\x03\x04`/`PK\x05\x06`; RAR4 `Rar!\x1A\x07\x00`; RAR5 `Rar!\x1A\x07\x01\x00`) sin fiarse de la extensión y calcula su SHA-256.
+3. **Lanzamiento.** Se inicia un servicio en primer plano (con notificación de progreso, para que Android no lo detenga) que enlaza el servicio aislado y le entrega: descriptor de solo lectura de la copia, configuración, contraseña del comprimido si la hay (como `char[]`, fuera de la configuración) y el extremo de escritura de una tubería para los resultados.
 4. **Pipeline** dentro del proceso aislado (cada etapa informa progreso y registra cobertura):
 
    | # | Etapa | Resultado |
@@ -152,7 +154,7 @@
    | E12 | Contenido para el visor | texto **ya redactado** + resaltado de sintaxis precalculado |
 
 5. **Resultados.** El motor envía registros por la tubería a medida que los produce; el progreso llega por un *callback* Binder. El proceso principal **valida cada registro** (esquema, tamaños, rutas) y lo guarda cifrado.
-6. **Limpieza.** Se borra la copia temporal y se destruye la clave efímera (borrado criptográfico, §9.2). El sistema destruye el proceso aislado al desenlazarlo.
+6. **Limpieza.** Se borra la copia temporal (§9.2 y ADR 0004) y se borra de memoria la contraseña del comprimido. El sistema destruye el proceso aislado al desenlazarlo.
 7. **Informes.** Se generan bajo demanda en el proceso principal a partir del resultado almacenado.
 
 ---
@@ -308,14 +310,14 @@ curso llega a la UI como un `Flow` del coordinador.
 
 ### 5.2 Proceso principal ↔ proceso aislado (AIDL)
 
-Boceto:
+Contrato implementado (Fase 2):
 
 ```
 interface IAnalyzer {
-    void start(in ParcelFileDescriptor archive,     // copia cifrada, solo lectura
-               in byte[] ephemeralKey,              // clave efímera de la copia
-               in byte[] config,                    // configuración serializada
-               in ParcelFileDescriptor resultsPipe, // extremo de escritura de la tubería
+    void start(in byte[] config,                    // configuración serializada (sin secretos)
+               in ParcelFileDescriptor archive,     // copia del comprimido, solo lectura
+               in char[] password,                  // contraseña del comprimido o null; se borra tras usarla
+               in ParcelFileDescriptor results,     // extremo de escritura de la tubería
                IAnalysisCallback callback);         // progreso y finalización
     void cancel();
 }
@@ -490,8 +492,8 @@ cuando sea viable) · referencias · regla que lo produjo y su versión.
 | Aislamiento del análisis | `android:isolatedProcess="true"`: el sistema le asigna un UID aleatorio y un dominio SELinux restringido, **sin permisos, sin red y sin acceso al almacenamiento de la app**. Solo usa los descriptores que recibe. |
 | Límites de memoria y tiempo | Presupuestos internos de memoria (tamaño máximo por entrada leída, cachés acotadas, un árbol sintáctico a la vez por hilo); tiempo máximo por archivo y total; vigilante en el proceso principal que desenlaza el servicio si se excede (el sistema destruye entonces el proceso aislado). Un fallo por memoria en el proceso aislado no afecta a la app. |
 | Prohibición de ejecutar archivos extraídos | Nada se escribe a disco. Además, Android (API 29+) prohíbe ejecutar binarios desde los directorios de datos de la app. El motor nunca usa `DexClassLoader`, `System.load` ni WebView con contenido del proyecto. |
-| Protección de archivos temporales | El único temporal es la copia del comprimido, en el directorio privado `noBackupFilesDir`, **cifrada con una clave efímera** que solo existe en memoria. |
-| Eliminación segura | **Borrado criptográfico**: al terminar se borra la copia y se destruye la clave efímera; aunque la memoria flash conserve restos físicos, son ilegibles. Limpieza de huérfanos al iniciar la app. |
+| Protección de archivos temporales | El único temporal es la copia del comprimido, en el directorio privado `noBackupFilesDir`, protegido por el cifrado basado en archivos de Android (clave por archivo). |
+| Eliminación segura | La copia se borra al terminar o al descartar; limpieza de huérfanos al iniciar la app. Con el cifrado por archivo de Android 10+, los restos físicos que pudieran quedar en la memoria flash están cifrados con las claves del dispositivo. En Android 8–9 con cifrado de disco completo pueden quedar restos físicos hasta que se sobrescriban (ADR 0004: el cifrado con clave efímera no es compatible con UnRAR). |
 | Cifrado de información almacenada | BD completa con SQLCipher; su clave está envuelta por una clave del Android Keystore (en hardware, StrongBox si existe) que **solo puede usarse tras autenticarte**. |
 | Solo el propietario accede | Configuración inicial con contraseña propia (Argon2id) y biometría fuerte; bloqueo al pasar a segundo plano y por inactividad; espera creciente tras intentos fallidos y borrado opcional de datos tras N fallos; `FLAG_SECURE` (sin capturas ni miniaturas en recientes). |
 | No enviar código a servicios externos | El proceso aislado no puede usar la red. La app solo descarga datos públicos (OSV, fin de soporte). Sin analítica ni SDKs de informes de errores de terceros. Copias de seguridad desactivadas (`allowBackup=false` y reglas de extracción de datos). Exportar o compartir un informe solo ocurre por acción explícita, con aviso. |

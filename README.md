@@ -11,12 +11,13 @@ auditoría de seguridad, exportable en PDF, HTML y JSON.
 
 | Fase | Estado |
 |------|--------|
-| 1. Arquitectura y configuración inicial | ✅ Terminada, pendiente de aprobación ([informe](docs/fases/FASE-1.md)) |
-| 2. Carga y extracción ZIP/RAR | Pendiente |
+| 1. Arquitectura y configuración inicial | ✅ Terminada y aprobada ([informe](docs/fases/FASE-1.md)) |
+| 2. Carga y extracción ZIP/RAR | ✅ Terminada, pendiente de aprobación ([informe](docs/fases/FASE-2.md)) |
 | 3–10 | Pendientes |
 
 - Arquitectura: [`docs/ARQUITECTURA.md`](docs/ARQUITECTURA.md)
 - Decisiones técnicas: [`docs/adr/`](docs/adr/)
+- Licencias de terceros: [`docs/LICENCIAS-TERCEROS.md`](docs/LICENCIAS-TERCEROS.md)
 
 ## Estructura
 
@@ -26,17 +27,28 @@ analyzer-service/   servicio de análisis en proceso aislado + cliente con vigil
 data/               bóveda de acceso (Argon2id, Keystore, biometría) y BD cifrada (SQLCipher + Room)
 engine/api/         protocolo de resultados entre procesos y validación
 engine/core/        orquestador del pipeline de análisis
+engine/ingest/      identificación, comprobación y lectura de ZIP y RAR sin extraer a disco
+engine/cli/         herramienta de línea de comandos para probar el motor en el PC (no forma parte de la app)
+native/unrar/       UnRAR oficial (modificado, ver ADR 0004) compilado con el NDK, y su puente JNI
 ```
 
 ## Compilar y probar
 
-Requisitos: JDK 21 y Android SDK (plataforma 37, build-tools 37). Indica la ruta del SDK en `local.properties`
-(`sdk.dir=…`) o con `ANDROID_HOME`.
+Requisitos: JDK 21, Android SDK (plataforma 37, build-tools 37), NDK 29.0.14206865 y CMake 3.31.0 (los dos últimos
+desde el SDK Manager), y un compilador de C++ del sistema para las pruebas de RAR en el PC. Indica la ruta del SDK en
+`local.properties` (`sdk.dir=…`) o con `ANDROID_HOME`.
 
 ```bash
 ./gradlew test lint                 # pruebas JVM (motor, bóveda, interfaz con Robolectric) y Lint
 ./gradlew assembleDebug             # APK de prueba: app/build/outputs/apk/debug/app-debug.apk
-./gradlew connectedDebugAndroidTest # pruebas en dispositivo o emulador (aislamiento, cifrado, recorrido completo)
+./gradlew connectedDebugAndroidTest # pruebas en dispositivo o emulador (aislamiento, cifrado, análisis reales)
+```
+
+Para probar el motor de ingesta en el PC (sin aislamiento: úsalo solo con archivos de confianza):
+
+```bash
+./gradlew :engine:cli:run --args="/ruta/proyecto.zip"                      # un registro por línea
+./gradlew :engine:cli:run --args="/ruta/proyecto.rar --password X --json"  # los mismos registros en JSON
 ```
 
 El APK de prueba de cada ejecución del CI se puede descargar en GitHub → *Actions* → ejecución → artefacto

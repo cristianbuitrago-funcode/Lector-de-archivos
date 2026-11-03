@@ -50,6 +50,15 @@ data class VaultFile(
 
 class VaultCorruptedException(message: String, cause: Throwable? = null) : Exception(message, cause)
 
+/** Motivo de un borrado total. */
+enum class WipeReason {
+    /** Lo pidió el propietario. */
+    MANUAL,
+
+    /** Se superó el máximo de contraseñas incorrectas con el borrado automático activado. */
+    FAILED_ATTEMPTS,
+}
+
 /** Lectura y escritura atómica del archivo de la bóveda. */
 class VaultStorage(private val file: File) {
 
@@ -148,8 +157,8 @@ class Vault(
     private val kdfProfile: KdfProfile = KdfProfile.DEFAULT,
     private val clock: () -> Long = System::currentTimeMillis,
     private val random: SecureRandom = SecureRandom(),
-    /** Borra el resto de datos de la app (BD, temporales). Se invoca en cada borrado. */
-    private val onWipe: () -> Unit = {},
+    /** Borra el resto de datos de la app (BD, temporales). Se invoca en cada borrado con su motivo. */
+    private val onWipe: (WipeReason) -> Unit = {},
 ) {
     private val lock = Any()
 
@@ -262,11 +271,11 @@ class Vault(
     }
 
     /** Borra la bóveda, las claves del Keystore y (mediante [onWipe]) el resto de datos de la app. */
-    fun wipe() = synchronized(lock) {
+    fun wipe(reason: WipeReason = WipeReason.MANUAL) = synchronized(lock) {
         storage.delete()
         runCatching { device.destroy() }
         runCatching { biometric?.deleteKey() }
-        onWipe()
+        onWipe(reason)
     }
 
     private inline fun readOrResult(onError: (UnlockResult) -> Nothing): VaultFile =
@@ -279,7 +288,7 @@ class Vault(
     private fun registerFailure(file: VaultFile, now: Long): UnlockResult {
         val failures = file.failedAttempts + 1
         if (file.settings.wipeAfterFailedAttempts && failures >= MAX_FAILED_BEFORE_WIPE) {
-            wipe()
+            wipe(WipeReason.FAILED_ATTEMPTS)
             return UnlockResult.Wiped
         }
         val until = lockoutDelayMillis(failures).let { if (it > 0) now + it else 0L }

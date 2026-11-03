@@ -27,6 +27,15 @@ class SessionManager(
     private val _state = MutableStateFlow(initialState())
     val state: StateFlow<SessionState> = _state.asStateFlow()
 
+    private val _unlockCount = MutableStateFlow(0L)
+
+    /**
+     * Aumenta con cada desbloqueo. Sirve para reaccionar a *cada* desbloqueo: si la sesión se bloquea y se
+     * desbloquea muy deprisa, un observador lento de [state] puede no ver el cambio (pasa de "desbloqueada" a
+     * "desbloqueada"), pero este contador siempre cambia.
+     */
+    val unlockCount: StateFlow<Long> = _unlockCount.asStateFlow()
+
     private fun initialState(): SessionState = if (isConfigured()) SessionState.Locked else SessionState.NotConfigured
 
     /** Abre la sesión con la clave de la BD. La clave se borra de memoria. */
@@ -39,6 +48,7 @@ class SessionManager(
                 databaseKey.fill(0)
             }
             _state.value = SessionState.Unlocked
+            _unlockCount.value = _unlockCount.value + 1
         }
     }
 

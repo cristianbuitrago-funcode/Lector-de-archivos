@@ -17,6 +17,7 @@ import com.funcodestudiocb.analyzer.engine.api.ResultRecord
 import com.funcodestudiocb.analyzer.engine.api.SessionEnd
 import com.funcodestudiocb.analyzer.engine.api.SessionStart
 import com.funcodestudiocb.analyzer.engine.api.StageEvent
+import com.funcodestudiocb.analyzer.engine.core.Attributes
 import com.funcodestudiocb.analyzer.engine.core.PipelineRunner
 import com.funcodestudiocb.analyzer.engine.core.ProgressListener
 import com.funcodestudiocb.analyzer.engine.core.ProgressUpdate
@@ -25,6 +26,10 @@ import com.funcodestudiocb.analyzer.engine.core.SimulatedHangStage
 import com.funcodestudiocb.analyzer.engine.core.Stage
 import com.funcodestudiocb.analyzer.engine.core.StageRegistry
 import com.funcodestudiocb.analyzer.engine.core.SyntheticRecordsStage
+import com.funcodestudiocb.analyzer.engine.ingest.ArchiveSource
+import com.funcodestudiocb.analyzer.engine.ingest.IngestKeys
+import com.funcodestudiocb.analyzer.engine.ingest.IngestPipeline
+import com.funcodestudiocb.analyzer.engine.ingest.PasswordHolder
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
@@ -41,6 +46,7 @@ import java.util.concurrent.atomic.AtomicReference
  *
  * Solo acepta llamadas de la propia app, valida de nuevo la configuración recibida, ejecuta un análisis
  * a la vez y escribe los resultados como tramas en la tubería que le entrega el proceso principal.
+ * El comprimido llega como descriptor de solo lectura: el proceso aislado no puede abrir ningún archivo.
  */
 class AnalyzerService : Service() {
 
@@ -51,18 +57,33 @@ class AnalyzerService : Service() {
 
         override fun protocolVersion(): Int = PROTOCOL_VERSION
 
-        override fun start(config: ByteArray, results: ParcelFileDescriptor, callback: IAnalysisCallback) {
-            enforceCaller()
+        override fun start(
+            config: ByteArray,
+            archive: ParcelFileDescriptor?,
+            password: CharArray?,
+            results: ParcelFileDescriptor,
+            callback: IAnalysisCallback,
+        ) {
+            // La contraseña pasa a un contenedor propio y la copia de Binder se borra de inmediato.
+            val secret = PasswordHolder(password?.copyOf())
+            password?.fill('\u0000')
             val output = ParcelFileDescriptor.AutoCloseOutputStream(results)
             val parsed = try {
-                parseConfig(config)
-            } catch (e: IllegalArgumentException) {
+                enforceCaller()
+                parseConfig(config).also {
+                    require(it.mode != AnalysisMode.FULL || archive != null) { "Falta el comprimido a analizar" }
+                }
+            } catch (e: RuntimeException) {
+                secret.close()
+                archive?.close()
                 output.close()
                 throw e
             }
-            val job = scope.launch(start = CoroutineStart.LAZY) { runAnalysis(parsed, output, callback) }
+            val job = scope.launch(start = CoroutineStart.LAZY) { runAnalysis(parsed, archive, secret, output, callback) }
             if (!running.compareAndSet(null, job)) {
                 job.cancel()
+                secret.close()
+                archive?.close()
                 output.close()
                 throw IllegalStateException("Ya hay un análisis en curso")
             }
@@ -108,19 +129,31 @@ class AnalyzerService : Service() {
 
     private suspend fun runAnalysis(
         config: AnalysisConfig,
+        archive: ParcelFileDescriptor?,
+        password: PasswordHolder,
         output: ParcelFileDescriptor.AutoCloseOutputStream,
         callback: IAnalysisCallback,
     ) {
         val writer = FrameWriter(output)
         val progress = ThrottledProgress(callback) { running.get()?.cancel() }
+        val attributes = Attributes()
+        attributes.closeLater(password)
         try {
-            val result = PipelineRunner(ENGINE_VERSION).run(config, stagesFor(config), FlushingSink(writer), listener = progress)
+            if (archive != null) {
+                attributes.closeLater(archive)
+                // Copia del descriptor para el lector ZIP (su canal la cierra); UnRAR duplica el original.
+                val stream = attributes.closeLater(ParcelFileDescriptor.AutoCloseInputStream(archive.dup()))
+                attributes[IngestKeys.SOURCE] = ArchiveSource(stream.channel, "funcode-fd:${archive.fd}")
+                attributes[IngestKeys.PASSWORD] = password
+            }
+            val result = PipelineRunner(ENGINE_VERSION).run(config, stagesFor(config), FlushingSink(writer), attributes, progress)
             writer.flush()
             progress.finished(result.outcome.ordinal, null)
         } catch (e: IOException) {
             // El proceso principal cerró la tubería: ya no hay nadie a quien informar.
             progress.finished(-1, "Canal de resultados cerrado")
         } finally {
+            attributes.closeAll()
             runCatching { writer.close() }
         }
     }
@@ -133,8 +166,7 @@ class AnalyzerService : Service() {
             if ((config.diagnostic?.simulateHangMillis ?: 0) > 0) registry.register(SimulatedHangStage())
             registry.plan()
         }
-        // El ConfigValidator rechaza este modo hasta la Fase 2.
-        AnalysisMode.FULL -> emptyList()
+        AnalysisMode.FULL -> IngestPipeline.stages()
     }
 
     /**
@@ -198,8 +230,8 @@ class AnalyzerService : Service() {
     }
 
     companion object {
-        const val PROTOCOL_VERSION = 1
-        const val ENGINE_VERSION = "0.1.0"
+        const val PROTOCOL_VERSION = 2
+        const val ENGINE_VERSION = "0.2.0"
         private const val MAX_CONFIG_BYTES = 64 * 1024
     }
 }

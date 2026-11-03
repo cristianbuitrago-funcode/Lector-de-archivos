@@ -88,12 +88,18 @@ fun passwordIssueText(issue: PasswordIssue): String = stringResource(
 )
 
 @Composable
-fun SetupScreen(viewModel: SetupViewModel) {
+fun SetupScreen(viewModel: SetupViewModel, wipeNotice: Boolean = false, onDismissNotice: () -> Unit = {}) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val activity = LocalActivity.current as? FragmentActivity
     val scope = rememberCoroutineScope()
 
     AccessLayout {
+        if (wipeNotice) {
+            FuncodePanel(accent = MaterialTheme.colorScheme.error) {
+                Text(stringResource(R.string.wipe_notice), modifier = Modifier.testTag("wipe_notice"))
+                TextButton(onClick = onDismissNotice) { Text(stringResource(R.string.action_understood)) }
+            }
+        }
         Text(stringResource(R.string.setup_title), style = MaterialTheme.typography.headlineSmall)
         Text(stringResource(R.string.setup_intro), color = MaterialTheme.colorScheme.onSurfaceVariant)
 

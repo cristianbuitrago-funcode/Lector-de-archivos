@@ -166,6 +166,12 @@ fun SettingsScreen(viewModel: SettingsViewModel, onOpenDiagnostics: () -> Unit) 
                 SectionTitle(stringResource(R.string.settings_section_about))
                 Text(stringResource(R.string.settings_version, BuildConfig.VERSION_NAME))
                 Text(stringResource(R.string.settings_about_text), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                var showLicenses by remember { mutableStateOf(false) }
+                SettingRow(title = stringResource(R.string.settings_third_party), onClick = { showLicenses = !showLicenses })
+                if (showLicenses) {
+                    Text(stringResource(R.string.settings_third_party_text), style = MaterialTheme.typography.bodySmall)
+                    Text(stringResource(R.string.settings_unrar_license), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
             }
         }
         SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter))

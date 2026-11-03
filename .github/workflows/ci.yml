@@ -60,8 +60,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # 26 = versión mínima admitida (detección del proceso aislado por UID); 35 = versión reciente.
-        api-level: [26, 35]
+        # 26 = versión mínima admitida (detección del proceso aislado por UID); 35 y 36 = versiones recientes.
+        api-level: [26, 35, 36]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 

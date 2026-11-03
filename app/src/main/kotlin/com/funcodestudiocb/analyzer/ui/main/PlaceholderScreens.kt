@@ -78,6 +78,8 @@ fun DashboardScreen(container: AppContainer) {
     val db = container.session.databaseOrNull()
     val diagnosticsFlow = remember(db) { db?.runs()?.countByMode("DIAGNOSTIC") ?: flowOf(0) }
     val diagnostics by diagnosticsFlow.collectAsStateWithLifecycle(initialValue = 0)
+    val analysesFlow = remember(db) { container.repository.count() }
+    val analyses by analysesFlow.collectAsStateWithLifecycle(initialValue = 0)
     val biometric = remember { container.vault.isBiometricEnabled() }
 
     Column(
@@ -91,6 +93,7 @@ fun DashboardScreen(container: AppContainer) {
         FuncodePanel(accent = FuncodeColors.Electric) {
             Text(stringResource(R.string.status_title), style = MaterialTheme.typography.titleMedium)
             StatusLine(stringResource(R.string.status_phase), FuncodeColors.Gold, ok = null)
+            StatusLine(stringResource(R.string.status_analyses, analyses), FuncodeColors.ElectricSoft, ok = null)
             StatusLine(stringResource(R.string.status_access), FuncodeColors.Success, ok = true)
             StatusLine(stringResource(R.string.status_database), FuncodeColors.Success, ok = true)
             StatusLine(

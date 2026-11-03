@@ -91,8 +91,8 @@ class RawZip {
 
     val entries = mutableListOf<Entry>()
 
-    fun stored(name: String, content: ByteArray, declaredSize: Long = content.size.toLong(), unixMode: Int? = null, localName: String? = null) = apply {
-        entries += Entry(name.toByteArray(), content, 0, crc(content), declaredSize, unixMode, localName?.toByteArray())
+    fun stored(name: String, content: ByteArray, declaredSize: Long = content.size.toLong(), unixMode: Int? = null, localName: String? = null, method: Int = 0) = apply {
+        entries += Entry(name.toByteArray(), content, method, crc(content), declaredSize, unixMode, localName?.toByteArray())
     }
 
     fun deflated(name: String, content: ByteArray, declaredSize: Long = content.size.toLong()) = apply {

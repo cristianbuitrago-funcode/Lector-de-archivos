@@ -185,6 +185,20 @@ class ZipIngestTest {
     }
 
     @Test
+    fun `metodos de compresion no admitidos (zstd, xz) no abortan el analisis`() {
+        val bytes = RawZip()
+            .stored("zstd.bin", ByteArray(50) { 7 }, method = 93)
+            .stored("xz.bin", ByteArray(50) { 7 }, method = 95)
+            .stored("ok.txt", "ok".toByteArray())
+            .build()
+        val run = runIngest(write("metodos.zip", bytes))
+        assertEquals(SessionOutcome.COMPLETED, run.outcome)
+        assertEquals(FileStatus.UNSUPPORTED_METHOD, run.files().getValue("zstd.bin").status)
+        assertEquals(FileStatus.UNSUPPORTED_METHOD, run.files().getValue("xz.bin").status)
+        assertEquals(FileStatus.ANALYZED, run.files().getValue("ok.txt").status)
+    }
+
+    @Test
     fun `cabecera local distinta del directorio central`() {
         val bytes = RawZip().stored("inocente.txt", "x".toByteArray(), localName = "malvado.sh").build()
         val run = runIngest(write("cabecera.zip", bytes))

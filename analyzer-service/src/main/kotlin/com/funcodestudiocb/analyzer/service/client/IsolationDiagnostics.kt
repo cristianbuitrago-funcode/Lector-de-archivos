@@ -69,7 +69,7 @@ class IsolationDiagnostics(
                     simulateHangMillis = simulateHangMillis,
                 ),
             )
-            val run = client.run(config, onProgress)
+            val run = client.run(config, onProgress = onProgress)
             return evaluate(run, sampleRecords)
         } finally {
             withContext(Dispatchers.IO) { canary.delete() }

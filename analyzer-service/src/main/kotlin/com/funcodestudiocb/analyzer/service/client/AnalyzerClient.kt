@@ -75,10 +75,33 @@ class AnalyzerClient(
 ) {
     private val appContext = context.applicationContext
 
+    /**
+     * @param archive comprimido de solo lectura (se cierra al terminar); `null` en el modo diagnóstico.
+     * @param password contraseña del comprimido; se envía al proceso aislado y quien llama debe borrarla después.
+     */
     suspend fun run(
         config: AnalysisConfig,
+        archive: ParcelFileDescriptor? = null,
+        password: CharArray? = null,
         onProgress: (ProgressUpdate) -> Unit = {},
+        /** Si es `false`, los registros solo llegan por [onRecord] (evita duplicarlos en memoria). */
+        bufferRecords: Boolean = true,
         onRecord: (ResultRecord) -> Unit = {},
+    ): AnalyzerRun = withContext(Dispatchers.IO) {
+        try {
+            runConnected(config, archive, password, onProgress, if (bufferRecords) MAX_BUFFERED else 0, onRecord)
+        } finally {
+            runCatching { archive?.close() }
+        }
+    }
+
+    private suspend fun runConnected(
+        config: AnalysisConfig,
+        archive: ParcelFileDescriptor?,
+        password: CharArray?,
+        onProgress: (ProgressUpdate) -> Unit,
+        maxBuffered: Int,
+        onRecord: (ResultRecord) -> Unit,
     ): AnalyzerRun = withContext(Dispatchers.IO) {
         val configBytes = ProtocolJson.encodeToString(AnalysisConfig.serializer(), config).toByteArray()
         val connection = AnalyzerConnection(appContext)
@@ -99,7 +122,7 @@ class AnalyzerClient(
             }
             val (readEnd, writeEnd) = ParcelFileDescriptor.createPipe()
             try {
-                analyzer.start(configBytes, writeEnd, ProgressBridge(onProgress))
+                analyzer.start(configBytes, archive, password, writeEnd, ProgressBridge(onProgress))
             } catch (e: RemoteException) {
                 readEnd.close()
                 return@withContext AnalyzerRun(RunStatus.REJECTED, null, connection.died.get(), "El servicio no respondió")
@@ -117,7 +140,7 @@ class AnalyzerClient(
             val readerScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
             val reading = readerScope.async {
                 ParcelFileDescriptor.AutoCloseInputStream(readEnd).use { input ->
-                    SessionReader(FrameReader(input, readLimits), onRecord = onRecord).readAll()
+                    SessionReader(FrameReader(input, readLimits), maxBuffered, onRecord).readAll()
                 }
             }
             val session = withTimeoutOrNull(config.limits.maxTotalMillis + watchdogGraceMillis) { reading.await() }
@@ -142,6 +165,10 @@ class AnalyzerClient(
         } finally {
             connection.disconnect()
         }
+    }
+
+    private companion object {
+        const val MAX_BUFFERED = 100_000
     }
 
     private fun statusOf(session: SessionReadResult): RunStatus = when {

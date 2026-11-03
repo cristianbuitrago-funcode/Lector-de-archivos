@@ -7,6 +7,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -41,8 +44,17 @@ fun FuncodeRoot(container: AppContainer) {
         val widthDp = maxWidth.value.toInt()
         Crossfade(targetState = session, label = "sesion") { state ->
             when (state) {
-                SessionState.NotConfigured ->
-                    SetupScreen(containerViewModel("setup") { SetupViewModel(container.vault, container.session) })
+                SessionState.NotConfigured -> {
+                    var wipeNotice by remember { mutableStateOf(container.hasWipeNotice()) }
+                    SetupScreen(
+                        containerViewModel("setup") { SetupViewModel(container.vault, container.session) },
+                        wipeNotice = wipeNotice,
+                        onDismissNotice = {
+                            container.dismissWipeNotice()
+                            wipeNotice = false
+                        },
+                    )
+                }
                 SessionState.Locked ->
                     UnlockScreen(containerViewModel("unlock") { UnlockViewModel(container.vault, container.session) })
                 SessionState.Unlocked -> MainScaffold(container, widthDp)

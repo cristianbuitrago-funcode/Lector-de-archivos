@@ -68,6 +68,9 @@ class ZipArchiveSession private constructor(
                 ReadOutcome.Corrupt("Datos ilegibles (${e::class.java.simpleName})")
             } catch (e: RuntimeException) {
                 ReadOutcome.Corrupt("Datos ilegibles (${e::class.java.simpleName})")
+            } catch (e: LinkageError) {
+                // Defensa adicional: un método de compresión que requiera una clase no incluida.
+                ReadOutcome.Unsupported("Método de compresión ${zipEntry.method} no admitido")
             }
             onResult(entry, outcome)
         }
@@ -86,7 +89,8 @@ class ZipArchiveSession private constructor(
     private fun openStream(entry: ZipArchiveEntry, local: LocalHeader, password: CharArray?): InputStream? {
         val gpb = entry.generalPurposeBit
         if (!gpb.usesEncryption()) {
-            return if (zip.canReadEntryData(entry)) zip.getInputStream(entry) else null
+            // Lista blanca: los métodos que necesitan bibliotecas opcionales (zstd, xz…) no están incluidos.
+            return if (entry.method in READABLE_METHODS && zip.canReadEntryData(entry)) zip.getInputStream(entry) else null
         }
         if (gpb.usesStrongEncryption()) return null
         if (password == null) throw MissingPasswordException()
@@ -137,6 +141,9 @@ class ZipArchiveSession private constructor(
         private const val STORED = 0
         private const val DEFLATED = 8
         private const val AES_METHOD = 99
+
+        /** Almacenado, implode, shrink, deflate, deflate64 y bzip2: implementados en Commons Compress sin dependencias. */
+        private val READABLE_METHODS = setOf(0, 1, 6, 8, 9, 12)
         private const val LOCAL_HEADER_SIG = 0x04034b50
         private const val EOCD_SIG = 0x06054b50
         private const val ZIP64_LOCATOR_SIG = 0x07064b50

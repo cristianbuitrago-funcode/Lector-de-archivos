@@ -44,7 +44,9 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -59,6 +61,10 @@ import androidx.navigation.compose.rememberNavController
 import com.funcodestudiocb.analyzer.AppContainer
 import com.funcodestudiocb.analyzer.R
 import com.funcodestudiocb.analyzer.ui.components.BrandHeader
+import com.funcodestudiocb.analyzer.ui.analysis.AnalysisDetailScreen
+import com.funcodestudiocb.analyzer.ui.analysis.AnalysisDetailViewModel
+import com.funcodestudiocb.analyzer.ui.analysis.NewAnalysisScreen
+import com.funcodestudiocb.analyzer.ui.analysis.NewAnalysisViewModel
 import com.funcodestudiocb.analyzer.ui.diagnostics.DiagnosticsScreen
 import com.funcodestudiocb.analyzer.ui.diagnostics.DiagnosticsViewModel
 import com.funcodestudiocb.analyzer.ui.settings.SettingsScreen
@@ -84,6 +90,7 @@ enum class Destination(
 }
 
 const val ROUTE_DIAGNOSTICS = "ajustes/diagnostico"
+const val ROUTE_ANALYSIS_DETAIL = "analisis/{id}"
 
 private enum class NavLayout { Drawer, Rail, Permanent }
 
@@ -92,8 +99,21 @@ fun MainScaffold(container: AppContainer, widthDp: Int) {
     val navController = rememberNavController()
     val backStack by navController.currentBackStackEntryAsState()
     val currentRoute = backStack?.destination?.route ?: Destination.Dashboard.route
-    val current = Destination.entries.firstOrNull { it.route == currentRoute }
-        ?: if (currentRoute == ROUTE_DIAGNOSTICS) Destination.Settings else Destination.Dashboard
+    val current = Destination.entries.firstOrNull { it.route == currentRoute } ?: when (currentRoute) {
+        ROUTE_DIAGNOSTICS -> Destination.Settings
+        ROUTE_ANALYSIS_DETAIL -> Destination.NewAnalysis
+        else -> Destination.Dashboard
+    }
+    val titleOverride = if (currentRoute == ROUTE_ANALYSIS_DETAIL) R.string.analysis_detail_title else null
+
+    // Otra app abrió o compartió un comprimido con Funcode: se va a "Nuevo análisis".
+    val openRequested by container.coordinator.openRequested.collectAsStateWithLifecycle()
+    LaunchedEffect(openRequested) {
+        if (openRequested) {
+            navController.navigate(Destination.NewAnalysis.route) { launchSingleTop = true }
+            container.coordinator.consumeOpenRequest()
+        }
+    }
     val layout = when {
         widthDp >= 1000 -> NavLayout.Permanent
         widthDp >= 600 -> NavLayout.Rail
@@ -112,7 +132,7 @@ fun MainScaffold(container: AppContainer, widthDp: Int) {
     val content: @Composable (Modifier, (@Composable () -> Unit)?) -> Unit = { modifier, navigationIcon ->
         Scaffold(
             modifier = modifier,
-            topBar = { MainTopBar(current, navigationIcon, onLock) },
+            topBar = { MainTopBar(titleOverride ?: current.title, navigationIcon, onLock) },
             containerColor = MaterialTheme.colorScheme.background,
         ) { padding ->
             MainNavHost(navController, container, Modifier.padding(padding))
@@ -192,9 +212,9 @@ private fun DrawerItems(current: Destination, onSelect: (Destination) -> Unit) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun MainTopBar(current: Destination, navigationIcon: (@Composable () -> Unit)?, onLock: () -> Unit) {
+private fun MainTopBar(@StringRes title: Int, navigationIcon: (@Composable () -> Unit)?, onLock: () -> Unit) {
     TopAppBar(
-        title = { Text(stringResource(current.title), modifier = Modifier.testTag("screen_title")) },
+        title = { Text(stringResource(title), modifier = Modifier.testTag("screen_title")) },
         navigationIcon = { navigationIcon?.invoke() },
         actions = {
             IconButton(onClick = onLock, modifier = Modifier.testTag("lock_now")) {
@@ -222,9 +242,18 @@ private fun MainNavHost(navController: NavHostController, container: AppContaine
                         SettingsScreen(vm, onOpenDiagnostics = { navController.navigate(ROUTE_DIAGNOSTICS) })
                     }
                     Destination.Dashboard -> Box { DashboardScreen(container) }
+                    Destination.NewAnalysis -> {
+                        val vm = containerViewModel { NewAnalysisViewModel(container) }
+                        NewAnalysisScreen(vm, onOpenAnalysis = { id -> navController.navigate("analisis/$id") })
+                    }
                     else -> PlaceholderScreen(destination)
                 }
             }
+        }
+        composable(ROUTE_ANALYSIS_DETAIL) { entry ->
+            val id = entry.arguments?.getString("id").orEmpty()
+            val vm = containerViewModel(key = "detalle-$id") { AnalysisDetailViewModel(container, id) }
+            AnalysisDetailScreen(vm, onDeleted = { navController.popBackStack() })
         }
         composable(ROUTE_DIAGNOSTICS) {
             val vm = containerViewModel { DiagnosticsViewModel(container) }
