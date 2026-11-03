@@ -79,7 +79,7 @@ val ARCHIVE_MIME_TYPES = arrayOf(
 )
 
 @Composable
-fun NewAnalysisScreen(viewModel: NewAnalysisViewModel, onOpenAnalysis: (String) -> Unit) {
+fun NewAnalysisScreen(viewModel: NewAnalysisViewModel, onOpenAnalysis: (String) -> Unit, onOpenExplorer: (String) -> Unit = {}) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val exclusions by viewModel.exclusions.collectAsStateWithLifecycle()
     val recent by viewModel.recent.collectAsStateWithLifecycle(initialValue = emptyList())
@@ -133,7 +133,7 @@ fun NewAnalysisScreen(viewModel: NewAnalysisViewModel, onOpenAnalysis: (String) 
                 if (!s.saved) {
                     FuncodePanel(accent = FuncodeColors.Gold) { Text(stringResource(R.string.analysis_not_saved_yet)) }
                 }
-                ReportView(s.archiveName, s.report, s.outcome)
+                ReportView(s.archiveName, s.report, s.outcome, onOpenExplorer = if (s.saved) ({ onOpenExplorer(s.analysisId) }) else null)
                 Button(onClick = viewModel::reset, modifier = Modifier.testTag("analysis_new")) {
                     Icon(Icons.Filled.Refresh, contentDescription = null)
                     Spacer(Modifier.size(8.dp))
@@ -369,7 +369,7 @@ private fun RecentPanel(items: List<AnalysisEntity>, onOpen: (String) -> Unit) {
 
 /** Detalle de un análisis del historial. */
 @Composable
-fun AnalysisDetailScreen(viewModel: AnalysisDetailViewModel, onDeleted: () -> Unit) {
+fun AnalysisDetailScreen(viewModel: AnalysisDetailViewModel, onDeleted: () -> Unit, onOpenExplorer: (String) -> Unit = {}) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     var confirmDelete by remember { mutableStateOf(false) }
     Column(
@@ -386,7 +386,7 @@ fun AnalysisDetailScreen(viewModel: AnalysisDetailViewModel, onDeleted: () -> Un
             AnalysisDetailViewModel.DetailState.Deleted -> LaunchedEffect(Unit) { onDeleted() }
             is AnalysisDetailViewModel.DetailState.Loaded -> {
                 val outcome = runCatching { AnalysisOutcome.valueOf(s.entity.status) }.getOrDefault(AnalysisOutcome.FAILED)
-                ReportView(s.entity.archiveName, s.report, outcome)
+                ReportView(s.entity.archiveName, s.report, outcome, onOpenExplorer = { onOpenExplorer(s.entity.id) })
                 OutlinedButton(onClick = { confirmDelete = true }) { Text(stringResource(R.string.analysis_delete)) }
             }
         }

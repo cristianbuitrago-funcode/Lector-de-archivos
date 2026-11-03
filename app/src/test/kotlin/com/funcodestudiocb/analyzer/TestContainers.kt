@@ -13,14 +13,15 @@ import com.funcodestudiocb.analyzer.data.vault.KdfProfile
 import com.funcodestudiocb.analyzer.engine.api.AnalysisConfig
 import com.funcodestudiocb.analyzer.engine.api.FrameReader
 import com.funcodestudiocb.analyzer.engine.api.FrameWriter
+import com.funcodestudiocb.analyzer.engine.api.ResultRecord
 import com.funcodestudiocb.analyzer.engine.api.SessionReader
 import com.funcodestudiocb.analyzer.engine.core.Attributes
 import com.funcodestudiocb.analyzer.engine.core.PipelineRunner
 import com.funcodestudiocb.analyzer.engine.core.ProgressUpdate
 import com.funcodestudiocb.analyzer.engine.ingest.ArchiveSource
 import com.funcodestudiocb.analyzer.engine.ingest.IngestKeys
-import com.funcodestudiocb.analyzer.engine.ingest.IngestPipeline
 import com.funcodestudiocb.analyzer.engine.ingest.PasswordHolder
+import com.funcodestudiocb.analyzer.engine.inventory.FullPipeline
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.File
@@ -48,6 +49,7 @@ class InProcessAnalysisEngine : AnalysisEngine {
         archive: File,
         password: CharArray?,
         onProgress: (ProgressUpdate) -> Unit,
+        onRecord: (ResultRecord) -> Unit,
     ): EngineRun {
         val bytes = ByteArrayOutputStream()
         val writer = FrameWriter(bytes)
@@ -55,16 +57,16 @@ class InProcessAnalysisEngine : AnalysisEngine {
             val attributes = Attributes()
             attributes[IngestKeys.SOURCE] = ArchiveSource(stream.channel, archive.absolutePath)
             attributes[IngestKeys.PASSWORD] = PasswordHolder(password?.copyOf())
-            PipelineRunner("prueba").run(config, IngestPipeline.stages(), writer::write, attributes) { onProgress(it) }
+            PipelineRunner("prueba").run(config, FullPipeline.stages(), writer::write, attributes) { onProgress(it) }
         }
         writer.close()
-        val session = SessionReader(FrameReader(ByteArrayInputStream(bytes.toByteArray()))).readAll()
-        return EngineRun(session.records, session.end?.outcome, session.violation)
+        val session = SessionReader(FrameReader(ByteArrayInputStream(bytes.toByteArray())), maxBufferedRecords = 0, onRecord = onRecord).readAll()
+        return EngineRun(session.end?.outcome, session.violation)
     }
 }
 
 /** Contenedor de pruebas: Keystore simulado, Argon2 rápido, BD en memoria, motor en el mismo proceso. */
-fun testContainer(context: Context): AppContainer = AppContainer(
+fun testContainer(context: Context, engine: AnalysisEngine = InProcessAnalysisEngine()): AppContainer = AppContainer(
     appContext = context,
     deviceProtector = FakeDeviceProtector(),
     biometricKeys = null,
@@ -74,6 +76,6 @@ fun testContainer(context: Context): AppContainer = AppContainer(
         Room.inMemoryDatabaseBuilder(ctx, FuncodeDatabase::class.java).allowMainThreadQueries().build()
     },
     diagnosticsFactory = null,
-    engine = InProcessAnalysisEngine(),
+    engine = engine,
     foreground = ForegroundController.NONE,
 )

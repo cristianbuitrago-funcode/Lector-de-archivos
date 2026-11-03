@@ -22,6 +22,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 @RunWith(AndroidJUnit4::class)
@@ -141,6 +142,86 @@ class AnalysisCoordinatorTest {
         val finished = await(AnalysisState.Finished::class.java)
         assertEquals("gen", finished.report.excludedDirectories.single().path)
         assertEquals(custom, runBlocking { container.repository.loadExclusions() })
+    }
+
+    @Test
+    fun laCopiaDelCodigoSeGuardaSinSecretosYElTemporalSeBorra() {
+        val secret = "abcd1234efgh5678ijkl"
+        container.coordinator.select(
+            zip(
+                "app.zip",
+                mapOf(
+                    "demo/src/Config.kt" to "package demo\nval apiKey = \"$secret\"\n",
+                    "demo/src/Main.kt" to "fun main() {\n  println(1)\n}\n",
+                    "demo/package.json" to "{ \"main\": \"index.js\" }",
+                ),
+            ),
+        )
+        await(AnalysisState.Ready::class.java)
+        container.coordinator.start(ExclusionOptions())
+        val finished = await(AnalysisState.Finished::class.java)
+        awaitSaved()
+        val report = finished.report
+        assertNotNull(report.inventory)
+        assertTrue(report.profiles.isNotEmpty())
+        assertEquals("demo/src/Main.kt", report.entryPoints.single { it.kind == com.funcodestudiocb.analyzer.engine.api.EntryPointKind.MAIN_FUNCTION }.path)
+        assertNull(report.entryPoints.single { it.kind == com.funcodestudiocb.analyzer.engine.api.EntryPointKind.PACKAGE_MAIN }.path, "index.js no existe: no se inventa")
+        assertEquals(1, report.redactions.size)
+
+        val copy = runBlocking { container.repository.content(finished.analysisId, "demo/src/Config.kt") }
+        assertNotNull(copy)
+        assertFalse(copy.contains(secret), "La copia guardada no contiene el secreto")
+        assertTrue(copy.contains("abcd") && copy.contains("kl"))
+        assertEquals("fun main() {\n  println(1)\n}\n", runBlocking { container.repository.content(finished.analysisId, "demo/src/Main.kt") })
+        assertTrue(File(context.noBackupFilesDir, "copia-codigo").listFiles().isNullOrEmpty(), "El almacén temporal cifrado se borra al guardar")
+
+        // Al cargar el análisis guardado se recupera el inventario.
+        val loaded = runBlocking { container.repository.load(finished.analysisId) }
+        assertNotNull(loaded)
+        assertEquals(report.profiles.size, loaded.second.profiles.size)
+    }
+
+    @Test
+    fun sinCopiaDelCodigoSiSeDesactivaEnAjustes() {
+        runBlocking { container.repository.saveKeepCodeCopy(false) }
+        container.coordinator.select(zip("nc.zip", mapOf("src/Config.kt" to "val apiKey = \"abcd1234efgh5678ijkl\"\n")))
+        await(AnalysisState.Ready::class.java)
+        container.coordinator.start(ExclusionOptions())
+        val finished = await(AnalysisState.Finished::class.java)
+        awaitSaved()
+        assertNull(runBlocking { container.repository.content(finished.analysisId, "src/Config.kt") })
+        assertEquals(com.funcodestudiocb.analyzer.engine.api.ContentState.NOT_STORED_DISABLED, finished.report.profiles.single().content)
+        assertEquals(1, finished.report.redactions.size, "Los posibles secretos se siguen señalando")
+        assertFalse(finished.report.inventory!!.copyEnabled)
+    }
+
+    @Test
+    fun unMotorQueRepiteOExcedeFragmentosNoImpideGuardar() {
+        // Motor defectuoso: repite un fragmento y envía una copia aunque esté desactivada.
+        val faulty = object : com.funcodestudiocb.analyzer.analysis.AnalysisEngine {
+            override suspend fun analyze(
+                config: com.funcodestudiocb.analyzer.engine.api.AnalysisConfig,
+                archive: File,
+                password: CharArray?,
+                onProgress: (com.funcodestudiocb.analyzer.engine.core.ProgressUpdate) -> Unit,
+                onRecord: (com.funcodestudiocb.analyzer.engine.api.ResultRecord) -> Unit,
+            ): com.funcodestudiocb.analyzer.analysis.EngineRun {
+                val real = InProcessAnalysisEngine()
+                return real.analyze(config, archive, password, onProgress) { record ->
+                    onRecord(record)
+                    if (record is com.funcodestudiocb.analyzer.engine.api.ContentChunk) onRecord(record)
+                }
+            }
+        }
+        File(context.noBackupFilesDir, "vault").deleteRecursively()
+        container = testContainer(context, faulty)
+        container.session.unlock(container.vault.setup("Funcode-2026".toCharArray()))
+        container.coordinator.select(zip("dup.zip", mapOf("a.kt" to "fun main() {}\n")))
+        await(AnalysisState.Ready::class.java)
+        container.coordinator.start(ExclusionOptions())
+        val finished = await(AnalysisState.Finished::class.java)
+        awaitSaved()
+        assertEquals("fun main() {}\n", runBlocking { container.repository.content(finished.analysisId, "a.kt") }, "El fragmento repetido se ignora")
     }
 
     private companion object {

@@ -32,11 +32,18 @@ class ContentInspector(
     private val maxRatio: Int,
     private val budget: ByteBudget,
     private val isCancelled: () -> Boolean,
+    /** Si es mayor que 0, conserva en memoria el contenido completo de las entradas de hasta este tamaño. */
+    private val keepContentUpTo: Long = 0,
 ) : DataReceiver {
 
     private val digest = MessageDigest.getInstance("SHA-256")
     private val sample = ByteArray(SAMPLE_SIZE)
     private var sampleLength = 0
+    private var kept: GrowableBytes? = if (keepContentUpTo > 0) GrowableBytes() else null
+
+    /** `true` si se pidió conservar el contenido pero la entrada superaba el máximo. */
+    var contentTooLarge: Boolean = false
+        private set
 
     var bytes: Long = 0
         private set
@@ -58,8 +65,19 @@ class ContentInspector(
             System.arraycopy(buffer, 0, sample, sampleLength, n)
             sampleLength += n
         }
+        kept?.let {
+            if (bytes > keepContentUpTo) {
+                kept = null
+                contentTooLarge = true
+            } else {
+                it.append(buffer, length)
+            }
+        }
         return true
     }
+
+    /** Contenido completo conservado, o `null` si no se pidió o superaba el máximo. */
+    fun content(): ByteArray? = kept?.toByteArray()
 
     fun sha256(): String = digest.digest().joinToString("") { "%02x".format(it) }
 
@@ -68,6 +86,20 @@ class ContentInspector(
     companion object {
         const val SAMPLE_SIZE = 8 * 1024
     }
+}
+
+/** Búfer de bytes que crece según llegan los datos (sin copias intermedias de `ByteArrayOutputStream`). */
+internal class GrowableBytes {
+    private var data = ByteArray(16 * 1024)
+    private var size = 0
+
+    fun append(buffer: ByteArray, length: Int) {
+        if (size + length > data.size) data = data.copyOf(maxOf(data.size * 2, size + length))
+        System.arraycopy(buffer, 0, data, size, length)
+        size += length
+    }
+
+    fun toByteArray(): ByteArray = data.copyOf(size)
 }
 
 /** Clasificación heurística a partir de los primeros bytes: binario o texto y su codificación probable. */

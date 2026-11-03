@@ -4,6 +4,7 @@
 |------------|-----|----------|
 | UnRAR 7.3.2 (RARLAB, Alexander Roshal) | Lectura de RAR4 y RAR5 en el proceso aislado. **Modificado** (apertura por descriptor, ver ADR 0004). | Licencia de UnRAR (freeware; ver `native/unrar/LICENSE-UnRAR.txt`) |
 | Apache Commons Compress, Commons IO, Commons Lang | Lectura de ZIP | Apache 2.0 |
+| RE2/J (Google) | Expresiones regulares de tiempo lineal sobre el contenido del proyecto | BSD de 3 cláusulas (licencia de Go) |
 | SQLCipher for Android | Base de datos cifrada | BSD |
 | Bouncy Castle | Argon2id | MIT |
 | AndroidX, Jetpack Compose, Room, Kotlin, kotlinx | App y motor | Apache 2.0 |

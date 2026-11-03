@@ -143,6 +143,21 @@ fun SettingsScreen(viewModel: SettingsViewModel, onOpenDiagnostics: () -> Unit) 
             }
 
             FuncodePanel(accent = FuncodeColors.Electric) {
+                SectionTitle(stringResource(R.string.settings_section_analysis))
+                SettingRow(
+                    title = stringResource(R.string.settings_keep_copy),
+                    subtitle = stringResource(R.string.settings_keep_copy_desc),
+                    trailing = {
+                        Switch(
+                            checked = state.keepCodeCopy,
+                            onCheckedChange = viewModel::setKeepCodeCopy,
+                            modifier = Modifier.testTag("settings_keep_copy"),
+                        )
+                    },
+                )
+            }
+
+            FuncodePanel(accent = FuncodeColors.Electric) {
                 SectionTitle(stringResource(R.string.settings_section_isolation))
                 SettingRow(
                     title = stringResource(R.string.settings_diagnostics),

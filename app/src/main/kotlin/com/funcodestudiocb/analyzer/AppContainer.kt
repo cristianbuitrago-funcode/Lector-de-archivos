@@ -68,6 +68,7 @@ class AppContainer(
         engine = engine,
         repository = repository,
         session = session,
+        spoolDirectory = File(appContext.noBackupFilesDir, "copia-codigo"),
         foreground = foreground,
     )
 

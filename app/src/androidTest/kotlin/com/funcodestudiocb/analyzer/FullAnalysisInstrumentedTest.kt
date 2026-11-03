@@ -7,9 +7,12 @@ import com.funcodestudiocb.analyzer.analysis.AnalysisOutcome
 import com.funcodestudiocb.analyzer.analysis.AnalysisState
 import com.funcodestudiocb.analyzer.data.vault.UnlockResult
 import com.funcodestudiocb.analyzer.engine.api.ArchiveFormat
+import com.funcodestudiocb.analyzer.engine.api.EntryPointKind
 import com.funcodestudiocb.analyzer.engine.api.ExclusionOptions
+import com.funcodestudiocb.analyzer.engine.api.FileRole
 import com.funcodestudiocb.analyzer.engine.api.FileStatus
 import com.funcodestudiocb.analyzer.engine.api.IngestFindingKind
+import com.funcodestudiocb.analyzer.engine.api.SecretType
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
@@ -21,6 +24,7 @@ import java.io.File
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 import kotlin.test.fail
 
@@ -79,6 +83,7 @@ class FullAnalysisInstrumentedTest {
             mapOf(
                 "src/App.kt" to "fun main() = println(\"hola\")",
                 "src/copia/App.kt" to "fun main() = println(\"hola\")",
+                "src/Config.kt" to "val apiKey = \"abcd1234efgh5678ijkl\"\n",
                 "node_modules/react/index.js" to "x",
                 "../fuera.txt" to "malicioso",
             ).forEach { (name, text) ->
@@ -89,7 +94,7 @@ class FullAnalysisInstrumentedTest {
         }
         val finished = analyze(Uri.fromFile(file)) as? AnalysisState.Finished ?: fail("Estado inesperado: ${coordinator.state.value}")
         assertEquals(ArchiveFormat.ZIP, finished.report.archive?.format)
-        assertEquals(setOf("src/App.kt", "src/copia/App.kt"), finished.report.files.map { it.path }.toSet())
+        assertEquals(setOf("src/App.kt", "src/copia/App.kt", "src/Config.kt"), finished.report.files.map { it.path }.toSet())
         assertTrue(finished.report.files.all { it.status == FileStatus.ANALYZED })
         assertEquals(1, finished.report.duplicates.size)
         assertEquals("node_modules", finished.report.excludedDirectories.single().path)
@@ -97,6 +102,14 @@ class FullAnalysisInstrumentedTest {
         assertTrue(File(context.noBackupFilesDir, "import").listFiles().isNullOrEmpty(), "La copia temporal debe borrarse")
         runBlocking { withTimeoutOrNull(10_000) { coordinator.state.first { (it as? AnalysisState.Finished)?.saved == true } } }
             ?: fail("No se guardó en el historial")
+
+        // Inventario y copia redactada producidos en el proceso aislado (Fase 3).
+        assertTrue(finished.report.entryPoints.any { it.kind == EntryPointKind.MAIN_FUNCTION && it.path == "src/App.kt" })
+        assertTrue(finished.report.profiles.single { it.path == "src/App.kt" }.roles.any { it.role == FileRole.SOURCE })
+        assertEquals(SecretType.SECRET, finished.report.redactions.single().type)
+        val copy = runBlocking { container.repository.content(finished.analysisId, "src/Config.kt") } ?: fail("Sin copia del código")
+        assertFalse(copy.contains("abcd1234efgh5678ijkl"), "El secreto no sale del proceso aislado")
+        assertTrue(File(context.noBackupFilesDir, "copia-codigo").listFiles().isNullOrEmpty(), "El almacén temporal cifrado debe borrarse")
     }
 
     @Test

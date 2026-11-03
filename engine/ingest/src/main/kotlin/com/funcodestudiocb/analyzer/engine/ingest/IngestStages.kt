@@ -27,6 +27,7 @@ import com.funcodestudiocb.analyzer.engine.core.StageRegistry
 import com.funcodestudiocb.analyzer.engine.core.StageStoppedException
 import com.funcodestudiocb.analyzer.engine.ingest.rar.RarArchiveSession
 import com.funcodestudiocb.analyzer.engine.ingest.zip.ZipArchiveSession
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.currentCoroutineContext
 
@@ -68,15 +69,42 @@ object IngestKeys {
     val PLAN = AttributeKey<IngestPlan>("ingest.plan")
     val COUNTERS = AttributeKey<IngestCounters>("ingest.counters")
     val HASHES = AttributeKey<HashIndex>("ingest.hashes")
+
+    /** Todos los archivos del proyecto (no excluidos), tal como se emitieron. */
+    val FILES = AttributeKey<MutableList<FileEntry>>("ingest.files")
+}
+
+/**
+ * Un archivo recién leído. [path] es la ruta tal como aparece en los registros (ya escapada).
+ * [content] es su contenido completo si se pidió conservarlo y no superaba el máximo; si no, `null`.
+ */
+class ReadFile(
+    val path: String,
+    val kind: FileKind,
+    val encoding: String?,
+    val sizeBytes: Long,
+    val content: ByteArray?,
+    /** El contenido no se conservó por superar el máximo. */
+    val contentTooLarge: Boolean,
+)
+
+/**
+ * Recibe cada archivo leído correctamente, en el mismo recorrido del comprimido (los RAR sólidos solo pueden
+ * leerse una vez y en orden). Es el punto de extensión para analizar el contenido sin volver a descomprimir.
+ */
+fun interface FileContentConsumer {
+    fun accept(context: StageContext, file: ReadFile)
 }
 
 /** Etapas de la ingesta (E1–E3 de la arquitectura). */
 object IngestPipeline {
-    fun stages(): List<Stage> = StageRegistry()
+    fun stages(): List<Stage> = registry().plan()
+
+    /** Registro con las etapas de la ingesta, para añadirle las siguientes. */
+    fun registry(consumers: List<FileContentConsumer> = emptyList()): StageRegistry = StageRegistry()
         .register(OpenArchiveStage())
-        .register(ReadEntriesStage())
+        .register(ReadEntriesStage(consumers))
         .register(DuplicatesStage())
-        .plan()
 }
 
 private fun StageContext.finding(kind: IngestFindingKind, severity: Severity, path: String?, detail: String) {
@@ -243,8 +271,13 @@ class OpenArchiveStage : Stage {
     }
 }
 
-/** E2–E3: lee cada archivo incluido en memoria, calcula su huella, tipo y codificación y aplica los límites. */
-class ReadEntriesStage : Stage {
+/**
+ * E2–E3: lee cada archivo incluido en memoria, calcula su huella, tipo y codificación y aplica los límites.
+ * Si hay [consumers], les entrega cada archivo leído con su contenido (hasta `inventory.maxContentBytes`).
+ */
+class ReadEntriesStage(
+    private val consumers: List<FileContentConsumer> = emptyList(),
+) : Stage {
     override val id = "ingest.read"
     override val title = "Lectura de los archivos"
     override val dependsOn = setOf("ingest.open")
@@ -259,15 +292,19 @@ class ReadEntriesStage : Stage {
         val password = context.attributes[IngestKeys.PASSWORD]?.chars
         val job = currentCoroutineContext()[Job]
         val budget = ByteBudget(limits.maxTotalUncompressedBytes)
+        val keepContentUpTo = if (consumers.isEmpty()) 0 else context.config.inventory.maxContentBytes
         val inspectors = HashMap<Int, ContentInspector>()
         var processed = 0
         var encryptedUnread = 0
         var wrongPassword = 0
         var totalLimitReported = false
         val total = plan.included.size.coerceAtLeast(1)
+        val files = mutableListOf<FileEntry>().also { context.attributes[IngestKeys.FILES] = it }
 
         fun emitFile(entry: ArchiveEntry, path: String, status: FileStatus, size: Long = entry.declaredSize.coerceAtLeast(0), sha: String? = null, kind: FileKind = FileKind.UNKNOWN, encoding: String? = null) {
-            context.emit(FileEntry(EntryNames.escapeForDisplay(path), size, entry.compressedSize, sha, kind, encoding, status, entry.modifiedEpochMs))
+            val record = FileEntry(EntryNames.escapeForDisplay(path), size, entry.compressedSize, sha, kind, encoding, status, entry.modifiedEpochMs)
+            context.emit(record)
+            files += record
             if (status == FileStatus.ANALYZED) counters.analyzed++ else counters.notAnalyzed++
             processed++
             if (processed % 25 == 0) context.progress(processed.toFloat() / total, "Archivo $processed de ${plan.included.size}")
@@ -314,6 +351,7 @@ class ReadEntriesStage : Stage {
                         maxRatio = limits.maxEntryRatio,
                         budget = budget,
                         isCancelled = { job?.isActive == false },
+                        keepContentUpTo = keepContentUpTo,
                     ).also { inspectors[entry.index] = it }
                 }
             },
@@ -334,6 +372,22 @@ class ReadEntriesStage : Stage {
                     counters.analyzedBytes += inspector.bytes
                     if (inspector.bytes > 0) hashes.entries += Triple(escaped, sha, inspector.bytes)
                     emitFile(entry, path, FileStatus.ANALYZED, inspector.bytes, sha, kind, encoding)
+                    if (consumers.isNotEmpty()) {
+                        val file = ReadFile(escaped, kind, encoding, inspector.bytes, inspector.content(), inspector.contentTooLarge)
+                        consumers.forEach { consumer ->
+                            // Un fallo al examinar un archivo no detiene la lectura del resto; nunca se envía el mensaje
+                            // de la excepción (podría contener texto del proyecto).
+                            try {
+                                consumer.accept(context, file)
+                            } catch (e: CancellationException) {
+                                throw e
+                            } catch (e: Exception) {
+                                context.coverage(CoverageReason.NOT_ANALYZED, "No se pudo examinar su contenido (error interno: ${e.javaClass.simpleName})", escaped)
+                            } catch (e: StackOverflowError) {
+                                context.coverage(CoverageReason.NOT_ANALYZED, "No se pudo examinar su contenido (estructura demasiado profunda)", escaped)
+                            }
+                        }
+                    }
                 }
                 ReadOutcome.StoppedByReceiver -> when (inspector.stopReason) {
                     StopReason.COMPRESSION_BOMB -> {

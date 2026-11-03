@@ -67,6 +67,8 @@ import com.funcodestudiocb.analyzer.ui.analysis.NewAnalysisScreen
 import com.funcodestudiocb.analyzer.ui.analysis.NewAnalysisViewModel
 import com.funcodestudiocb.analyzer.ui.diagnostics.DiagnosticsScreen
 import com.funcodestudiocb.analyzer.ui.diagnostics.DiagnosticsViewModel
+import com.funcodestudiocb.analyzer.ui.explorer.ExplorerScreen
+import com.funcodestudiocb.analyzer.ui.explorer.ExplorerViewModel
 import com.funcodestudiocb.analyzer.ui.settings.SettingsScreen
 import com.funcodestudiocb.analyzer.ui.settings.SettingsViewModel
 import com.funcodestudiocb.analyzer.ui.containerViewModel
@@ -91,6 +93,7 @@ enum class Destination(
 
 const val ROUTE_DIAGNOSTICS = "ajustes/diagnostico"
 const val ROUTE_ANALYSIS_DETAIL = "analisis/{id}"
+const val ROUTE_EXPLORER_ANALYSIS = "explorador/{id}"
 
 private enum class NavLayout { Drawer, Rail, Permanent }
 
@@ -102,6 +105,7 @@ fun MainScaffold(container: AppContainer, widthDp: Int) {
     val current = Destination.entries.firstOrNull { it.route == currentRoute } ?: when (currentRoute) {
         ROUTE_DIAGNOSTICS -> Destination.Settings
         ROUTE_ANALYSIS_DETAIL -> Destination.NewAnalysis
+        ROUTE_EXPLORER_ANALYSIS -> Destination.Explorer
         else -> Destination.Dashboard
     }
     val titleOverride = if (currentRoute == ROUTE_ANALYSIS_DETAIL) R.string.analysis_detail_title else null
@@ -244,8 +248,13 @@ private fun MainNavHost(navController: NavHostController, container: AppContaine
                     Destination.Dashboard -> Box { DashboardScreen(container) }
                     Destination.NewAnalysis -> {
                         val vm = containerViewModel { NewAnalysisViewModel(container) }
-                        NewAnalysisScreen(vm, onOpenAnalysis = { id -> navController.navigate("analisis/$id") })
+                        NewAnalysisScreen(
+                            vm,
+                            onOpenAnalysis = { id -> navController.navigate("analisis/$id") },
+                            onOpenExplorer = { id -> navController.navigate("explorador/$id") },
+                        )
                     }
+                    Destination.Explorer -> ExplorerScreen(containerViewModel("explorador") { ExplorerViewModel(container, null) })
                     else -> PlaceholderScreen(destination)
                 }
             }
@@ -253,7 +262,11 @@ private fun MainNavHost(navController: NavHostController, container: AppContaine
         composable(ROUTE_ANALYSIS_DETAIL) { entry ->
             val id = entry.arguments?.getString("id").orEmpty()
             val vm = containerViewModel(key = "detalle-$id") { AnalysisDetailViewModel(container, id) }
-            AnalysisDetailScreen(vm, onDeleted = { navController.popBackStack() })
+            AnalysisDetailScreen(vm, onDeleted = { navController.popBackStack() }, onOpenExplorer = { navController.navigate("explorador/$it") })
+        }
+        composable(ROUTE_EXPLORER_ANALYSIS) { entry ->
+            val id = entry.arguments?.getString("id").orEmpty()
+            ExplorerScreen(containerViewModel(key = "explorador-$id") { ExplorerViewModel(container, id) })
         }
         composable(ROUTE_DIAGNOSTICS) {
             val vm = containerViewModel { DiagnosticsViewModel(container) }

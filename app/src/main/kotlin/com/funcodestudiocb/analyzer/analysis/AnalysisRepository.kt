@@ -2,8 +2,11 @@ package com.funcodestudiocb.analyzer.analysis
 
 import com.funcodestudiocb.analyzer.data.db.AnalysisEntity
 import com.funcodestudiocb.analyzer.data.db.AnalysisRecordEntity
+import com.funcodestudiocb.analyzer.data.db.FileContentEntity
 import com.funcodestudiocb.analyzer.data.db.SettingEntity
 import com.funcodestudiocb.analyzer.data.session.SessionManager
+import com.funcodestudiocb.analyzer.engine.api.CoverageNote
+import com.funcodestudiocb.analyzer.engine.api.CoverageReason
 import com.funcodestudiocb.analyzer.engine.api.ExclusionOptions
 import com.funcodestudiocb.analyzer.engine.api.FileStatus
 import com.funcodestudiocb.analyzer.engine.api.ProtocolJson
@@ -25,6 +28,8 @@ data class AnalysisToSave(
     val finishedAtEpochMs: Long,
     val records: List<ResultRecord>,
     val report: AnalysisReport,
+    /** Copia redactada del código (se vuelca a la BD al guardar). */
+    val spool: ContentSpool? = null,
 )
 
 /** Persistencia de los análisis y de los ajustes de análisis en la base de datos cifrada. */
@@ -39,6 +44,13 @@ class AnalysisRepository(private val session: SessionManager) {
 
     suspend fun saveExclusions(options: ExclusionOptions) {
         session.databaseOrNull()?.settings()?.put(SettingEntity(KEY_EXCLUSIONS, settingsJson.encodeToString(ExclusionOptions.serializer(), options)))
+    }
+
+    /** Guardar una copia del código con los secretos ocultados (decisión D4). Activado por defecto. */
+    suspend fun loadKeepCodeCopy(): Boolean = session.databaseOrNull()?.settings()?.get(KEY_KEEP_COPY)?.toBooleanStrictOrNull() ?: true
+
+    suspend fun saveKeepCodeCopy(keep: Boolean) {
+        session.databaseOrNull()?.settings()?.put(SettingEntity(KEY_KEEP_COPY, keep.toString()))
     }
 
     /** Guarda el análisis. Devuelve `false` si la sesión está bloqueada (se reintentará al desbloquear). */
@@ -62,12 +74,25 @@ class AnalysisRepository(private val session: SessionManager) {
             duplicateGroups = report.duplicates.size,
             message = report.engineProblem ?: report.rejection?.detail,
         )
-        val records = analysis.records.mapIndexed { i, r ->
+        fun entities(records: List<ResultRecord>) = records.mapIndexed { i, r ->
             val json = ProtocolJson.encodeToString(ResultRecord.serializer(), r)
             AnalysisRecordEntity(analysis.id, i, typeOf(json), json)
         }
-        db.analyses().insert(entity, records)
+        val contents = analysis.spool?.read()?.map { FileContentEntity(analysis.id, it.path, it.index, it.text) } ?: emptySequence()
+        try {
+            db.analyses().insert(entity, entities(analysis.records), contents)
+        } catch (e: SpoolUnreadableException) {
+            // La copia temporal no supera la verificación: se guarda el análisis sin ella y se dice por qué.
+            val note = CoverageNote("app", CoverageReason.NOT_ANALYZED, "La copia del código no se pudo recuperar y no se guardó")
+            db.analyses().insert(entity, entities(analysis.records + note), emptySequence())
+        }
         return true
+    }
+
+    /** Copia redactada de un archivo de un análisis guardado, o `null` si no la hay. */
+    suspend fun content(analysisId: String, path: String): String? {
+        val chunks = session.databaseOrNull()?.analyses()?.content(analysisId, path) ?: return null
+        return if (chunks.isEmpty()) null else chunks.joinToString("")
     }
 
     fun recent(limit: Int = 20): Flow<List<AnalysisEntity>> =
@@ -96,5 +121,6 @@ class AnalysisRepository(private val session: SessionManager) {
 
     private companion object {
         const val KEY_EXCLUSIONS = "analysis.exclusions"
+        const val KEY_KEEP_COPY = "analysis.keepCodeCopy"
     }
 }

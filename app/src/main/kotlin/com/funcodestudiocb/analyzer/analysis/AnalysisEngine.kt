@@ -10,9 +10,8 @@ import com.funcodestudiocb.analyzer.service.client.AnalyzerClient
 import com.funcodestudiocb.analyzer.service.client.RunStatus
 import java.io.File
 
-/** Resultado de una ejecución del motor visto por la app: registros ya validados y, si lo hubo, el problema. */
+/** Cómo terminó una ejecución del motor vista por la app. */
 data class EngineRun(
-    val records: List<ResultRecord>,
     val sessionOutcome: SessionOutcome?,
     /** Descripción del problema si el motor no terminó con normalidad (resultados parciales). */
     val problem: String?,
@@ -20,11 +19,16 @@ data class EngineRun(
 
 /** Ejecuta el motor. En la app, siempre en el proceso aislado; en las pruebas puede sustituirse. */
 interface AnalysisEngine {
+    /**
+     * Analiza [archive]. Cada registro ya validado llega por [onRecord] en orden y a medida que se produce
+     * (no se acumulan aquí: la copia del código puede ocupar decenas de MB).
+     */
     suspend fun analyze(
         config: AnalysisConfig,
         archive: File,
         password: CharArray?,
         onProgress: (ProgressUpdate) -> Unit,
+        onRecord: (ResultRecord) -> Unit,
     ): EngineRun
 }
 
@@ -37,10 +41,10 @@ class IsolatedAnalysisEngine(context: Context) : AnalysisEngine {
         archive: File,
         password: CharArray?,
         onProgress: (ProgressUpdate) -> Unit,
+        onRecord: (ResultRecord) -> Unit,
     ): EngineRun {
-        val records = ArrayList<ResultRecord>()
         val descriptor = ParcelFileDescriptor.open(archive, ParcelFileDescriptor.MODE_READ_ONLY)
-        val run = client.run(config, descriptor, password, onProgress, bufferRecords = false) { records += it }
+        val run = client.run(config, descriptor, password, onProgress, bufferRecords = false, onRecord = onRecord)
         val problem = when (run.status) {
             RunStatus.COMPLETED -> null
             RunStatus.INCOMPLETE -> "El proceso de análisis terminó de forma inesperada (posible falta de memoria). Los resultados son parciales."
@@ -49,6 +53,6 @@ class IsolatedAnalysisEngine(context: Context) : AnalysisEngine {
             RunStatus.BIND_FAILED -> "No se pudo iniciar el proceso de análisis aislado."
             RunStatus.REJECTED -> "El proceso de análisis rechazó la petición: ${run.message.orEmpty()}"
         }
-        return EngineRun(records, run.session?.end?.outcome, problem)
+        return EngineRun(run.session?.end?.outcome, problem)
     }
 }

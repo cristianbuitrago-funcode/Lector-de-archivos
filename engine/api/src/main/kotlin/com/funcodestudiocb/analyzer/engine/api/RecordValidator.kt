@@ -16,6 +16,16 @@ object RecordValidator {
     const val MAX_STAGES = 128
     const val MAX_PATH_LENGTH = 8_192
     const val MAX_DUPLICATE_PATHS = 1_000
+    const val MAX_EVIDENCE = 8
+    const val MAX_EVIDENCE_DETAIL = 500
+    const val MAX_TARGET_LENGTH = 512
+    const val MAX_CHUNK_CHARS = 32_768
+    const val MAX_CHUNKS_PER_FILE = 1_024
+    const val MAX_MASKED_LENGTH = 32
+
+    /** Caracteres visibles que puede mostrar un secreto enmascarado: 4 al principio y 2 al final (§8.4). */
+    const val MAX_VISIBLE_SECRET_CHARS = 6
+    const val MASK_CHAR = '\u2022'
 
     private val SHA256_PATTERN = Regex("^[0-9a-f]{64}$")
 
@@ -96,6 +106,43 @@ object RecordValidator {
                 if (record.sizeBytes < 0) errors += "Tamaño negativo"
                 record.paths.forEach { checkPath(errors, it) }
             }
+            is FileProfile -> {
+                checkPath(errors, record.path)
+                if (record.roles.size > FileRole.entries.size || record.roles.map { it.role }.toSet().size != record.roles.size) {
+                    errors += "Roles repetidos o excesivos"
+                }
+                record.roles.forEach { checkEvidence(errors, it.evidence) }
+                if ((record.lineCount ?: 0) < 0 || record.redactions < 0) errors += "Valores negativos en la ficha"
+                record.projectRoot?.let { checkDirectory(errors, it) }
+            }
+            is ProjectRoot -> {
+                checkDirectory(errors, record.directory)
+                checkPath(errors, record.marker)
+            }
+            is EntryPoint -> {
+                record.path?.let { checkPath(errors, it) }
+                record.target?.let {
+                    checkText(errors, "target", it, MAX_TARGET_LENGTH)
+                    if (it.any { ch -> ch.isISOControl() }) errors += "Destino con caracteres de control"
+                }
+                if (record.evidence.isEmpty()) errors += "Punto de entrada sin evidencia"
+                checkEvidence(errors, record.evidence)
+                record.projectRoot?.let { checkDirectory(errors, it) }
+            }
+            is Redaction -> {
+                checkPath(errors, record.path)
+                if (record.line < 1 || record.length < 1) errors += "Posición o longitud inválida"
+                checkMasked(errors, record.masked)
+            }
+            is ContentChunk -> {
+                checkPath(errors, record.path)
+                if (record.index !in 0 until MAX_CHUNKS_PER_FILE) errors += "Índice de fragmento fuera de rango"
+                checkText(errors, "text", record.text, MAX_CHUNK_CHARS)
+            }
+            is InventorySummary -> {
+                val values = listOf(record.files, record.entryPoints, record.projectRoots, record.unclassified, record.storedFiles, record.redactions)
+                if (values.any { it < 0 } || record.storedChars < 0 || record.roleCounts.values.any { it < 0 }) errors += "Totales negativos"
+            }
             is IngestSummary -> {
                 val values = listOf(
                     record.files, record.analyzedFiles, record.notAnalyzedFiles, record.excludedFiles,
@@ -105,6 +152,30 @@ object RecordValidator {
             }
         }
         return errors
+    }
+
+    private fun checkEvidence(errors: MutableList<String>, evidence: List<Evidence>) {
+        if (evidence.size > MAX_EVIDENCE) errors += "Demasiadas evidencias"
+        evidence.forEach { e ->
+            checkText(errors, "evidence.detail", e.detail, MAX_EVIDENCE_DETAIL)
+            if (e.detail.any { it.isISOControl() }) errors += "Evidencia con caracteres de control"
+            e.path?.let { checkPath(errors, it) }
+            if ((e.line ?: 1) < 1) errors += "Línea de evidencia inválida"
+        }
+    }
+
+    /** Un secreto enmascarado solo puede mostrar 6 caracteres ASCII visibles; el resto, el carácter de máscara. */
+    private fun checkMasked(errors: MutableList<String>, masked: String) {
+        if (masked.isEmpty() || masked.length > MAX_MASKED_LENGTH) errors += "Secreto enmascarado con longitud inválida"
+        val visible = masked.filter { it != MASK_CHAR }
+        if (visible.length > MAX_VISIBLE_SECRET_CHARS || visible.any { it !in '!'..'~' }) {
+            errors += "El secreto enmascarado muestra demasiado"
+        }
+    }
+
+    /** Carpeta dentro del comprimido; "" es la raíz. */
+    private fun checkDirectory(errors: MutableList<String>, directory: String) {
+        if (directory.isNotEmpty()) checkPath(errors, directory)
     }
 
     private fun checkPattern(errors: MutableList<String>, field: String, value: String, pattern: Regex) {

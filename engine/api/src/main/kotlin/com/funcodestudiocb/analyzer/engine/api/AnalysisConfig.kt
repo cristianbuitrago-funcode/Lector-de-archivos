@@ -16,7 +16,24 @@ data class AnalysisConfig(
     val diagnostic: DiagnosticOptions? = null,
     /** Obligatorio en el modo [AnalysisMode.FULL]. */
     val ingest: IngestOptions? = null,
+    val inventory: InventoryOptions = InventoryOptions(),
 )
+
+/** Opciones del inventario y de la copia redactada del código (modo [AnalysisMode.FULL]). */
+@Serializable
+data class InventoryOptions(
+    /** Guardar una copia del código con los posibles secretos ocultados, para el visor (decisión D4). */
+    val keepRedactedCopy: Boolean = true,
+    /** Tamaño máximo de un archivo de texto cuyo contenido se examina (y se copia). */
+    val maxContentBytes: Long = 2L * IngestLimits.MIB,
+    /** Tamaño máximo total de la copia del código, en caracteres. */
+    val maxStoredChars: Long = 64L * IngestLimits.MIB,
+) {
+    companion object {
+        const val MAX_CONTENT_BYTES_ALLOWED: Long = 16L * IngestLimits.MIB
+        const val MAX_STORED_CHARS_ALLOWED: Long = 256L * IngestLimits.MIB
+    }
+}
 
 /** Límites de tiempo del análisis. Los límites de tamaño están en [IngestLimits]. */
 @Serializable
@@ -88,6 +105,9 @@ object ConfigValidator {
             AnalysisMode.FULL -> {
                 val ingest = config.ingest
                 if (ingest == null) errors += "El análisis completo requiere opciones de ingesta" else errors += IngestOptionsValidator.validate(ingest)
+                val inventory = config.inventory
+                if (inventory.maxContentBytes !in 1L..InventoryOptions.MAX_CONTENT_BYTES_ALLOWED) errors += "Tamaño máximo de contenido fuera de rango"
+                if (inventory.maxStoredChars !in 0L..InventoryOptions.MAX_STORED_CHARS_ALLOWED) errors += "Tamaño máximo de la copia del código fuera de rango"
             }
         }
         return errors

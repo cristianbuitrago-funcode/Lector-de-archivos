@@ -5,9 +5,13 @@ import com.funcodestudiocb.analyzer.data.session.SessionManager
 import com.funcodestudiocb.analyzer.data.session.SessionState
 import com.funcodestudiocb.analyzer.engine.api.AnalysisConfig
 import com.funcodestudiocb.analyzer.engine.api.AnalysisMode
+import com.funcodestudiocb.analyzer.engine.api.ContentChunk
+import com.funcodestudiocb.analyzer.engine.api.CoverageNote
+import com.funcodestudiocb.analyzer.engine.api.CoverageReason
 import com.funcodestudiocb.analyzer.engine.api.ExclusionOptions
 import com.funcodestudiocb.analyzer.engine.api.IngestLimits
 import com.funcodestudiocb.analyzer.engine.api.IngestOptions
+import com.funcodestudiocb.analyzer.engine.api.InventoryOptions
 import com.funcodestudiocb.analyzer.engine.api.ResultRecord
 import com.funcodestudiocb.analyzer.engine.api.RejectionReason
 import com.funcodestudiocb.analyzer.engine.core.ProgressUpdate
@@ -25,6 +29,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import java.io.File
+import java.io.IOException
 import java.util.UUID
 
 /** Progreso de una etapa, tal como lo muestra la interfaz. */
@@ -74,6 +80,8 @@ class PendingResult internal constructor(
     val startedAtEpochMs: Long,
     val records: List<ResultRecord>,
     val report: AnalysisReport,
+    /** Copia redactada del código, cifrada con una clave efímera hasta que se guarde. */
+    val spool: ContentSpool?,
 )
 
 /** Mantiene la app en primer plano mientras dura un análisis (servicio con notificación). */
@@ -102,6 +110,8 @@ class AnalysisCoordinator(
     private val engine: AnalysisEngine,
     private val repository: AnalysisRepository,
     private val session: SessionManager,
+    /** Carpeta privada para la copia del código mientras se guarda (cifrada con clave efímera). */
+    private val spoolDirectory: File,
     private val foreground: ForegroundController = ForegroundController.NONE,
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
     private val limits: IngestLimits = IngestLimits(),
@@ -121,6 +131,7 @@ class AnalysisCoordinator(
 
     init {
         importer.cleanupOrphans()
+        ContentSpool.cleanupOrphans(spoolDirectory)
         scope.launch {
             // Se observa el contador de desbloqueos y no el estado: un bloqueo y desbloqueo rápidos podrían no
             // notarse en el estado y el resultado pendiente quedaría sin guardar.
@@ -159,7 +170,11 @@ class AnalysisCoordinator(
     fun start(exclusions: ExclusionOptions, password: CharArray? = null) = synchronized(lock) {
         val archive = when (val current = _state.value) {
             is AnalysisState.Ready -> current.archive
-            is AnalysisState.NeedsPassword -> current.archive
+            is AnalysisState.NeedsPassword -> {
+                // Se repite con contraseña: la copia del intento anterior ya no sirve.
+                current.pending.spool?.close()
+                current.archive
+            }
             else -> {
                 password?.fill('\u0000')
                 return@synchronized
@@ -170,16 +185,41 @@ class AnalysisCoordinator(
         _state.value = AnalysisState.Running(archive)
         foreground.start()
         job = scope.launch {
+            var spool: ContentSpool? = null
             try {
                 repository.saveExclusions(exclusions)
+                val inventory = InventoryOptions(keepRedactedCopy = repository.loadKeepCodeCopy())
                 val config = AnalysisConfig(
                     analysisId = id,
                     mode = AnalysisMode.FULL,
                     ingest = IngestOptions(archive.displayName, limits, exclusions),
+                    inventory = inventory,
                 )
-                val run = engine.analyze(config, archive.file, password) { onProgress(archive, it) }
-                val report = AnalysisReport.from(run.records, run.sessionOutcome, run.problem)
-                val pending = PendingResult(id, archive, startedAt, run.records, report)
+                val copy = ContentSpool.create(spoolDirectory).also { spool = it }
+                val records = ArrayList<ResultRecord>()
+                var copyProblem: String? = null
+                val run = engine.analyze(config, archive.file, password, { onProgress(archive, it) }) { record ->
+                    if (record !is ContentChunk) {
+                        records += record
+                    } else if (copyProblem == null) {
+                        // El proceso principal también impone el máximo de la copia: no confía en el motor.
+                        copyProblem = when {
+                            !inventory.keepRedactedCopy -> "El motor envió una copia del código estando desactivada; se descartó"
+                            copy.chars + record.text.length > inventory.maxStoredChars -> "La copia del código superó su tamaño máximo; el resto se descartó"
+                            else -> try {
+                                copy.append(record)
+                                null
+                            } catch (e: IOException) {
+                                "No se pudo guardar la copia del código (¿falta espacio en el teléfono?)"
+                            }
+                        }
+                    }
+                }
+                copy.finishWriting()
+                copyProblem?.let { records += CoverageNote(APP_STAGE, CoverageReason.LIMIT_REACHED, it) }
+                val report = AnalysisReport.from(records, run.sessionOutcome, run.problem)
+                val pending = PendingResult(id, archive, startedAt, records, report, copy)
+                spool = null // a partir de aquí, su dueño es el resultado pendiente
                 if (report.needsPassword && run.problem == null) {
                     _state.value = AnalysisState.NeedsPassword(archive, wrongPassword(report), report, pending)
                 } else {
@@ -195,6 +235,7 @@ class AnalysisCoordinator(
                 discardArchive()
                 _state.value = AnalysisState.Failed(FailureReason.INTERNAL, e::class.java.simpleName)
             } finally {
+                spool?.close()
                 password?.fill('\u0000')
                 foreground.stop()
             }
@@ -229,9 +270,11 @@ class AnalysisCoordinator(
     /** Tras un borrado total: se olvida todo, incluido lo pendiente de guardar. */
     fun forgetEverything() = synchronized(lock) {
         job?.cancel()
+        unsaved?.spool?.close()
         unsaved = null
         discardArchive()
         importer.cleanupOrphans()
+        ContentSpool.cleanupOrphans(spoolDirectory)
         _state.value = AnalysisState.Idle
     }
 
@@ -245,6 +288,7 @@ class AnalysisCoordinator(
             finishedAtEpochMs = clock(),
             records = pending.records,
             report = pending.report,
+            spool = pending.spool,
         )
         pending.archive.file.delete()
         synchronized(lock) { unsaved = toSave }
@@ -267,6 +311,7 @@ class AnalysisCoordinator(
             false
         }
         if (saved) {
+            toSave.spool?.close()
             synchronized(lock) { if (unsaved === toSave) unsaved = null }
             _state.update { if (it is AnalysisState.Finished && it.analysisId == toSave.id) it.copy(saved = true) else it }
         }
@@ -289,9 +334,17 @@ class AnalysisCoordinator(
     private fun discardArchive() {
         when (val current = _state.value) {
             is AnalysisState.Ready -> current.archive.file.delete()
-            is AnalysisState.NeedsPassword -> current.archive.file.delete()
+            is AnalysisState.NeedsPassword -> {
+                current.archive.file.delete()
+                current.pending.spool?.close()
+            }
             is AnalysisState.Running -> current.archive.file.delete()
             else -> Unit
         }
+    }
+
+    private companion object {
+        /** Etapa con la que la app firma sus propias notas de cobertura. */
+        const val APP_STAGE = "app"
     }
 }

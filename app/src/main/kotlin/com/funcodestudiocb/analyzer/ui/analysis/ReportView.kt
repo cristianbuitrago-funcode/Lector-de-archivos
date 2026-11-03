@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -29,6 +30,7 @@ import com.funcodestudiocb.analyzer.analysis.AnalysisOutcome
 import com.funcodestudiocb.analyzer.analysis.AnalysisReport
 import com.funcodestudiocb.analyzer.engine.api.EncryptionState
 import com.funcodestudiocb.analyzer.engine.api.ExclusionReason
+import com.funcodestudiocb.analyzer.engine.api.FileRole
 import com.funcodestudiocb.analyzer.engine.api.FileStatus
 import com.funcodestudiocb.analyzer.engine.api.IngestFindingKind
 import com.funcodestudiocb.analyzer.engine.api.RejectionReason
@@ -98,7 +100,7 @@ private fun rejectionLabel(reason: RejectionReason): String = stringResource(
 )
 
 @Composable
-private fun statusLabel(status: FileStatus): String = stringResource(
+internal fun statusLabel(status: FileStatus): String = stringResource(
     when (status) {
         FileStatus.ANALYZED -> R.string.status_file_analyzed
         FileStatus.SKIPPED_TOO_LARGE -> R.string.status_file_too_large
@@ -167,7 +169,7 @@ private fun KeyValue(label: String, value: String) {
 
 /** Informe de la ingesta: lo que contiene el comprimido, lo que se analizó, lo que no y por qué. */
 @Composable
-fun ReportView(archiveName: String, report: AnalysisReport, outcome: AnalysisOutcome) {
+fun ReportView(archiveName: String, report: AnalysisReport, outcome: AnalysisOutcome, onOpenExplorer: (() -> Unit)? = null) {
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         val (label, color) = outcomeLabel(outcome)
         FuncodePanel(accent = color) {
@@ -199,6 +201,22 @@ fun ReportView(archiveName: String, report: AnalysisReport, outcome: AnalysisOut
                 KeyValue(stringResource(R.string.report_files_excluded), "${s.excludedFiles} (${formatBytes(s.excludedBytes)})")
                 KeyValue(stringResource(R.string.report_duplicates), pluralStringResource(R.plurals.report_duplicates_value, s.duplicateGroups, s.duplicateGroups, s.duplicateFiles))
                 KeyValue(stringResource(R.string.report_findings), s.findings.toString())
+            }
+        }
+
+        report.inventory?.let { inv ->
+            FuncodePanel(accent = FuncodeColors.Gold) {
+                SectionTitle(stringResource(R.string.report_structure))
+                Text(stringResource(R.string.report_structure_value, inv.entryPoints, inv.projectRoots, inv.unclassified), style = MaterialTheme.typography.bodyMedium)
+                KeyValue(stringResource(R.string.report_unnecessary), (inv.roleCounts[FileRole.POSSIBLY_UNNECESSARY] ?: 0).toString())
+                KeyValue(stringResource(R.string.report_secrets_hidden), inv.redactions.toString())
+                KeyValue(
+                    stringResource(R.string.report_code_copy),
+                    if (inv.copyEnabled) pluralStringResource(R.plurals.report_code_copy_value, inv.storedFiles, inv.storedFiles, formatBytes(inv.storedChars)) else stringResource(R.string.report_code_copy_off),
+                )
+                if (onOpenExplorer != null) {
+                    Button(onClick = onOpenExplorer, modifier = Modifier.testTag("report_open_explorer")) { Text(stringResource(R.string.report_open_explorer)) }
+                }
             }
         }
 

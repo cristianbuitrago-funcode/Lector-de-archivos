@@ -19,7 +19,7 @@ java {
 }
 
 dependencies {
-    implementation(project(":engine:ingest"))
+    implementation(project(":engine:inventory"))
 }
 
 application {

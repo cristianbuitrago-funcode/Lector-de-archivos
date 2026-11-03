@@ -8,6 +8,7 @@ import androidx.room.Database
 import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.Insert
+import androidx.room.OnConflictStrategy
 import androidx.room.PrimaryKey
 import androidx.room.Query
 import androidx.room.Room
@@ -82,6 +83,18 @@ data class AnalysisRecordEntity(
     val json: String,
 )
 
+/**
+ * Copia del código de un archivo, con los posibles secretos ya ocultados por el motor (Fase 3), troceada en
+ * fragmentos. Se borra con su análisis.
+ */
+@Entity(tableName = "file_contents", primaryKeys = ["analysis_id", "path", "chunk"])
+data class FileContentEntity(
+    @ColumnInfo(name = "analysis_id") val analysisId: String,
+    val path: String,
+    val chunk: Int,
+    val text: String,
+)
+
 /** Ajustes de la app que se guardan cifrados (p. ej. las exclusiones por defecto). */
 @Entity(tableName = "app_settings")
 data class SettingEntity(
@@ -97,11 +110,29 @@ abstract class AnalysisDao {
     @Insert
     protected abstract suspend fun insertRecords(records: List<AnalysisRecordEntity>)
 
+    /** Un fragmento repetido (motor defectuoso) se ignora en lugar de impedir que se guarde todo el análisis. */
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    protected abstract suspend fun insertContents(contents: List<FileContentEntity>)
+
+    /**
+     * Guarda el análisis, sus registros y la copia del código en una sola transacción. [contents] se recorre
+     * por lotes (la copia puede ocupar decenas de MB y no se carga entera en memoria).
+     */
     @Transaction
-    open suspend fun insert(analysis: AnalysisEntity, records: List<AnalysisRecordEntity>) {
+    open suspend fun insert(analysis: AnalysisEntity, records: List<AnalysisRecordEntity>, contents: Sequence<FileContentEntity> = emptySequence()) {
         insertAnalysis(analysis)
         records.chunked(500).forEach { insertRecords(it) }
+        contents.chunked(100).forEach { insertContents(it) }
     }
+
+    @Query("SELECT text FROM file_contents WHERE analysis_id = :id AND path = :path ORDER BY chunk")
+    abstract suspend fun content(id: String, path: String): List<String>
+
+    @Query("SELECT COUNT(*) FROM file_contents WHERE analysis_id = :id")
+    abstract suspend fun contentChunkCount(id: String): Int
+
+    @Query("DELETE FROM file_contents WHERE analysis_id = :id")
+    protected abstract suspend fun deleteContents(id: String)
 
     @Query("SELECT * FROM analyses ORDER BY started_at DESC LIMIT :limit")
     abstract fun recent(limit: Int): Flow<List<AnalysisEntity>>
@@ -123,6 +154,7 @@ abstract class AnalysisDao {
 
     @Transaction
     open suspend fun delete(id: String) {
+        deleteContents(id)
         deleteRecords(id)
         deleteAnalysis(id)
     }
@@ -138,10 +170,10 @@ interface SettingsDao {
 }
 
 @Database(
-    entities = [RunEntity::class, AnalysisEntity::class, AnalysisRecordEntity::class, SettingEntity::class],
-    version = 2,
+    entities = [RunEntity::class, AnalysisEntity::class, AnalysisRecordEntity::class, SettingEntity::class, FileContentEntity::class],
+    version = 3,
     exportSchema = true,
-    autoMigrations = [AutoMigration(from = 1, to = 2)],
+    autoMigrations = [AutoMigration(from = 1, to = 2), AutoMigration(from = 2, to = 3)],
 )
 abstract class FuncodeDatabase : RoomDatabase() {
     abstract fun runs(): RunDao

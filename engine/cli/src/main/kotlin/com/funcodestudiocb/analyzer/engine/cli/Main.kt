@@ -11,8 +11,8 @@ import com.funcodestudiocb.analyzer.engine.core.CollectingSink
 import com.funcodestudiocb.analyzer.engine.core.PipelineRunner
 import com.funcodestudiocb.analyzer.engine.ingest.ArchiveSource
 import com.funcodestudiocb.analyzer.engine.ingest.IngestKeys
-import com.funcodestudiocb.analyzer.engine.ingest.IngestPipeline
 import com.funcodestudiocb.analyzer.engine.ingest.PasswordHolder
+import com.funcodestudiocb.analyzer.engine.inventory.FullPipeline
 import kotlinx.coroutines.runBlocking
 import java.io.File
 import java.io.FileInputStream
@@ -38,7 +38,7 @@ fun main(args: Array<String>) {
         attributes[IngestKeys.SOURCE] = ArchiveSource(stream.channel, file.absolutePath)
         attributes[IngestKeys.PASSWORD] = attributes.closeLater(PasswordHolder(password))
         val config = AnalysisConfig("cli", AnalysisMode.FULL, ingest = IngestOptions(file.name))
-        runBlocking { PipelineRunner("cli").run(config, IngestPipeline.stages(), sink, attributes) }
+        runBlocking { PipelineRunner("cli").run(config, FullPipeline.stages(), sink, attributes) }
     }
     val invalid = sink.records.filter { RecordValidator.validate(it).isNotEmpty() }
     sink.records.forEach { record ->

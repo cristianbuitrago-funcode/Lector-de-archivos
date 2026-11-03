@@ -28,8 +28,8 @@ import com.funcodestudiocb.analyzer.engine.core.StageRegistry
 import com.funcodestudiocb.analyzer.engine.core.SyntheticRecordsStage
 import com.funcodestudiocb.analyzer.engine.ingest.ArchiveSource
 import com.funcodestudiocb.analyzer.engine.ingest.IngestKeys
-import com.funcodestudiocb.analyzer.engine.ingest.IngestPipeline
 import com.funcodestudiocb.analyzer.engine.ingest.PasswordHolder
+import com.funcodestudiocb.analyzer.engine.inventory.FullPipeline
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
@@ -166,7 +166,7 @@ class AnalyzerService : Service() {
             if ((config.diagnostic?.simulateHangMillis ?: 0) > 0) registry.register(SimulatedHangStage())
             registry.plan()
         }
-        AnalysisMode.FULL -> IngestPipeline.stages()
+        AnalysisMode.FULL -> FullPipeline.stages()
     }
 
     /**
@@ -230,8 +230,8 @@ class AnalyzerService : Service() {
     }
 
     companion object {
-        const val PROTOCOL_VERSION = 2
-        const val ENGINE_VERSION = "0.2.0"
+        const val PROTOCOL_VERSION = 3
+        const val ENGINE_VERSION = "0.3.0"
         private const val MAX_CONFIG_BYTES = 64 * 1024
     }
 }

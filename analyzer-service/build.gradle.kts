@@ -28,7 +28,7 @@ android {
 
 dependencies {
     api(project(":engine:core"))
-    api(project(":engine:ingest"))
+    api(project(":engine:inventory"))
     // Biblioteca nativa de UnRAR (libfuncode_unrar.so) que carga el lector RAR en el proceso aislado.
     implementation(project(":native:unrar"))
     implementation(libs.kotlinx.coroutines.android)

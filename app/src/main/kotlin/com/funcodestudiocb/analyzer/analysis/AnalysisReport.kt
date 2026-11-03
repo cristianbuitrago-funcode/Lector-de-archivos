@@ -4,13 +4,18 @@ import com.funcodestudiocb.analyzer.engine.api.ArchiveRejected
 import com.funcodestudiocb.analyzer.engine.api.ArchiveSummary
 import com.funcodestudiocb.analyzer.engine.api.CoverageNote
 import com.funcodestudiocb.analyzer.engine.api.DuplicateGroup
+import com.funcodestudiocb.analyzer.engine.api.EntryPoint
 import com.funcodestudiocb.analyzer.engine.api.ExcludedDirectory
 import com.funcodestudiocb.analyzer.engine.api.ExcludedFile
 import com.funcodestudiocb.analyzer.engine.api.FileEntry
+import com.funcodestudiocb.analyzer.engine.api.FileProfile
 import com.funcodestudiocb.analyzer.engine.api.FileStatus
 import com.funcodestudiocb.analyzer.engine.api.IngestFinding
 import com.funcodestudiocb.analyzer.engine.api.IngestSummary
+import com.funcodestudiocb.analyzer.engine.api.InventorySummary
 import com.funcodestudiocb.analyzer.engine.api.PasswordRequired
+import com.funcodestudiocb.analyzer.engine.api.ProjectRoot
+import com.funcodestudiocb.analyzer.engine.api.Redaction
 import com.funcodestudiocb.analyzer.engine.api.RejectionReason
 import com.funcodestudiocb.analyzer.engine.api.ResultRecord
 import com.funcodestudiocb.analyzer.engine.api.SessionOutcome
@@ -52,6 +57,12 @@ data class AnalysisReport(
     val sessionOutcome: SessionOutcome?,
     /** Mensaje del proceso principal cuando el motor no terminó con normalidad. */
     val engineProblem: String?,
+    /** Inventario (Fase 3). Vacío en análisis hechos con versiones anteriores. */
+    val profiles: List<FileProfile> = emptyList(),
+    val entryPoints: List<EntryPoint> = emptyList(),
+    val projectRoots: List<ProjectRoot> = emptyList(),
+    val redactions: List<Redaction> = emptyList(),
+    val inventory: InventorySummary? = null,
 ) {
     /** Archivos no analizados, por motivo. */
     val notAnalyzedByStatus: Map<FileStatus, Int>
@@ -91,6 +102,11 @@ data class AnalysisReport(
                 stages = records.filterIsInstance<StageEvent>(),
                 sessionOutcome = sessionOutcome,
                 engineProblem = engineProblem,
+                profiles = records.filterIsInstance<FileProfile>(),
+                entryPoints = records.filterIsInstance<EntryPoint>(),
+                projectRoots = records.filterIsInstance<ProjectRoot>(),
+                redactions = records.filterIsInstance<Redaction>(),
+                inventory = records.filterIsInstance<InventorySummary>().lastOrNull(),
             )
 
         /** Etapas que no terminaron bien (para la cobertura). */

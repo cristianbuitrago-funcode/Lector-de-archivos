@@ -46,6 +46,8 @@ data class SettingsUiState(
     val message: SettingsMessage? = null,
     /** Cifrador listo para que la interfaz muestre el diálogo biométrico de activación. */
     val pendingEnrollment: Cipher? = null,
+    /** Guardar la copia redactada del código en cada análisis (decisión D4). */
+    val keepCodeCopy: Boolean = true,
 )
 
 class SettingsViewModel(private val container: AppContainer) : ViewModel() {
@@ -57,6 +59,18 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
         SettingsUiState(vault.settings(), vault.isBiometricAvailable(), vault.isBiometricEnabled()),
     )
     val state: StateFlow<SettingsUiState> = _state.asStateFlow()
+
+    init {
+        viewModelScope.launch {
+            val keep = container.repository.loadKeepCodeCopy()
+            _state.update { it.copy(keepCodeCopy = keep) }
+        }
+    }
+
+    fun setKeepCodeCopy(keep: Boolean) {
+        _state.update { it.copy(keepCodeCopy = keep) }
+        viewModelScope.launch { container.repository.saveKeepCodeCopy(keep) }
+    }
 
     fun messageShown() = _state.update { it.copy(message = null) }
 

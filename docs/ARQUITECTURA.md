@@ -1,7 +1,7 @@
 # Funcode Code Analyzer — Arquitectura técnica
 
 **Funcode Studio CB** · Documento de arquitectura **v0.2** · Fecha: 2026-11-03
-**Estado: aprobada** (decisión N1 = A, 2026-11-03). Implementación en curso: fases 1 y 2 terminadas (ver `docs/fases/`).
+**Estado: aprobada** (decisión N1 = A, 2026-11-03). Implementación en curso: fases 1, 2 y 3 terminadas (ver `docs/fases/`).
 Las decisiones tomadas durante la implementación y sus desviaciones respecto a este documento se registran en
 `docs/adr/` (en particular, ADR 0004 sobre la copia temporal del comprimido).
 
@@ -172,7 +172,7 @@ Las decisiones tomadas durante la implementación y sus desviaciones respecto a 
 | Base de datos | **Room + SQLCipher** | Cifrado completo de la BD |
 | Claves | **Android Keystore** (StrongBox si el dispositivo lo tiene), clave ligada a la autenticación del usuario | La clave no puede extraerse del dispositivo |
 | Autenticación | **AndroidX Biometric** (clase fuerte) + contraseña propia con **Argon2id** (Bouncy Castle) | Solo el propietario |
-| Cifrado de la copia temporal | **Google Tink** (`StreamingAead`, con acceso aleatorio) | Permite leer el ZIP cifrado sin descifrarlo entero, y el borrado criptográfico |
+| Cifrado de temporales | AES-256-GCM de `javax.crypto` con clave efímera para la copia del código mientras se guarda (ADR 0005). La copia del comprimido no se cifra (ADR 0004) | Borrado criptográfico sin dependencias adicionales |
 | Gráficas | **Vico** (gráficas para Compose) | Nativo, ligero |
 | Diagramas | **Compose Canvas** + algoritmo de disposición propio del motor | Zoom, desplazamiento y foco; el mismo dibujo se reutiliza en el PDF |
 | Árbol de archivos | `LazyColumn` virtualizada | Miles de nodos sin bloquear la UI |
@@ -188,7 +188,7 @@ Las decisiones tomadas durante la implementación y sus desviaciones respecto a 
 | ZIP | **Apache Commons Compress** (acceso aleatorio) + validación propia | Control total sobre cada entrada |
 | RAR | **Biblioteca UnRAR oficial de RARLAB** (C++) compilada con el NDK | Soporta RAR4 y RAR5 y detecta cifrado. Descartada `junrar` (Java), que **no soporta RAR5**, el formato por defecto de las versiones actuales de WinRAR |
 | Regex sobre contenido no confiable | **RE2/J** | Tiempo lineal: inmune a ReDoS |
-| XML | `XmlPullParser` con DTD desactivado | Sin XXE ni *billion laughs* |
+| XML | **Lector XML propio** que salta el DTD y solo resuelve las entidades predefinidas (ADR 0005) | Sin XXE ni *billion laughs* por construcción, y el mismo comportamiento en el PC y en Android |
 | YAML / TOML / JSON | **snakeyaml-engine** con límites de alias; **tomlj**; lector JSON por flujo con límite de profundidad | Parsers seguros frente a bombas |
 | Grafos | Algoritmos propios: Tarjan (ciclos), PageRank (importancia), alcanzabilidad (impacto), disposición por capas tipo Sugiyama | Pequeños, auditables y comunes a pantalla, PDF y SVG |
 | Complejidad | Cálculo propio sobre el árbol de tree-sitter | lizard (Python) no existe en Android |
@@ -235,7 +235,7 @@ en un PC, y en el teléfono se ejecuta dentro del proceso aislado.
 | `engine:languages` | Detección de lenguaje, conteo de líneas, carga de gramáticas | 4 |
 | `engine:technologies` | Motor de reglas declarativas (YAML) con evidencia | 4 |
 | `engine:relations` | Extractores por lenguaje, resolutores por ecosistema, analizadores de framework, grafo, impacto | 5 |
-| `engine:security` | Reglas, secretos, redacción, auditores de configuración | 6 |
+| `engine:security` | Reglas, secretos, redacción, auditores de configuración | 3 (redactor) → 6 |
 | `engine:dependencies` | Parsers de manifiestos/lockfiles, índice OSV, fin de soporte, uso real, criticidad | 7 |
 | `engine:layout` | Disposición de grafos (pantalla, PDF, SVG) | 8 |
 | `engine:metrics` | Complejidad, duplicación, índice de mantenimiento | 9 |
@@ -501,7 +501,7 @@ cuando sea viable) · referencias · regla que lo produjo y su versión.
 
 Controles adicionales:
 
-- **Parsers**: `XmlPullParser` sin DTD, YAML con límites de alias, JSON con límite de profundidad, RE2/J, tiempo máximo en tree-sitter.
+- **Parsers**: lector XML propio sin DTD, YAML con límites de alias, JSON con límite de profundidad, RE2/J, tiempo máximo en tree-sitter.
 - **Interfaz**: Compose muestra el contenido del proyecto solo como texto; los caracteres de control y de dirección bidireccional (p. ej. U+202E) de los nombres se muestran escapados; no se usa WebView para contenido del proyecto.
 - **Informes**: HTML generado con escape automático, sin JavaScript y con su propia CSP. Los informes exportados quedan fuera de la protección de la app (contienen secretos enmascarados, nunca completos); la app lo advierte al exportar.
 - **Cadena de suministro propia**: verificación de checksums de dependencias de Gradle, catálogo de versiones, Dependabot y, desde la Fase 6, el motor se analiza a sí mismo en CI mediante `engine:cli`.
@@ -515,7 +515,8 @@ Controles adicionales:
 | Tamaño total descomprimido leído (bytes reales) | 1 GB |
 | Número de entradas | 100 000 |
 | Tamaño máximo por entrada leída en memoria | 8 MB (las mayores, hasta 100 MB, solo reciben inventario y búsqueda de secretos por flujo) |
-| Tamaño máximo para análisis sintáctico | 2 MB |
+| Tamaño máximo para análisis sintáctico (y para examinar el contenido en el inventario) | 2 MB |
+| Copia redactada del código por análisis | 64 M caracteres (desactivable) |
 | Ratio de compresión por entrada | 250:1 (en entradas de más de 1 MB) |
 | Ratio de compresión global | 100:1 |
 | Profundidad / longitud de ruta | 64 niveles / 1 024 caracteres |
