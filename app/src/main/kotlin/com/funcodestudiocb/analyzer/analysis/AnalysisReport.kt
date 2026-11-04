@@ -4,11 +4,13 @@ import com.funcodestudiocb.analyzer.engine.api.ArchiveRejected
 import com.funcodestudiocb.analyzer.engine.api.ArchiveSummary
 import com.funcodestudiocb.analyzer.engine.api.CoverageNote
 import com.funcodestudiocb.analyzer.engine.api.DeclaredDependency
+import com.funcodestudiocb.analyzer.engine.api.DependencyCycle
 import com.funcodestudiocb.analyzer.engine.api.DuplicateGroup
 import com.funcodestudiocb.analyzer.engine.api.EntryPoint
 import com.funcodestudiocb.analyzer.engine.api.ExcludedDirectory
 import com.funcodestudiocb.analyzer.engine.api.ExcludedFile
 import com.funcodestudiocb.analyzer.engine.api.FileEntry
+import com.funcodestudiocb.analyzer.engine.api.FileGraph
 import com.funcodestudiocb.analyzer.engine.api.FileProfile
 import com.funcodestudiocb.analyzer.engine.api.FileStatus
 import com.funcodestudiocb.analyzer.engine.api.IngestFinding
@@ -18,6 +20,8 @@ import com.funcodestudiocb.analyzer.engine.api.LanguageStats
 import com.funcodestudiocb.analyzer.engine.api.PasswordRequired
 import com.funcodestudiocb.analyzer.engine.api.ProjectRoot
 import com.funcodestudiocb.analyzer.engine.api.Redaction
+import com.funcodestudiocb.analyzer.engine.api.Relation
+import com.funcodestudiocb.analyzer.engine.api.RelationsSummary
 import com.funcodestudiocb.analyzer.engine.api.RejectionReason
 import com.funcodestudiocb.analyzer.engine.api.ResultRecord
 import com.funcodestudiocb.analyzer.engine.api.SessionOutcome
@@ -70,6 +74,11 @@ data class AnalysisReport(
     val languages: List<LanguageStats> = emptyList(),
     val dependencies: List<DeclaredDependency> = emptyList(),
     val technologies: List<Technology> = emptyList(),
+    /** Relaciones entre archivos (Fase 5A). */
+    val relations: List<Relation> = emptyList(),
+    val fileGraphs: List<FileGraph> = emptyList(),
+    val cycles: List<DependencyCycle> = emptyList(),
+    val relationsSummary: RelationsSummary? = null,
 ) {
     /** El análisis tiene la información de la Fase 4 (lenguajes y tecnologías). */
     val hasTechnologies: Boolean get() = languages.isNotEmpty() || technologies.isNotEmpty() || stages.any { it.stageId == "technologies" }
@@ -120,6 +129,10 @@ data class AnalysisReport(
                 languages = records.filterIsInstance<LanguageStats>(),
                 dependencies = records.filterIsInstance<DeclaredDependency>(),
                 technologies = records.filterIsInstance<Technology>(),
+                relations = records.filterIsInstance<Relation>(),
+                fileGraphs = records.filterIsInstance<FileGraph>(),
+                cycles = records.filterIsInstance<DependencyCycle>(),
+                relationsSummary = records.filterIsInstance<RelationsSummary>().lastOrNull(),
             )
 
         /** Etapas que no terminaron bien (para la cobertura). */

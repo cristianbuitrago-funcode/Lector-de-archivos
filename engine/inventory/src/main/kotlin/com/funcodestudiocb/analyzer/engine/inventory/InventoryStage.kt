@@ -27,6 +27,12 @@ import com.funcodestudiocb.analyzer.engine.ingest.IngestPipeline
 object InventoryKeys {
     /** Subproyectos detectados, de la carpeta más larga a la más corta. */
     val ROOTS = AttributeKey<List<ProjectRoot>>("inventory.roots")
+
+    /** Puntos de entrada registrados. */
+    val ENTRY_POINTS = AttributeKey<List<EntryPoint>>("inventory.entryPoints")
+
+    /** Funciones de cada archivo. */
+    val ROLES = AttributeKey<Map<String, Set<FileRole>>>("inventory.roles")
 }
 
 /** Carpeta del subproyecto al que pertenece una ruta (el más profundo), o `null`. */
@@ -121,6 +127,7 @@ class InventoryStage(private val collector: ContentCollector) : Stage {
         if (allEntries.size > entries.size) {
             context.coverage(CoverageReason.LIMIT_REACHED, "Se encontraron ${allEntries.size} puntos de entrada; solo se registran los $MAX_ENTRY_POINTS primeros")
         }
+        context.attributes[InventoryKeys.ENTRY_POINTS] = entries
         val entriesByPath: Map<String, List<EntryPoint>> = entries.filter { it.path != null }.groupBy { it.path!! }
         context.checkActive()
 
@@ -128,9 +135,11 @@ class InventoryStage(private val collector: ContentCollector) : Stage {
         val originals = duplicateOriginals(context)
         val roleCounts = sortedMapOf<FileRole, Int>()
         var unclassified = 0
+        val rolesByPath = HashMap<String, Set<FileRole>>()
         files.forEachIndexed { i, entry ->
             val profile = profile(entry, entriesByPath[entry.path].orEmpty(), originals[entry.path], rootOf(entry.path))
             context.emit(profile)
+            rolesByPath[entry.path] = profile.roles.mapTo(HashSet()) { it.role }
             profile.roles.forEach { roleCounts[it.role] = (roleCounts[it.role] ?: 0) + 1 }
             if (profile.roles.isEmpty()) unclassified++
             if (i % 500 == 0) {
@@ -139,6 +148,7 @@ class InventoryStage(private val collector: ContentCollector) : Stage {
             }
         }
 
+        context.attributes[InventoryKeys.ROLES] = rolesByPath
         if (collector.tooLarge > 0) {
             context.coverage(
                 CoverageReason.NOT_ANALYZED,

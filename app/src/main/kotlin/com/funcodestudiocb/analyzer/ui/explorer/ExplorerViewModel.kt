@@ -46,6 +46,8 @@ sealed interface ExplorerUiState {
         val rows: List<TreeRow>,
         val selected: String? = null,
         val code: CodeView? = null,
+        /** Conexión abierta con sus cinco atributos. */
+        val relation: com.funcodestudiocb.analyzer.engine.api.Relation? = null,
     ) : ExplorerUiState
 }
 
@@ -122,8 +124,12 @@ class ExplorerViewModel(private val container: AppContainer, initialId: String?,
 
     fun select(path: String?) {
         codeJob?.cancel()
-        updateLoaded { it.copy(selected = path, code = null) }
+        updateLoaded { it.copy(selected = path, code = null, relation = null) }
     }
+
+    fun openRelation(relation: com.funcodestudiocb.analyzer.engine.api.Relation) = updateLoaded { it.copy(relation = relation) }
+
+    fun closeRelation() = updateLoaded { it.copy(relation = null) }
 
     fun openCode() {
         val s = _state.value as? ExplorerUiState.Loaded ?: return
@@ -151,10 +157,14 @@ class ExplorerViewModel(private val container: AppContainer, initialId: String?,
         updateLoaded { it.copy(code = null) }
     }
 
-    /** Atrás dentro del Explorador: visor → ficha → árbol. Devuelve `false` si no había nada que cerrar. */
+    /** Atrás dentro del Explorador: conexión → visor → ficha → árbol. Devuelve `false` si no había nada que cerrar. */
     fun back(): Boolean {
         val s = _state.value as? ExplorerUiState.Loaded ?: return false
         return when {
+            s.relation != null -> {
+                closeRelation()
+                true
+            }
             s.code != null -> {
                 closeCode()
                 true

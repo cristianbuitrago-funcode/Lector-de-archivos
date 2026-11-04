@@ -1,9 +1,10 @@
 # Funcode Code Analyzer — Arquitectura técnica
 
 **Funcode Studio CB** · Documento de arquitectura **v0.2** · Fecha: 2026-11-03
-**Estado: aprobada** (decisión N1 = A, 2026-11-03). Implementación en curso: fases 1, 2 y 3 terminadas (ver `docs/fases/`).
-Las decisiones tomadas durante la implementación y sus desviaciones respecto a este documento se registran en
-`docs/adr/` (en particular, ADR 0004 sobre la copia temporal del comprimido).
+**Estado: aprobada** (decisión N1 = A, 2026-11-03). Implementación en curso: fases 1 a 4 terminadas y 5A entregada
+(ver `docs/fases/`). Las decisiones tomadas durante la implementación y sus desviaciones respecto a este documento se
+registran en `docs/adr/` (en particular, ADR 0004 sobre la copia temporal del comprimido, ADR 0006 sobre tree-sitter
+y ADR 0007 sobre las relaciones).
 
 ---
 
@@ -235,7 +236,7 @@ en un PC, y en el teléfono se ejecuta dentro del proceso aislado.
 | `engine:languages` | Detección de lenguaje, conteo de líneas (sintáctico o léxico), importaciones, resaltado, puente con tree-sitter | 4 |
 | `engine:technologies` | Motor de reglas declarativas (catálogo YAML) con evidencia y confianza | 4 |
 | `engine:pipeline` | Composición del pipeline completo (lo usan el servicio aislado y la CLI) | 4 |
-| `engine:relations` | Extractores por lenguaje, resolutores por ecosistema, analizadores de framework, grafo, impacto | 5 |
+| `engine:relations` | Recolector y resolutores por ecosistema, grafo (ciclos, importancia, dependientes, alcance) e impacto (5A); analizadores de framework (5B). Los extractores de símbolos están en `engine:languages` (ADR 0007) | 5A → 5B |
 | `engine:security` | Reglas, secretos, redacción, auditores de configuración | 3 (redactor) → 6 |
 | `engine:dependencies` | Parsers de manifiestos (4); archivos de bloqueo, índice OSV, fin de soporte, uso real, criticidad (7) | 4 → 7 |
 | `engine:layout` | Disposición de grafos (pantalla, PDF, SVG) | 8 |

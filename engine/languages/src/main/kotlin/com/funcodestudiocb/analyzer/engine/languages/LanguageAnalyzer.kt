@@ -6,9 +6,6 @@ import com.google.re2j.Pattern
 
 enum class CountMethod { SYNTAX, LEXICAL }
 
-/** Importación encontrada en el código: el módulo tal como se escribe y la línea (desde 1). */
-data class ImportRef(val module: String, val line: Int)
-
 /** Resultado del análisis de un archivo de texto. */
 class LanguageAnalysis(
     val language: Language,
@@ -24,6 +21,10 @@ class LanguageAnalysis(
     val highlight: IntArray?,
     /** Comentarios: pares (inicio, fin) en caracteres, en orden. */
     val comments: IntArray = IntArray(0),
+    /** Símbolos declarados en el nivel superior (clases, funciones…), con sus supertipos. */
+    val declarations: List<Declaration> = emptyList(),
+    /** Paquete o espacios de nombres declarados (Java, Kotlin, C#, PHP, C++). */
+    val namespaces: List<String> = emptyList(),
 ) {
     /** La posición (en caracteres) está dentro de un comentario. */
     fun inComment(offset: Int): Boolean {
@@ -61,13 +62,37 @@ object LanguageAnalyzer {
         val grammar = language.grammar
         if (syntax && grammar != null && TreeSitter.hasGrammar(grammar)) {
             val utf8 = text.toByteArray(Charsets.UTF_8)
-            val result = TreeSitter.parse(grammar, utf8, timeoutMs, MAX_ITEMS, highlight, language.importTypes)
+            val result = TreeSitter.parse(grammar, utf8, timeoutMs, MAX_ITEMS, highlight, language.wantedTypes)
             if (result.status == SyntaxStatus.OK && !result.commentsTruncated) {
                 val counts = countWithComments(utf8, result.comments)
-                val imports = extractImports(language, utf8, result.nodes) + requireCalls(language, text, utf8, result.comments)
+                val starts = lineStarts(utf8)
+                val symbols = SymbolExtractor.extract(language, utf8, result.nodes) { lineOf(starts, it) }
+                val imports = symbols.imports + requireCalls(language, text, utf8, result.comments)
                 val spans = if (highlight && !result.tokensTruncated) toCharSpans(utf8, result.tokens) else null
                 val comments = toCharRanges(utf8, result.comments)
-                return LanguageAnalysis(language, CountMethod.SYNTAX, counts[0], counts[1], counts[2], result.syntaxErrors, null, imports.take(MAX_IMPORTS), spans, comments)
+                var declarations = symbols.declarations
+                if (result.syntaxErrors > 0) {
+                    // Con errores de sintaxis el árbol puede perder declaraciones: se completan línea a línea.
+                    val textStarts = charLineStarts(text)
+                    if (language.id !in setOf("csharp", "c", "cpp")) {
+                        // Una declaración sangrada dentro de una zona con errores suele ser una variable local.
+                        declarations = declarations.filter { d ->
+                            val start = textStarts.getOrNull(d.line - 1) ?: return@filter true
+                            start >= text.length || !(text[start] == ' ' || text[start] == '\t')
+                        }
+                    }
+                    val known = declarations.mapTo(HashSet()) { it.name }
+                    val probe = LanguageAnalysis(language, CountMethod.SYNTAX, 0, 0, 0, 0, null, emptyList(), null, comments)
+                    val extra = LexicalDeclarations.scan(language, text, probe::inComment) { offset ->
+                        val i = textStarts.binarySearch(offset)
+                        (if (i >= 0) i else -i - 2) + 1
+                    }.filter { it.name !in known }
+                    declarations = (declarations + extra).distinctBy { it.name }.take(SymbolExtractor.MAX_DECLARATIONS)
+                }
+                return LanguageAnalysis(
+                    language, CountMethod.SYNTAX, counts[0], counts[1], counts[2], result.syntaxErrors, null,
+                    imports.take(MAX_IMPORTS), spans, comments, declarations, symbols.namespaces,
+                )
             }
             val problem = when (result.status) {
                 SyntaxStatus.OK -> "el archivo tiene más comentarios de los que admite el análisis sintáctico"
@@ -133,6 +158,15 @@ object LanguageAnalyzer {
         return intArrayOf(code, comment, blank)
     }
 
+    private fun charLineStarts(text: String): IntArray {
+        var count = 1
+        for (ch in text) if (ch == '\n') count++
+        val starts = IntArray(count)
+        var n = 1
+        for (i in text.indices) if (text[i] == '\n') starts[n++] = i + 1
+        return starts
+    }
+
     private fun lineStarts(utf8: ByteArray): IntArray {
         var count = 1
         for (b in utf8) if (b == '\n'.code.toByte()) count++
@@ -145,70 +179,6 @@ object LanguageAnalyzer {
     private fun lineOf(starts: IntArray, offset: Int): Int {
         val i = starts.binarySearch(offset)
         return (if (i >= 0) i else -i - 2) + 1
-    }
-
-    private val QUOTED = Pattern.compile("""["'`]([^"'`\r\n]+)["'`]""")
-    private val ANGLED = Pattern.compile("""<([^<>\r\n]+)>""")
-    private val PY_FROM = Pattern.compile("""^\s*from\s+([.\w]+)\s+import""")
-    private val PY_IMPORT = Pattern.compile("""^\s*import\s+(.+)$""")
-    private val DOTTED = Pattern.compile("""^\s*(?:import|using|use)\s+(?:static\s+)?(?:\w+\s*=\s*)?([A-Za-z_][\w.\\]*)""")
-    private val PHP_GROUP = Pattern.compile("""^\s*use\s+(?:function\s+|const\s+)?([A-Za-z_][\w\\]*)\\?\{""")
-
-    /** Extrae el módulo de cada nodo de importación según la sintaxis del lenguaje. */
-    internal fun extractImports(language: Language, utf8: ByteArray, nodes: IntArray): List<ImportRef> {
-        if (nodes.isEmpty()) return emptyList()
-        val starts = lineStarts(utf8)
-        val out = mutableListOf<ImportRef>()
-        var i = 0
-        while (i + 2 < nodes.size && out.size < MAX_IMPORTS) {
-            val start = nodes[i + 1]
-            val end = minOf(nodes[i + 2], start + 2_000)
-            i += 3
-            val text = String(utf8, start, maxOf(0, end - start), Charsets.UTF_8).replace('\n', ' ')
-            val line = lineOf(starts, start)
-            when (language.id) {
-                "javascript", "typescript", "tsx", "dart", "css" -> {
-                    val m = QUOTED.matcher(text)
-                    if ((language.id != "javascript" && language.id != "typescript" && language.id != "tsx") || text.contains("from") || text.trimStart().startsWith("import")) {
-                        if (m.find()) out += ImportRef(m.group(1), line)
-                    }
-                }
-                "python" -> {
-                    val from = PY_FROM.matcher(text)
-                    if (from.find()) {
-                        out += ImportRef(from.group(1), line)
-                    } else {
-                        val imp = PY_IMPORT.matcher(text)
-                        if (imp.find()) {
-                            imp.group(1).split(',').map { it.trim().substringBefore(' ') }.filter { it.isNotEmpty() }.forEach { out += ImportRef(it, line) }
-                        }
-                    }
-                }
-                "c", "cpp" -> {
-                    val angled = ANGLED.matcher(text)
-                    val quoted = QUOTED.matcher(text)
-                    when {
-                        angled.find() -> out += ImportRef(angled.group(1), line)
-                        quoted.find() -> out += ImportRef(quoted.group(1), line)
-                    }
-                }
-                "php" -> {
-                    val quoted = QUOTED.matcher(text)
-                    val group = PHP_GROUP.matcher(text)
-                    val dotted = DOTTED.matcher(text)
-                    when {
-                        !text.trimStart().startsWith("use") && quoted.find() -> out += ImportRef(quoted.group(1), line)
-                        group.find() -> out += ImportRef(group.group(1).trimEnd('\\'), line)
-                        dotted.find() -> out += ImportRef(dotted.group(1).trimEnd('.', '\\'), line)
-                    }
-                }
-                else -> {
-                    val dotted = DOTTED.matcher(text)
-                    if (dotted.find()) out += ImportRef(dotted.group(1).trimEnd('.'), line)
-                }
-            }
-        }
-        return out
     }
 
     private val REQUIRE = Pattern.compile("""\b(?:require|import)\s*\(\s*["'`]([^"'`\r\n]+)["'`]\s*\)""")

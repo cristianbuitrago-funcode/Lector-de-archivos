@@ -28,6 +28,11 @@ object RecordValidator {
     const val MAX_VERSION_LENGTH = 100
     const val MAX_TECH_VERSIONS = 8
     const val MAX_TECH_ROOTS = 50
+    const val MAX_EXCHANGED = 50
+    const val MAX_REFERENCE_LENGTH = 1_024
+    const val MAX_SYMBOLS = 300
+    const val MAX_CYCLE_PATHS = 100
+    const val MAX_IMPACT_ENTRY_POINTS = 3
 
     /** Caracteres visibles que puede mostrar un secreto enmascarado: 4 al principio y 2 al final (§8.4). */
     const val MAX_VISIBLE_SECRET_CHARS = 6
@@ -166,6 +171,48 @@ object RecordValidator {
                 record.version?.let { checkName(errors, "version", it, MAX_VERSION_LENGTH) }
                 if ((record.line ?: 1) < 1) errors += "Línea inválida"
                 record.projectRoot?.let { checkDirectory(errors, it) }
+            }
+            is Relation -> {
+                checkPath(errors, record.source)
+                record.target?.let { checkPath(errors, it) }
+                record.external?.let { checkName(errors, "external", it) }
+                if (record.confidence == RelationConfidence.BROKEN) {
+                    if (record.target != null) errors += "Relación rota con destino"
+                } else if ((record.target == null) == (record.external == null)) {
+                    errors += "Relación sin destino o con dos destinos"
+                }
+                checkName(errors, "reference", record.reference, MAX_REFERENCE_LENGTH)
+                if ((record.line ?: 1) < 1) errors += "Línea inválida"
+                if (record.exchanged.size > MAX_EXCHANGED) errors += "Demasiados símbolos intercambiados"
+                record.exchanged.forEach { checkName(errors, "exchanged", it) }
+                record.exchangedNote?.let { checkText(errors, "exchangedNote", it, MAX_EVIDENCE_DETAIL) }
+                if (record.evidence.isEmpty()) errors += "Relación sin evidencia"
+                checkEvidence(errors, record.evidence)
+                val impact = record.impact
+                if (impact.undefinedSymbols.size > MAX_EXCHANGED) errors += "Demasiados símbolos en el impacto"
+                impact.undefinedSymbols.forEach { checkName(errors, "undefinedSymbols", it) }
+                if (listOf(impact.directDependents, impact.transitiveDependents, impact.entryPointCount).any { it < 0 }) errors += "Impacto negativo"
+                if (impact.entryPoints.size > MAX_IMPACT_ENTRY_POINTS || impact.entryPoints.size > impact.entryPointCount) errors += "Puntos de entrada del impacto incoherentes"
+                impact.entryPoints.forEach { checkPath(errors, it) }
+            }
+            is FileGraph -> {
+                checkPath(errors, record.path)
+                if (listOf(record.outgoing, record.incoming, record.externals, record.transitiveDependents).any { it < 0 } || record.rank < 1) errors += "Valores del grafo inválidos"
+                if (record.importance.isNaN() || record.importance < 0.0 || record.importance > 1.0) errors += "Importancia fuera de rango"
+                if ((record.cycle ?: 0) < 0) errors += "Ciclo inválido"
+                if (record.symbols.size > MAX_SYMBOLS) errors += "Demasiados símbolos"
+                record.symbols.forEach {
+                    checkName(errors, "symbol", it.name)
+                    if (it.line < 1) errors += "Línea de símbolo inválida"
+                }
+            }
+            is DependencyCycle -> {
+                if (record.index < 0 || record.size < 2 || record.paths.size > MAX_CYCLE_PATHS || record.paths.size > record.size || record.paths.isEmpty()) errors += "Ciclo inválido"
+                record.paths.forEach { checkPath(errors, it) }
+            }
+            is RelationsSummary -> {
+                val values = listOf(record.files, record.relations, record.internal, record.external, record.broken, record.cycles, record.unreferencedFiles)
+                if (values.any { it < 0 } || record.byKind.values.any { it < 0 } || record.byConfidence.values.any { it < 0 }) errors += "Totales negativos"
             }
             is Technology -> {
                 checkPattern(errors, "id", record.id, ID_PATTERN)

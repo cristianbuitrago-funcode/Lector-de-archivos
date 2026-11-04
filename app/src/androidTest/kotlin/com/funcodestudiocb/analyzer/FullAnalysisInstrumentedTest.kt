@@ -10,6 +10,7 @@ import com.funcodestudiocb.analyzer.engine.api.ArchiveFormat
 import com.funcodestudiocb.analyzer.engine.api.Confidence
 import com.funcodestudiocb.analyzer.engine.api.EvidenceKind
 import com.funcodestudiocb.analyzer.engine.api.LineMethod
+import com.funcodestudiocb.analyzer.engine.api.RelationConfidence
 import com.funcodestudiocb.analyzer.engine.api.EntryPointKind
 import com.funcodestudiocb.analyzer.engine.api.ExclusionOptions
 import com.funcodestudiocb.analyzer.engine.api.FileRole
@@ -88,7 +89,8 @@ class FullAnalysisInstrumentedTest {
                 "src/copia/App.kt" to "fun main() = println(\"hola\")",
                 "src/Config.kt" to "val apiKey = \"abcd1234efgh5678ijkl\"\n",
                 "web/package.json" to "{\"dependencies\": {\"express\": \"^4.19.0\"}}",
-                "web/server.js" to "// servidor\nconst express = require(\"express\");\n",
+                "web/server.js" to "// servidor\nconst express = require(\"express\");\nconst util = require(\"./util\");\n",
+                "web/util.js" to "module.exports = {};\n",
                 "node_modules/react/index.js" to "x",
                 "../fuera.txt" to "malicioso",
             ).forEach { (name, text) ->
@@ -100,7 +102,7 @@ class FullAnalysisInstrumentedTest {
         val finished = analyze(Uri.fromFile(file)) as? AnalysisState.Finished ?: fail("Estado inesperado: ${coordinator.state.value}")
         val diagnosis = "problema=${finished.report.engineProblem}; resultado=${finished.outcome}; etapas=${finished.report.stages}; cobertura=${finished.report.coverage}"
         assertEquals(ArchiveFormat.ZIP, finished.report.archive?.format)
-        assertEquals(setOf("src/App.kt", "src/copia/App.kt", "src/Config.kt", "web/package.json", "web/server.js"), finished.report.files.map { it.path }.toSet(), diagnosis)
+        assertEquals(setOf("src/App.kt", "src/copia/App.kt", "src/Config.kt", "web/package.json", "web/server.js", "web/util.js"), finished.report.files.map { it.path }.toSet(), diagnosis)
         assertTrue(finished.report.files.all { it.status == FileStatus.ANALYZED })
         assertEquals(1, finished.report.duplicates.size)
         assertEquals("node_modules", finished.report.excludedDirectories.single().path)
@@ -128,6 +130,14 @@ class FullAnalysisInstrumentedTest {
         assertTrue(express.evidence.any { it.kind == EvidenceKind.IMPORT && it.path == "web/server.js" && it.line == 2 }, express.toString())
         val code = runBlocking { container.repository.code(finished.analysisId, "web/server.js") } ?: fail("Sin copia")
         assertTrue(code.highlight.isNotEmpty(), "Sin resaltado de sintaxis")
+
+        // Relaciones entre archivos calculadas en el proceso aislado (Fase 5A).
+        val util = finished.report.relations.single { it.source == "web/server.js" && it.target == "web/util.js" }
+        assertEquals(RelationConfidence.VERIFIED, util.confidence)
+        assertEquals(3, util.line)
+        assertEquals(1, util.impact.directDependents)
+        assertTrue(finished.report.relations.any { it.source == "web/server.js" && it.external == "express" && it.confidence == RelationConfidence.VERIFIED })
+        assertEquals(1, finished.report.fileGraphs.single { it.path == "web/util.js" }.incoming)
     }
 
     @Test

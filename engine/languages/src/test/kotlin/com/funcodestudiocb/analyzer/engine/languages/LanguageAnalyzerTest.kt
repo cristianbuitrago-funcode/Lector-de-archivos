@@ -165,11 +165,11 @@ class LanguageAnalyzerTest {
             int main(void) { return 0; } /* fin */
             """,
         )
-        assertEquals(listOf("stdio.h", "sqlite3.h"), c.modules())
+        assertEquals(listOf("<stdio.h>", "sqlite3.h"), c.modules(), "Las de sistema conservan los <>")
         assertEquals(Triple(3, 0, 0), c.lines())
 
         val cpp = analyze(Languages.CPP, "#include <vector>\nint x = 1;")
-        assertEquals(listOf("vector"), cpp.modules())
+        assertEquals(listOf("<vector>"), cpp.modules())
 
         val css = analyze(Languages.CSS, "@import url(\"theme.css\");\n/* a */\nbody { color: red; }")
         assertEquals(listOf("theme.css"), css.modules())

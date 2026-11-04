@@ -158,6 +158,15 @@ class ExplorerModel(val report: AnalysisReport) {
         return out
     }
 
+    /** Relaciones que salen de cada archivo y que llegan a él. */
+    val outgoing: Map<String, List<com.funcodestudiocb.analyzer.engine.api.Relation>> = report.relations.groupBy { it.source }
+    val incoming: Map<String, List<com.funcodestudiocb.analyzer.engine.api.Relation>> =
+        report.relations.filter { it.target != null }.groupBy { it.target!! }
+    val graph: Map<String, com.funcodestudiocb.analyzer.engine.api.FileGraph> = report.fileGraphs.associateBy { it.path }
+
+    /** El análisis tiene relaciones (Fase 5A o posterior). */
+    val hasRelations: Boolean = report.relationsSummary != null
+
     /** Tecnologías con alguna evidencia en este archivo, con esas evidencias. */
     fun technologiesIn(path: String): List<Pair<com.funcodestudiocb.analyzer.engine.api.Technology, List<com.funcodestudiocb.analyzer.engine.api.Evidence>>> =
         report.technologies.mapNotNull { t -> t.evidence.filter { it.path == path }.takeIf { it.isNotEmpty() }?.let { t to it } }

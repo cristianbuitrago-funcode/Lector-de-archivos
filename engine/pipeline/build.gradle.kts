@@ -17,6 +17,7 @@ java {
 
 dependencies {
     api(project(":engine:technologies"))
+    api(project(":engine:relations"))
 
     testImplementation(kotlin("test"))
     testImplementation(platform(libs.junit5.bom))

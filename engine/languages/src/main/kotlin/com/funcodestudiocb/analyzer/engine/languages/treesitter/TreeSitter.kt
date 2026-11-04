@@ -23,7 +23,7 @@ enum class SyntaxStatus { OK, TIMED_OUT, UNAVAILABLE, OUT_OF_MEMORY }
  *
  * @property comments pares (inicio, fin)
  * @property tokens tríos (inicio, fin, categoría de [HighlightCategory])
- * @property nodes tríos (índice del tipo pedido, inicio, fin)
+ * @property nodes quíntuplas (índice del tipo pedido, inicio, fin, inicio del nombre, fin del nombre; -1 sin nombre)
  */
 class SyntaxResult(
     val status: SyntaxStatus,
@@ -95,7 +95,7 @@ object TreeSitter {
         }
         val comments = take(2)
         val tokens = take(3)
-        val nodes = take(3)
+        val nodes = take(5)
         return SyntaxResult(status, raw[1], raw[2], comments, tokens, nodes)
     }
 }

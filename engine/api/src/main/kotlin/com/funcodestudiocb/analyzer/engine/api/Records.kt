@@ -7,7 +7,7 @@ import kotlinx.serialization.Serializable
  * Versión del esquema de registros que el motor envía al proceso principal.
  * Se incrementa cada vez que cambia la forma de algún registro.
  */
-const val RESULT_SCHEMA_VERSION: Int = 4
+const val RESULT_SCHEMA_VERSION: Int = 5
 
 /**
  * Registro producido por el motor de análisis.

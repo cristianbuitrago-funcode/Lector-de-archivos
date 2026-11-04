@@ -80,7 +80,7 @@ fun ExplorerScreen(viewModel: ExplorerViewModel) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val analyses by viewModel.analyses.collectAsStateWithLifecycle()
     val loaded = state as? ExplorerUiState.Loaded
-    BackHandler(enabled = loaded != null && (loaded.code != null || loaded.selected != null)) { viewModel.back() }
+    BackHandler(enabled = loaded != null && (loaded.relation != null || loaded.code != null || loaded.selected != null)) { viewModel.back() }
 
     when (val s = state) {
         ExplorerUiState.Loading -> Centered {
@@ -96,6 +96,7 @@ fun ExplorerScreen(viewModel: ExplorerViewModel) {
                     Box(Modifier.weight(0.45f).fillMaxHeight()) { TreePane(s, analyses, viewModel) }
                     Box(Modifier.weight(0.55f).fillMaxHeight()) {
                         when {
+                            s.relation != null -> RelationDetail(s.relation, viewModel::closeRelation, onOpenFile = viewModel::select)
                             s.code != null -> CodeViewer(s.code, viewModel::closeCode)
                             s.selected != null -> FileDetail(s, s.selected, viewModel, onClose = null)
                         }
@@ -103,6 +104,7 @@ fun ExplorerScreen(viewModel: ExplorerViewModel) {
                 }
             } else {
                 when {
+                    s.relation != null -> RelationDetail(s.relation, viewModel::closeRelation, onOpenFile = viewModel::select)
                     s.code != null -> CodeViewer(s.code, viewModel::closeCode)
                     s.selected != null -> FileDetail(s, s.selected, viewModel, onClose = { viewModel.select(null) })
                     else -> TreePane(s, analyses, viewModel)
@@ -438,6 +440,8 @@ private fun FileDetail(s: ExplorerUiState.Loaded, path: String, viewModel: Explo
             }
         }
 
+        if (s.model.hasRelations) RelationsPanel(s.model, path, viewModel::openRelation)
+
         FuncodePanel {
             SectionTitle(stringResource(R.string.file_related))
             val related = s.model.related(path)
@@ -450,7 +454,9 @@ private fun FileDetail(s: ExplorerUiState.Loaded, path: String, viewModel: Explo
                     modifier = Modifier.clickable { viewModel.select(r.path) }.padding(vertical = 2.dp),
                 )
             }
-            Text(stringResource(R.string.file_related_phase5), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (!s.model.hasRelations) {
+                Text(stringResource(R.string.file_related_phase5), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
         }
 
         if (file.redactions.isNotEmpty()) {

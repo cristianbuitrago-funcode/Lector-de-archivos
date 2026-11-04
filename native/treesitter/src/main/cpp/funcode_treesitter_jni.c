@@ -10,7 +10,8 @@
  *   [2] indicadores de recorte (1 = comentarios, 2 = fragmentos de resaltado, 4 = nodos pedidos)
  *   [3] n comentarios, seguido de n pares (inicio, fin) en bytes
  *   luego m fragmentos de resaltado: m, seguido de m tríos (inicio, fin, categoría)
- *   luego k nodos pedidos: k, seguido de k tríos (índice del tipo pedido, inicio, fin)
+ *   luego k nodos pedidos: k, seguido de k quíntuplas (índice del tipo pedido, inicio, fin, inicio del nombre,
+ *   fin del nombre); el nombre es el hijo con el campo `name` (-1 si no lo tiene)
  *
  * Se ejecuta dentro del proceso aislado sobre archivos hostiles: el tiempo está limitado (se cancela el análisis),
  * el tamaño de cada lista está acotado y el recorrido es iterativo (sin recursión).
@@ -89,7 +90,31 @@ static void list_add(IntList *l, int32_t a, int32_t b, int32_t c) {
     }
     l->data[l->size++] = a;
     l->data[l->size++] = b;
-    if (l->item_width == 3) l->data[l->size++] = c;
+    if (l->item_width >= 3) l->data[l->size++] = c;
+}
+
+/* Elemento de cinco enteros (nodos pedidos con su nombre). */
+static void list_add5(IntList *l, int32_t a, int32_t b, int32_t c, int32_t d, int32_t e) {
+    if (l->failed) return;
+    if (l->size / l->item_width >= l->max_items) {
+        l->truncated = 1;
+        return;
+    }
+    if (l->size + l->item_width > l->capacity) {
+        size_t cap = l->capacity ? l->capacity * 2 : 1024;
+        int32_t *grown = realloc(l->data, cap * sizeof(int32_t));
+        if (!grown) {
+            l->failed = 1;
+            return;
+        }
+        l->data = grown;
+        l->capacity = cap;
+    }
+    l->data[l->size++] = a;
+    l->data[l->size++] = b;
+    l->data[l->size++] = c;
+    l->data[l->size++] = d;
+    l->data[l->size++] = e;
 }
 
 typedef struct {
@@ -275,7 +300,8 @@ Java_com_funcodestudiocb_analyzer_engine_languages_treesitter_TreeSitterNative_n
     IntList comments, tokens, nodes;
     list_init(&comments, (size_t)max_items, 2);
     list_init(&tokens, (size_t)max_items, 3);
-    list_init(&nodes, (size_t)max_items, 3);
+    list_init(&nodes, (size_t)max_items, 5);
+    TSFieldId name_field = ts_language_field_id_for_name(language, "name", 4);
     TypeStack parents = {0};
     int errors = 0;
     int timed_out = 0;
@@ -299,7 +325,15 @@ Java_com_funcodestudiocb_analyzer_engine_languages_treesitter_TreeSitterNative_n
             TSSymbol symbol = ts_node_symbol(node);
             for (jsize i = 0; i < wanted_count; i++) {
                 if (wanted[i] != 0 && wanted[i] == symbol) {
-                    list_add(&nodes, (int32_t)i, (int32_t)start, (int32_t)end);
+                    int32_t name_start = -1, name_end = -1;
+                    if (name_field != 0) {
+                        TSNode name = ts_node_child_by_field_id(node, name_field);
+                        if (!ts_node_is_null(name)) {
+                            name_start = (int32_t)ts_node_start_byte(name);
+                            name_end = (int32_t)ts_node_end_byte(name);
+                        }
+                    }
+                    list_add5(&nodes, (int32_t)i, (int32_t)start, (int32_t)end, name_start, name_end);
                     break;
                 }
             }
@@ -359,7 +393,7 @@ Java_com_funcodestudiocb_analyzer_engine_languages_treesitter_TreeSitterNative_n
             (*env)->SetIntArrayRegion(env, out, pos++, 1, &count);
             if (tokens.size) (*env)->SetIntArrayRegion(env, out, pos, (jsize)tokens.size, tokens.data);
             pos += (jsize)tokens.size;
-            count = (jint)(nodes.size / 3);
+            count = (jint)(nodes.size / 5);
             (*env)->SetIntArrayRegion(env, out, pos++, 1, &count);
             if (nodes.size) (*env)->SetIntArrayRegion(env, out, pos, (jsize)nodes.size, nodes.data);
         }

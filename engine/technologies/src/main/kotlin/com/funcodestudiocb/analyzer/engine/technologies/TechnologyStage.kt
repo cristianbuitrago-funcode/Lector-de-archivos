@@ -100,11 +100,13 @@ class TechnologySignalCollector(internal val catalog: TechnologyCatalog = Techno
         val language = analysis.language.id
         val seen = HashSet<Pair<String, Int>>()
         for (ref in analysis.imports) {
+            // `#include <SDL2/SDL.h>` se compara sin los <>.
+            val module = ref.module.removePrefix("<").removeSuffix(">")
             for ((rule, signal) in importSignals) {
                 if (signal.languages != null && language !in signal.languages) continue
-                if (!importMatches(ref.module, signal.value)) continue
+                if (!importMatches(module, signal.value)) continue
                 if (!seen.add(rule.id to signal.index)) continue
-                hitsOf(rule).add(Hit(signal, EvidenceKind.IMPORT, "Importa ${shorten(ref.module)}", file.path, ref.line))
+                hitsOf(rule).add(Hit(signal, EvidenceKind.IMPORT, "Importa ${shorten(module)}", file.path, ref.line))
             }
         }
     }

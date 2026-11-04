@@ -9,9 +9,13 @@ data class CommentSyntax(
 
 enum class LanguageKind { PROGRAMMING, MARKUP, DATA, PROSE }
 
+/** Tipo de símbolo declarado en un archivo. */
+enum class SymbolKind { CLASS, INTERFACE, ENUM, OBJECT, FUNCTION, TYPE, CONSTANT }
+
 /**
  * Un lenguaje reconocido. [grammar] es la gramática de tree-sitter (si la hay); [level] es el nivel de soporte de la
- * arquitectura (1 = máximo, 0 = solo inventario, líneas y secretos); [importTypes] son los nodos de importación.
+ * arquitectura (1 = máximo, 0 = solo inventario, líneas y secretos); [importTypes] son los nodos de importación;
+ * [declarationTypes], los de declaración de símbolos; [namespaceTypes], los de paquete o espacio de nombres.
  */
 data class Language(
     val id: String,
@@ -21,7 +25,14 @@ data class Language(
     val grammar: String?,
     val syntax: CommentSyntax,
     val importTypes: List<String> = emptyList(),
-)
+    val declarationTypes: Map<String, SymbolKind> = emptyMap(),
+    val namespaceTypes: List<String> = emptyList(),
+    /** Bloques condicionales (`#if`, `#ifdef`): lo que hay dentro puede no compilarse. */
+    val conditionalTypes: List<String> = emptyList(),
+) {
+    /** Nodos que se piden a tree-sitter, en este orden. */
+    val wantedTypes: List<String> = importTypes + declarationTypes.keys + namespaceTypes + conditionalTypes
+}
 
 /** Detección del lenguaje de un archivo por su nombre, su extensión, su línea `#!` y, si es ambiguo, su contenido. */
 object Languages {
@@ -31,26 +42,102 @@ object Languages {
     private val XML_LIKE = CommentSyntax(block = listOf("<!--" to "-->"), quotes = "")
     private val NONE = CommentSyntax(quotes = "")
 
+    private val PREPROCESSOR_CONDITIONALS = listOf("preproc_if", "preproc_ifdef")
     private val JS_IMPORTS = listOf("import_statement", "export_statement")
+    private val JS_DECLARATIONS = mapOf(
+        "class_declaration" to SymbolKind.CLASS,
+        "function_declaration" to SymbolKind.FUNCTION,
+        "generator_function_declaration" to SymbolKind.FUNCTION,
+        "variable_declarator" to SymbolKind.CONSTANT,
+    )
+    private val TS_DECLARATIONS = JS_DECLARATIONS + mapOf(
+        "abstract_class_declaration" to SymbolKind.CLASS,
+        "interface_declaration" to SymbolKind.INTERFACE,
+        "type_alias_declaration" to SymbolKind.TYPE,
+        "enum_declaration" to SymbolKind.ENUM,
+    )
 
-    val JAVASCRIPT = Language("javascript", "JavaScript", LanguageKind.PROGRAMMING, 1, "javascript", C_STYLE_TEMPLATES, JS_IMPORTS)
-    val TYPESCRIPT = Language("typescript", "TypeScript", LanguageKind.PROGRAMMING, 1, "typescript", C_STYLE_TEMPLATES, JS_IMPORTS)
-    val TSX = Language("tsx", "TypeScript (TSX)", LanguageKind.PROGRAMMING, 1, "tsx", C_STYLE_TEMPLATES, JS_IMPORTS)
-    val PYTHON = Language("python", "Python", LanguageKind.PROGRAMMING, 1, "python", HASH, listOf("import_statement", "import_from_statement"))
-    val JAVA = Language("java", "Java", LanguageKind.PROGRAMMING, 1, "java", C_STYLE, listOf("import_declaration"))
-    val KOTLIN = Language("kotlin", "Kotlin", LanguageKind.PROGRAMMING, 1, "kotlin", C_STYLE, listOf("import"))
+    val JAVASCRIPT = Language("javascript", "JavaScript", LanguageKind.PROGRAMMING, 1, "javascript", C_STYLE_TEMPLATES, JS_IMPORTS, JS_DECLARATIONS)
+    val TYPESCRIPT = Language("typescript", "TypeScript", LanguageKind.PROGRAMMING, 1, "typescript", C_STYLE_TEMPLATES, JS_IMPORTS, TS_DECLARATIONS)
+    val TSX = Language("tsx", "TypeScript (TSX)", LanguageKind.PROGRAMMING, 1, "tsx", C_STYLE_TEMPLATES, JS_IMPORTS, TS_DECLARATIONS)
+    val PYTHON = Language(
+        "python", "Python", LanguageKind.PROGRAMMING, 1, "python", HASH, listOf("import_statement", "import_from_statement"),
+        mapOf("class_definition" to SymbolKind.CLASS, "function_definition" to SymbolKind.FUNCTION),
+    )
+    val JAVA = Language(
+        "java", "Java", LanguageKind.PROGRAMMING, 1, "java", C_STYLE, listOf("import_declaration"),
+        mapOf(
+            "class_declaration" to SymbolKind.CLASS,
+            "interface_declaration" to SymbolKind.INTERFACE,
+            "enum_declaration" to SymbolKind.ENUM,
+            "record_declaration" to SymbolKind.CLASS,
+            "annotation_type_declaration" to SymbolKind.INTERFACE,
+        ),
+        listOf("package_declaration"),
+    )
+    val KOTLIN = Language(
+        "kotlin", "Kotlin", LanguageKind.PROGRAMMING, 1, "kotlin", C_STYLE, listOf("import"),
+        mapOf(
+            "class_declaration" to SymbolKind.CLASS,
+            "object_declaration" to SymbolKind.OBJECT,
+            "function_declaration" to SymbolKind.FUNCTION,
+            "property_declaration" to SymbolKind.CONSTANT,
+            "type_alias" to SymbolKind.TYPE,
+        ),
+        listOf("package_header"),
+    )
     val PHP = Language(
         "php", "PHP", LanguageKind.PROGRAMMING, 1, "php", CommentSyntax(listOf("//", "#"), listOf("/*" to "*/")),
         listOf("namespace_use_declaration", "include_expression", "include_once_expression", "require_expression", "require_once_expression"),
+        mapOf(
+            "class_declaration" to SymbolKind.CLASS,
+            "interface_declaration" to SymbolKind.INTERFACE,
+            "trait_declaration" to SymbolKind.CLASS,
+            "enum_declaration" to SymbolKind.ENUM,
+            "function_definition" to SymbolKind.FUNCTION,
+        ),
+        listOf("namespace_definition"),
     )
-    val CSHARP = Language("csharp", "C#", LanguageKind.PROGRAMMING, 2, "c_sharp", C_STYLE, listOf("using_directive"))
-    val DART = Language("dart", "Dart", LanguageKind.PROGRAMMING, 2, "dart", C_STYLE, listOf("library_import", "library_export"))
+    val CSHARP = Language(
+        "csharp", "C#", LanguageKind.PROGRAMMING, 2, "c_sharp", C_STYLE, listOf("using_directive"),
+        mapOf(
+            "class_declaration" to SymbolKind.CLASS,
+            "interface_declaration" to SymbolKind.INTERFACE,
+            "struct_declaration" to SymbolKind.CLASS,
+            "enum_declaration" to SymbolKind.ENUM,
+            "record_declaration" to SymbolKind.CLASS,
+        ),
+        listOf("namespace_declaration", "file_scoped_namespace_declaration"),
+    )
+    val DART = Language(
+        "dart", "Dart", LanguageKind.PROGRAMMING, 2, "dart", C_STYLE, listOf("library_import", "library_export"),
+        mapOf(
+            "class_definition" to SymbolKind.CLASS,
+            "mixin_declaration" to SymbolKind.CLASS,
+            "enum_declaration" to SymbolKind.ENUM,
+            "extension_declaration" to SymbolKind.CLASS,
+            "function_signature" to SymbolKind.FUNCTION,
+            "type_alias" to SymbolKind.TYPE,
+        ),
+    )
     val HTML = Language("html", "HTML", LanguageKind.MARKUP, 2, "html", XML_LIKE)
     val CSS = Language("css", "CSS", LanguageKind.MARKUP, 2, "css", CommentSyntax(block = listOf("/*" to "*/")), listOf("import_statement"))
     val SQL = Language("sql", "SQL", LanguageKind.PROGRAMMING, 2, "sql", CommentSyntax(listOf("--"), listOf("/*" to "*/"), "'"))
-    val GDSCRIPT = Language("gdscript", "GDScript", LanguageKind.PROGRAMMING, 2, "gdscript", HASH)
-    val C = Language("c", "C", LanguageKind.PROGRAMMING, 3, "c", C_STYLE, listOf("preproc_include"))
-    val CPP = Language("cpp", "C++", LanguageKind.PROGRAMMING, 3, "cpp", C_STYLE, listOf("preproc_include"))
+    val GDSCRIPT = Language(
+        "gdscript", "GDScript", LanguageKind.PROGRAMMING, 2, "gdscript", HASH, listOf("extends_statement"),
+        mapOf("class_name_statement" to SymbolKind.CLASS, "function_definition" to SymbolKind.FUNCTION),
+    )
+    val C = Language(
+        "c", "C", LanguageKind.PROGRAMMING, 3, "c", C_STYLE, listOf("preproc_include"),
+        mapOf("function_definition" to SymbolKind.FUNCTION, "struct_specifier" to SymbolKind.CLASS),
+        conditionalTypes = PREPROCESSOR_CONDITIONALS,
+    )
+    val CPP = Language(
+        "cpp", "C++", LanguageKind.PROGRAMMING, 3, "cpp", C_STYLE, listOf("preproc_include"),
+        mapOf("function_definition" to SymbolKind.FUNCTION, "struct_specifier" to SymbolKind.CLASS, "class_specifier" to SymbolKind.CLASS),
+        listOf("namespace_definition"),
+        PREPROCESSOR_CONDITIONALS,
+    )
 
     private fun lexical(id: String, name: String, syntax: CommentSyntax, kind: LanguageKind = LanguageKind.PROGRAMMING) =
         Language(id, name, kind, 0, null, syntax)

@@ -179,4 +179,53 @@ class ExplorerScreenTest {
         awaitCondition { compose.onAllNodesWithTag("code_line_1").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithText("const express = require", substring = true).assertIsDisplayed()
     }
+
+    @Test
+    fun relacionesConSusCincoAtributos() {
+        analyze(
+            mapOf(
+                "web/package.json" to "{\"name\": \"web\", \"dependencies\": {\"react\": \"^18.0.0\"}}",
+                "web/src/main.js" to "import { api } from './api.js';\nimport { nada } from './falta.js';\napi();\n",
+                "web/src/api.js" to "export function api() {}\n",
+                "web/src/sobra.js" to "export const x = 1;\n",
+            ),
+        )
+        compose.onNodeWithTag("open_menu").performClick()
+        compose.onNodeWithTag("nav_nuevo").performScrollTo().performClick()
+        awaitCondition { compose.onAllNodesWithTag("report_relations").fetchSemanticsNodes().isNotEmpty() }
+
+        // Informe: posibles errores y archivos sin referencias.
+        compose.onNodeWithTag("report_relations").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Posibles errores (1)").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Sin referencias encontradas", substring = true).performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("web/src/sobra.js").performScrollTo().assertIsDisplayed()
+
+        // Del posible error a la ficha del archivo y a sus conexiones.
+        compose.onNodeWithText("web/src/main.js:2").performScrollTo().performClick()
+        awaitCondition { compose.onAllNodesWithTag("file_detail").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithTag("file_relations").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Usa (2)").assertIsDisplayed()
+        compose.onNodeWithText("web/src/api.js").performScrollTo().performClick()
+        compose.waitForIdle()
+
+        // Los cinco atributos de la conexión.
+        compose.onNodeWithTag("relation_detail").assertIsDisplayed()
+        compose.onNodeWithText("ORIGEN Y DESTINO").assertIsDisplayed()
+        compose.onNodeWithText("web/src/main.js:1").assertIsDisplayed()
+        compose.onNodeWithText("Importación").assertIsDisplayed()
+        compose.onNodeWithTag("relation_exchanged").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("api").assertIsDisplayed()
+        compose.onNodeWithTag("relation_impact").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("dejarían de estar definidos: api", substring = true).assertIsDisplayed()
+        compose.onNodeWithText("CONFIANZA Y EVIDENCIA").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("ruta relativa", substring = true).performScrollTo().assertIsDisplayed()
+
+        // El destino abre su ficha, donde la conexión aparece como entrante.
+        compose.onNodeWithTag("relation_destination").performScrollTo().performClick()
+        compose.waitForIdle()
+        compose.onNodeWithTag("file_detail").assertIsDisplayed()
+        compose.onNodeWithText("api.js").assertIsDisplayed()
+        compose.onNodeWithTag("file_relations").performScrollTo()
+        compose.onNodeWithText("Lo usan (1)").assertIsDisplayed()
+    }
 }

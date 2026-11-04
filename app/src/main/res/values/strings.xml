@@ -259,7 +259,7 @@
         <item quantity="other">%1$d copias idénticas de %2$s</item>
     </plurals>
     <string name="report_coverage_title">Cobertura y limitaciones</string>
-    <string name="report_next_phases">Hasta esta fase se identifica y lee el comprimido, se clasifican sus archivos y se reconocen sus lenguajes y tecnologías. Las relaciones entre archivos, la arquitectura y la seguridad del código se analizarán en las fases 5 a 8.</string>
+    <string name="report_next_phases">Hasta esta fase se identifica y lee el comprimido, se clasifican sus archivos, se reconocen sus lenguajes y tecnologías y se resuelven las relaciones de lenguaje entre archivos. Las relaciones propias de cada framework, la seguridad, las vulnerabilidades de las dependencias y los diagramas llegan en las fases 5B a 8.</string>
     <string name="severity_critical">Crítico</string>
     <string name="severity_high">Alto</string>
     <string name="severity_medium">Medio</string>
@@ -362,8 +362,8 @@
     <string name="file_evidence_line">línea %1$d</string>
     <string name="file_evidence_in">en %1$s</string>
     <string name="file_entry_points">Puntos de entrada en este archivo</string>
-    <string name="file_related">Archivos relacionados</string>
-    <string name="file_related_none">Ninguno conocido todavía.</string>
+    <string name="file_related">Otros archivos relacionados</string>
+    <string name="file_related_none">Ninguno (duplicados, declaraciones o archivos .meta).</string>
     <string name="file_related_phase5">Las dependencias y las relaciones con el resto del código (importaciones, llamadas, rutas) se analizan en la Fase 5.</string>
     <string name="file_secrets">Posibles secretos ocultados</string>
     <string name="file_secret_item">Línea %1$d · %2$s · longitud %3$d · %4$s</string>
@@ -533,4 +533,115 @@
         <item quantity="other">%d errores de sintaxis: código incompleto o que la gramática no entiende</item>
     </plurals>
     <string name="file_technologies">Tecnologías encontradas aquí</string>
+
+    <!-- Fase 5A: relaciones entre archivos -->
+    <string name="relation_kind_import">Importación</string>
+    <string name="relation_kind_inheritance">Herencia</string>
+    <string name="relation_kind_implementation">Implementación</string>
+    <string name="relation_kind_reference">Uso sin importación (mismo paquete)</string>
+    <string name="relation_kind_call">Llamada</string>
+    <string name="relation_kind_route">Ruta → controlador</string>
+    <string name="relation_kind_http">Llamada HTTP</string>
+    <string name="relation_kind_db">Acceso a base de datos</string>
+    <string name="relation_kind_config">Lectura de configuración</string>
+    <string name="relation_kind_resource">Recurso</string>
+    <string name="relation_kind_ipc">Comunicación entre procesos</string>
+    <string name="relation_kind_injection">Inyección de dependencias</string>
+    <string name="relation_verified">Verificada</string>
+    <string name="relation_probable">Probable</string>
+    <string name="relation_unverified">No verificada</string>
+    <string name="relation_broken">Rota</string>
+    <string name="relation_verified_meaning">Se resolvió de forma sintáctica a un archivo que existe, o a un paquete declarado o de la plataforma.</string>
+    <string name="relation_probable_meaning">Heurística con evidencia fuerte: por ejemplo, el nombre se usa en el mismo paquete sin importarlo, o un alias habitual.</string>
+    <string name="relation_unverified_meaning">No se puede comprobar: paquete no declarado, código que se genera al compilar, inclusión condicional o coincidencia parcial.</string>
+    <string name="relation_broken_meaning">El destino no existe en el comprimido: posible error (o un archivo que se genera al compilar o que no se incluyó).</string>
+    <string name="symbol_class">Clase</string>
+    <string name="symbol_interface">Interfaz</string>
+    <string name="symbol_enum">Enumeración</string>
+    <string name="symbol_object">Objeto</string>
+    <string name="symbol_function">Función</string>
+    <string name="symbol_type">Tipo</string>
+    <string name="symbol_constant">Constante o variable</string>
+    <string name="relation_external">Paquete externo: %1$s</string>
+    <string name="relation_missing">No existe en el proyecto: %1$s</string>
+    <string name="file_relations">Relaciones</string>
+    <string name="file_relations_uses">Usa (%1$d)</string>
+    <string name="file_relations_used_by">Lo usan (%1$d)</string>
+    <string name="file_relations_none">Ninguna</string>
+    <string name="file_symbols">Declara</string>
+    <string name="file_graph_rank">Importancia: puesto %1$d de %2$d archivos</string>
+    <plurals name="file_graph_dependents">
+        <item quantity="one">Lo usa directamente %1$d archivo; en cadena, %2$d</item>
+        <item quantity="many">Lo usan directamente %1$d archivos; en cadena, %2$d</item>
+        <item quantity="other">Lo usan directamente %1$d archivos; en cadena, %2$d</item>
+    </plurals>
+    <plurals name="file_graph_dependents_capped">
+        <item quantity="one">Lo usa directamente %1$d archivo; en cadena, %2$d o más</item>
+        <item quantity="many">Lo usan directamente %1$d archivos; en cadena, %2$d o más</item>
+        <item quantity="other">Lo usan directamente %1$d archivos; en cadena, %2$d o más</item>
+    </plurals>
+    <string name="file_graph_cycle">Forma parte de un ciclo de %1$d archivos que dependen unos de otros</string>
+    <string name="file_graph_not_reachable">No se llega a él desde ningún punto de entrada conocido</string>
+    <string name="file_graph_unreferenced">Ningún archivo lo usa según las relaciones encontradas: puede sobrar, o usarse a través del framework (Fase 5B). Revísalo antes de borrarlo.</string>
+    <string name="relation_title">Conexión</string>
+    <string name="relation_origin_destination">Origen y destino</string>
+    <string name="relation_origin">Origen</string>
+    <string name="relation_destination">Destino</string>
+    <string name="relation_type">Tipo</string>
+    <string name="relation_written">En el código: %1$s</string>
+    <string name="relation_exchanged">Información intercambiada</string>
+    <string name="relation_exchanged_unknown">No determinable estáticamente</string>
+    <string name="relation_impact">Impacto de modificarla o eliminarla</string>
+    <string name="relation_confidence">Confianza y evidencia</string>
+    <string name="relation_evidence">Evidencia</string>
+    <string name="impact_broken">La conexión ya está rota: el destino no existe en el comprimido.</string>
+    <plurals name="impact_broken_dependents">
+        <item quantity="one">Si es un error, afecta a este archivo y a %d archivo que depende de él</item>
+        <item quantity="many">Si es un error, afecta a este archivo y a %d archivos que dependen de él</item>
+        <item quantity="other">Si es un error, afecta a este archivo y a %d archivos que dependen de él</item>
+    </plurals>
+    <plurals name="impact_external">
+        <item quantity="one">Si se quita %1$s, falla esta importación; lo usa %2$d archivo del proyecto</item>
+        <item quantity="many">Si se quita %1$s, falla esta importación; lo usan %2$d archivos del proyecto</item>
+        <item quantity="other">Si se quita %1$s, falla esta importación; lo usan %2$d archivos del proyecto</item>
+    </plurals>
+    <string name="impact_undefined">Si cambias o eliminas el destino, en el origen dejarían de estar definidos: %1$s</string>
+    <string name="impact_resource">Si se mueve o elimina el recurso, el origen deja de encontrarlo</string>
+    <string name="impact_source_breaks">Si se elimina el destino, el origen deja de compilar o de cargarse</string>
+    <plurals name="impact_dependents">
+        <item quantity="one">El destino lo usa directamente %1$d archivo y, en cadena, %2$d (radio de impacto)</item>
+        <item quantity="many">El destino lo usan directamente %1$d archivos y, en cadena, %2$d (radio de impacto)</item>
+        <item quantity="other">El destino lo usan directamente %1$d archivos y, en cadena, %2$d (radio de impacto)</item>
+    </plurals>
+    <plurals name="impact_dependents_capped">
+        <item quantity="one">El destino lo usa directamente %1$d archivo y, en cadena, %2$d o más (radio de impacto)</item>
+        <item quantity="many">El destino lo usan directamente %1$d archivos y, en cadena, %2$d o más (radio de impacto)</item>
+        <item quantity="other">El destino lo usan directamente %1$d archivos y, en cadena, %2$d o más (radio de impacto)</item>
+    </plurals>
+    <string name="impact_no_entry">No se llega al origen desde ningún punto de entrada conocido</string>
+    <string name="impact_entries">El origen se alcanza desde: %1$s</string>
+    <plurals name="impact_entries_more">
+        <item quantity="one">El origen se alcanza desde: %1$s y %2$d punto de entrada más</item>
+        <item quantity="many">El origen se alcanza desde: %1$s y %2$d puntos de entrada más</item>
+        <item quantity="other">El origen se alcanza desde: %1$s y %2$d puntos de entrada más</item>
+    </plurals>
+    <string name="report_relations">Relaciones entre archivos</string>
+    <string name="report_relations_summary">%1$d conexiones entre archivos del proyecto y %2$d con paquetes externos</string>
+    <string name="report_relations_intro">Toca un archivo para abrir su ficha: allí cada conexión muestra su origen y destino, tipo, información intercambiada, impacto y confianza con su evidencia.</string>
+    <string name="report_relations_broken">Posibles errores (%1$d)</string>
+    <string name="report_relations_broken_intro">Referencias a archivos que no están en el comprimido.</string>
+    <string name="report_relations_important">Archivos más importantes</string>
+    <plurals name="report_relations_important_item">
+        <item quantity="one">Lo usa %1$d archivo (%2$d en cadena)</item>
+        <item quantity="many">Lo usan %1$d archivos (%2$d en cadena)</item>
+        <item quantity="other">Lo usan %1$d archivos (%2$d en cadena)</item>
+    </plurals>
+    <string name="report_relations_cycles">Ciclos de dependencias (%1$d)</string>
+    <plurals name="report_relations_cycle_item">
+        <item quantity="one">%d archivo</item>
+        <item quantity="many">%d archivos</item>
+        <item quantity="other">%d archivos</item>
+    </plurals>
+    <string name="report_relations_unreferenced">Sin referencias encontradas (%1$d)</string>
+    <string name="report_relations_unreferenced_intro">Ningún otro archivo los usa según las relaciones de lenguaje. Pueden sobrar, o usarse a través del framework (Fase 5B): revísalos antes de borrar nada.</string>
 </resources>

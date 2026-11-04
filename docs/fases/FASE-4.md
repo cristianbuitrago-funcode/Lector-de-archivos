@@ -1,6 +1,6 @@
 # Fase 4 — Lenguajes y tecnologías
 
-- **Estado:** terminada, pendiente de aprobación
+- **Estado:** terminada y aprobada
 - **Criterio de aceptación:** cada tecnología muestra dónde se encontró y su confianza.
 
 ## Objetivo

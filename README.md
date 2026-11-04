@@ -14,8 +14,10 @@ auditoría de seguridad, exportable en PDF, HTML y JSON.
 | 1. Arquitectura y configuración inicial | ✅ Terminada y aprobada ([informe](docs/fases/FASE-1.md)) |
 | 2. Carga y extracción ZIP/RAR | ✅ Terminada y aprobada ([informe](docs/fases/FASE-2.md)) |
 | 3. Explorador y estructura | ✅ Terminada y aprobada ([informe](docs/fases/FASE-3.md)) |
-| 4. Lenguajes y tecnologías | ✅ Terminada, pendiente de aprobación ([informe](docs/fases/FASE-4.md)) |
-| 5–10 | Pendientes |
+| 4. Lenguajes y tecnologías | ✅ Terminada y aprobada ([informe](docs/fases/FASE-4.md)) |
+| 5A. Relaciones entre archivos | ✅ Terminada, pendiente de aprobación ([informe](docs/fases/FASE-5A.md)) |
+| 5B. Relaciones de framework | Pendiente |
+| 6–10 | Pendientes |
 
 - Arquitectura: [`docs/ARQUITECTURA.md`](docs/ARQUITECTURA.md)
 - Decisiones técnicas: [`docs/adr/`](docs/adr/)
@@ -32,9 +34,10 @@ engine/core/        orquestador del pipeline de análisis
 engine/ingest/      identificación, comprobación y lectura de ZIP y RAR sin extraer a disco
 engine/inventory/   funciones de los archivos, subproyectos, puntos de entrada, posibles innecesarios y copia redactada
 engine/security/    ocultación de secretos (la auditoría de seguridad completa llega en la Fase 6)
-engine/languages/   detección de lenguajes, líneas de código/comentario/en blanco, importaciones y resaltado (tree-sitter)
+engine/languages/   detección de lenguajes, líneas de código/comentario/en blanco, importaciones, símbolos y resaltado (tree-sitter)
 engine/dependencies/ dependencias directas declaradas en los manifiestos
 engine/technologies/ motor de reglas declarativas (catálogo YAML) de frameworks, bases de datos y servicios externos
+engine/relations/   relaciones entre archivos: resolución por ecosistema, grafo, ciclos, importancia e impacto
 engine/pipeline/    composición del análisis completo
 engine/cli/         herramienta de línea de comandos para probar el motor en el PC (no forma parte de la app)
 native/unrar/       UnRAR oficial (modificado, ver ADR 0004) compilado con el NDK, y su puente JNI
