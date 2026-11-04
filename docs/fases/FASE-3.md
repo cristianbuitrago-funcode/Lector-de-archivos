@@ -25,7 +25,7 @@ archivos que posiblemente sobran y una copia del código con los posibles secret
 
 | Módulo | Pruebas | Qué cubren |
 |--------|---------|------------|
-| `engine:inventory` | 13 | Proyecto Android (subproyectos, actividad del lanzador, clase Application, componentes exportados y no exportados, componente de una biblioteca que no está en el comprimido, funciones con evidencia y línea, posibles innecesarios, secreto ocultado y copia de la misma longitud). Proyecto web/Node (main, bin declarado que no existe, script start, servidor que escucha ignorando la línea comentada, arranque cargado por index.html, archivos generados sin copia, `.env` redactado). Escenas de Godot, Unity y Unreal y autoloads. main en 6 lenguajes sin falsos positivos en comentarios. Copia desactivada, límite de la copia y archivos demasiado grandes. Troceado de un archivo grande sin perder nada. Nombres hostiles y evidencias largas. XML: sin expansión de entidades (XXE y *billion laughs*), espacios de nombres, CDATA, comentarios, documentos mal formados o demasiado profundos. JSON con anidamiento excesivo. Reglas de nombre sin falsos amigos. |
+| `engine:inventory` | 14 | Proyecto Android (subproyectos, actividad del lanzador, clase Application, componentes exportados y no exportados, componente de una biblioteca que no está en el comprimido, funciones con evidencia y línea, posibles innecesarios, secreto ocultado y copia de la misma longitud). Proyecto web/Node (main, bin declarado que no existe, script start, servidor que escucha ignorando la línea comentada, arranque cargado por index.html, archivos generados sin copia, `.env` redactado). Escenas de Godot, Unity y Unreal y autoloads. main en 6 lenguajes sin falsos positivos en comentarios. Copia desactivada, límite de la copia y archivos demasiado grandes. Troceado de un archivo grande sin perder nada. Nombres hostiles y evidencias largas. XML: sin expansión de entidades (XXE y *billion laughs*), espacios de nombres, CDATA, comentarios, documentos mal formados o demasiado profundos. JSON con anidamiento excesivo. Reglas de nombre sin falsos amigos. Todos los patrones se compilan y usan en un hilo con una pila pequeña (como en Android). |
 | `engine:security` | 8 | Formatos conocidos, clave privada con y sin marca de final, asignaciones en 13 tipos de archivo, ausencia de falsos positivos (referencias a variables, textos de interfaz, nombres parecidos), longitud conservada, solo ASCII visible y texto hostil de 2 MB en menos de 10 s. |
 | `engine:api` | 28 | Las anteriores más los registros nuevos, el rechazo de un secreto que muestra demasiado y la validación de las opciones del inventario. |
 | `engine:ingest` | 36 | Las de la Fase 2 (sin cambios de comportamiento). |
@@ -33,7 +33,7 @@ archivos que posiblemente sobran y una copia del código con los posibles secret
 | `data` | 18 | Las de la Fase 1. |
 | `analyzer-service` | 1 | Las de la Fase 1. |
 | `app` (Robolectric) | 25 | Las anteriores más: la copia del código se guarda sin secretos y el temporal cifrado se borra; copia desactivada en Ajustes; un motor defectuoso que repite fragmentos no impide guardar; almacén cifrado (ida y vuelta, alteración y truncado detectados, huérfanos); modelo del árbol (excluidas, filtros, búsqueda, relaciones); **recorrido completo del Explorador** (filtro, ficha, secreto enmascarado y visor sin el secreto en ninguna parte de la pantalla). |
-| **Total** | **139** | **0 fallos** |
+| **Total** | **140** | **0 fallos** |
 
 Además: **Android Lint sin ningún hallazgo**, APK de publicación con R8 correcto, y el motor se probó con un proyecto
 real (este mismo repositorio: 320 archivos, 14 subproyectos, 4 puntos de entrada correctos y 0 archivos sin clasificar).
@@ -61,6 +61,21 @@ El resultado de la ejecución del CI se indica en el mensaje de entrega de la fa
    completo en cada intento. Ahora los fragmentos repetidos se ignoran (lo detectó una prueba nueva).
 8. El Explorador abierto desde el menú se quedaba en el primer análisis que mostró; ahora sigue al más reciente
    hasta que eliges otro.
+
+Y los que detectó el CI en los emuladores (Android 8.0 pasaba; 15 y 16 no):
+
+9. **Desbordamiento de pila en Android 15/16.** RE2/J convierte las repeticiones acotadas grandes de los patrones
+   (`{1,300}`, `{1,512}`) en un anidamiento que compila de forma recursiva. En el PC la pila basta, pero en los
+   hilos de Android no: la clase de los patrones quedaba inutilizable y el siguiente uso (`NoClassDefFoundError`)
+   cerraba el proceso aislado a mitad del análisis. Se encontró con el registro del emulador, que ahora el CI
+   guarda cuando fallan las pruebas. Los patrones usan repeticiones sin cota (las longitudes se comprueban en el
+   código), una prueba nueva los compila con una pila pequeña (y falla con los patrones antiguos), y un
+   `LinkageError` en una etapa o en un archivo ya no puede cerrar el proceso: queda en la cobertura.
+10. **Cierre de la app en Android 15** (`ForegroundServiceDidNotStartInTimeException`): al reintentar con contraseña,
+    el servicio en primer plano podía detenerse justo cuando llegaba la nueva petición de arranque. Ahora se detiene
+    con el identificador de la última petición.
+11. GitHub bloqueó la publicación (*push protection*) porque una prueba contenía una URL de webhook de Slack inventada
+    con formato real. No se pidió desbloquearla: el dato de prueba se construye por partes.
 
 ## Cómo probarlo en tu teléfono
 

@@ -46,6 +46,13 @@ internal object Manifests {
 
     const val ANDROID_NS = "http://schemas.android.com/apk/res/android"
 
+    /**
+     * Los patrones de RE2/J no usan repeticiones acotadas grandes (`{1,300}`): RE2/J las compila con un anidamiento
+     * que desborda la pila de los hilos de Android (Android 15/16). Las longitudes se comprueban en el código.
+     */
+    private const val MAX_NAME = 200
+    private const val MAX_REFERENCE = 512
+
     /** Nombres de clase y escena admitidos como destino (sin caracteres extraños). */
     private val SAFE_TARGET = Regex("^[A-Za-z0-9_.$/:@\\-]{1,300}$")
 
@@ -150,9 +157,9 @@ internal object Manifests {
         }
     }
 
-    private val GODOT_MAIN = Pattern.compile("""(?m)^\s*run/main_scene\s*=\s*"([^"\r\n]{1,300})"""")
+    private val GODOT_MAIN = Pattern.compile("""(?m)^\s*run/main_scene\s*=\s*"([^"\r\n]+)"""")
     private val GODOT_SECTION = Pattern.compile("""(?m)^\s*\[([A-Za-z_]+)\]\s*$""")
-    private val GODOT_AUTOLOAD = Pattern.compile("""(?m)^\s*([A-Za-z_][A-Za-z0-9_]{0,63})\s*=\s*"\*?(res://[^"\r\n]{1,300})"""")
+    private val GODOT_AUTOLOAD = Pattern.compile("""(?m)^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*"\*?(res://[^"\r\n]+)"""")
 
     fun godotProject(text: String, lineStarts: IntArray): GodotFacts {
         val main = GODOT_MAIN.matcher(text).let { m -> if (m.find()) Declared(m.group(1), ContentSignals.lineOf(lineStarts, m.start())) else null }
@@ -177,7 +184,7 @@ internal object Manifests {
         return GodotFacts(main, autoloads)
     }
 
-    private val UNITY_SCENE = Pattern.compile("""(?m)^\s*-\s*enabled:\s*(\d)\s*$\s*path:\s*(\S[^\r\n]{0,300})$""")
+    private val UNITY_SCENE = Pattern.compile("""(?m)^\s*-\s*enabled:\s*(\d)\s*$\s*path:\s*(\S[^\r\n]*)$""")
 
     /** Primera escena activada de EditorBuildSettings.asset: con ella arranca el juego. */
     fun unityFirstScene(text: String, lineStarts: IntArray): Declared? {
@@ -188,14 +195,14 @@ internal object Manifests {
         return null
     }
 
-    private val UNREAL_MAP = Pattern.compile("""(?m)^\s*GameDefaultMap\s*=\s*(/Game/[^\s\r\n]{1,300})""")
+    private val UNREAL_MAP = Pattern.compile("""(?m)^\s*GameDefaultMap\s*=\s*(/Game/[^\s\r\n]+)""")
 
     fun unrealDefaultMap(text: String, lineStarts: IntArray): Declared? {
         val m = UNREAL_MAP.matcher(text)
         return if (m.find()) Declared(m.group(1), ContentSignals.lineOf(lineStarts, m.start(1))) else null
     }
 
-    private val HTML_SCRIPT = Pattern.compile("""(?i)<script\b[^>]{0,500}?\bsrc\s*=\s*["']([^"'>\s]{1,512})["']""")
+    private val HTML_SCRIPT = Pattern.compile("""(?i)<script\b[^>]*?\bsrc\s*=\s*["']([^"'>\s]+)["']""")
 
     /** Scripts locales que carga una página HTML. */
     fun htmlScripts(text: String, lineStarts: IntArray): List<Declared> {
@@ -204,21 +211,24 @@ internal object Manifests {
         while (m.find() && out.size < 50) {
             val src = m.group(1)
             if (src.startsWith("http:") || src.startsWith("https:") || src.startsWith("//") || src.startsWith("data:")) continue
+            if (src.length > MAX_REFERENCE) continue
             out += Declared(src, ContentSignals.lineOf(lineStarts, m.start(1)))
         }
         return out
     }
 
-    private val GRADLE_NAMESPACE = Pattern.compile("""\bnamespace\s*=?\s*["']([A-Za-z0-9_.]{1,200})["']""")
-    private val GRADLE_APPLICATION_ID = Pattern.compile("""\bapplicationId\s*=?\s*["']([A-Za-z0-9_.]{1,200})["']""")
+    private val GRADLE_NAMESPACE = Pattern.compile("""\bnamespace\s*=?\s*["']([A-Za-z0-9_.]+)["']""")
+    private val GRADLE_APPLICATION_ID = Pattern.compile("""\bapplicationId\s*=?\s*["']([A-Za-z0-9_.]+)["']""")
 
     fun gradleNamespace(text: String): String? =
-        GRADLE_NAMESPACE.matcher(text).let { if (it.find()) it.group(1) else null }
-            ?: GRADLE_APPLICATION_ID.matcher(text).let { if (it.find()) it.group(1) else null }
+        (
+            GRADLE_NAMESPACE.matcher(text).let { if (it.find()) it.group(1) else null }
+                ?: GRADLE_APPLICATION_ID.matcher(text).let { if (it.find()) it.group(1) else null }
+            )?.takeIf { it.length <= MAX_NAME }
 
-    private val JVM_PACKAGE = Pattern.compile("""(?m)^\s*package\s+([A-Za-z_][A-Za-z0-9_.]{0,200})""")
+    private val JVM_PACKAGE = Pattern.compile("""(?m)^\s*package\s+([A-Za-z_][A-Za-z0-9_.]*)""")
 
-    fun jvmPackage(text: String): String? = JVM_PACKAGE.matcher(text).let { if (it.find()) it.group(1) else null }
+    fun jvmPackage(text: String): String? = JVM_PACKAGE.matcher(text).let { if (it.find()) it.group(1) else null }?.takeIf { it.length <= MAX_NAME }
 
     private val CSPROJ_EXE = Pattern.compile("""(?i)<OutputType>\s*(?:Exe|WinExe)\s*</OutputType>|Sdk\s*=\s*"Microsoft\.NET\.Sdk\.(?:Web|Worker)"""")
 

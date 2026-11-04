@@ -23,7 +23,9 @@ class RedactionResult(val text: String, val secrets: List<DetectedSecret>)
  *
  * Reconoce formatos conocidos de credenciales (claves de nube, tokens de servicios, claves privadas, JWT,
  * contraseñas en cadenas de conexión) y valores asignados a nombres sensibles (`password`, `apiKey`,
- * `client_secret`…). Usa RE2/J, de tiempo lineal, así que un archivo hostil no puede bloquearlo.
+ * `client_secret`…). Usa RE2/J, de tiempo lineal, así que un archivo hostil no puede bloquearlo. Los patrones no
+ * usan repeticiones acotadas grandes (`{1,500}`): RE2/J las compila con un anidamiento que desborda la pila de
+ * los hilos de Android; los límites de longitud se comprueban en el código.
  *
  * Es deliberadamente generoso: ocultar de más solo afecta a la lectura del código; ocultar de menos expondría
  * un secreto. La detección completa de secretos, con severidad y certeza, es parte de la auditoría (Fase 6).
@@ -52,7 +54,7 @@ object SecretRedactor {
         TokenRule(
             SecretType.GITHUB_TOKEN,
             listOf("ghp_", "gho_", "ghu_", "ghs_", "ghr_", "github_pat_"),
-            """\b((?:ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9]{36,255}|github_pat_[A-Za-z0-9_]{22,255})""",
+            """\b((?:ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9]{36,}|github_pat_[A-Za-z0-9_]{22,})""",
         ),
         TokenRule(SecretType.GITLAB_TOKEN, listOf("glpat-"), """\b(glpat-[A-Za-z0-9_\-]{20,})"""),
         TokenRule(SecretType.GOOGLE_API_KEY, listOf("AIza"), """\b(AIza[0-9A-Za-z_\-]{35})"""),
@@ -73,7 +75,7 @@ object SecretRedactor {
         TokenRule(
             SecretType.CONNECTION_STRING_PASSWORD,
             listOf("://"),
-            """\b[a-zA-Z][a-zA-Z0-9+.\-]{1,20}://[^\s:/@"'<>]{1,128}:([^\s@/"'<>]{1,256})@""",
+            """\b[a-zA-Z][a-zA-Z0-9+.\-]+://[^\s:/@"'<>]+:([^\s@/"'<>]+)@""",
             accept = { !isReference(it) },
         ),
     )
@@ -83,22 +85,22 @@ object SecretRedactor {
      * también con anotación de tipo (`val apiKey: String = "…"`, `const token: string = "…"`).
      */
     private val QUOTED_ASSIGNMENT = Pattern.compile(
-        """(?:^|[^A-Za-z0-9_.\-])([A-Za-z][A-Za-z0-9_.\-]{0,63})["']?(?:\s*:\s*[A-Za-z_][A-Za-z0-9_.<>\[\]?|]{0,40})?\s*(?:=|:|=>|:=)\s*[rRbBuUfF@]?(?:"([^"\r\n]{1,512})"|'([^'\r\n]{1,512})')""",
+        """(?:^|[^A-Za-z0-9_.\-])([A-Za-z][A-Za-z0-9_.\-]*)["']?(?:\s*:\s*[A-Za-z_][A-Za-z0-9_.<>\[\]?|]*)?\s*(?:=|:|=>|:=)\s*[rRbBuUfF@]?(?:"([^"\r\n]+)"|'([^'\r\n]+)')""",
     )
 
     /** Valor sin comillas en archivos de configuración: `DB_PASSWORD=…`, `api_key: …`, `export TOKEN=…`. */
     private val UNQUOTED_ASSIGNMENT = Pattern.compile(
-        """^[ \t]*(?:export[ \t]+)?([A-Za-z][A-Za-z0-9_.\-]{0,63})[ \t]*[=:][ \t]*([^\s"'][^\r\n]*)$""",
+        """^[ \t]*(?:export[ \t]+)?([A-Za-z][A-Za-z0-9_.\-]*)[ \t]*[=:][ \t]*([^\s"'][^\r\n]*)$""",
     )
 
     /** Recursos XML: `<string name="api_key">…</string>`. */
     private val XML_ELEMENT = Pattern.compile(
-        """(?i)<(?:string|item|entry|value|add|param)\b[^>]{0,200}?\b(?:name|key)\s*=\s*["']([^"'\r\n]{1,64})["'][^>]{0,200}>([^<\r\n]{1,512})</""",
+        """(?i)<(?:string|item|entry|value|add|param)\b[^>]*?\b(?:name|key)\s*=\s*["']([^"'\r\n]+)["'][^>]*>([^<\r\n]+)</""",
     )
 
     /** .NET: `<add key="ApiKey" value="…"/>`. */
     private val XML_ADD = Pattern.compile(
-        """(?i)<add\b[^>]{0,200}?\bkey\s*=\s*["']([^"'\r\n]{1,64})["'][^>]{0,200}?\bvalue\s*=\s*["']([^"'\r\n]{1,512})["']""",
+        """(?i)<add\b[^>]*?\bkey\s*=\s*["']([^"'\r\n]+)["'][^>]*?\bvalue\s*=\s*["']([^"'\r\n]+)["']""",
     )
 
     private val ASSIGNMENT_TRIGGERS = listOf("pass", "pwd", "secret", "key", "token", "credential", "bearer", "auth")
@@ -208,7 +210,7 @@ object SecretRedactor {
     private inline fun scanLine(line: String, offset: Int, pattern: Pattern, hits: MutableList<Hit>, valueGroup: (com.google.re2j.Matcher) -> Int) {
         val m = pattern.matcher(line)
         while (m.find()) {
-            val key = m.group(1) ?: continue
+            val key = m.group(1)?.takeIf { it.length <= MAX_KEY_LENGTH } ?: continue
             val group = valueGroup(m)
             val raw = m.group(group) ?: continue
             val type = sensitiveKind(key) ?: continue
@@ -315,6 +317,9 @@ object SecretRedactor {
         val i = starts.binarySearch(offset)
         return (if (i >= 0) i else -i - 2) + 1
     }
+
+    /** Nombres más largos no son identificadores reales: se ignoran. */
+    private const val MAX_KEY_LENGTH = 64
 
     /** Hasta dónde se oculta una clave privada sin marca de final. */
     private const val MAX_UNTERMINATED_KEY = 8_192
