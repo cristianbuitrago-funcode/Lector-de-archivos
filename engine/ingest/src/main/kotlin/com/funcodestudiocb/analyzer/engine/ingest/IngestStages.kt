@@ -385,6 +385,8 @@ class ReadEntriesStage(
                                 context.coverage(CoverageReason.NOT_ANALYZED, "No se pudo examinar su contenido (error interno: ${e.javaClass.simpleName})", escaped)
                             } catch (e: StackOverflowError) {
                                 context.coverage(CoverageReason.NOT_ANALYZED, "No se pudo examinar su contenido (estructura demasiado profunda)", escaped)
+                            } catch (e: LinkageError) {
+                                context.coverage(CoverageReason.NOT_ANALYZED, "No se pudo examinar su contenido (error interno: ${e.javaClass.simpleName})", escaped)
                             }
                         }
                     }

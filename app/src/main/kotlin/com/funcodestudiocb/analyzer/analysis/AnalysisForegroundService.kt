@@ -18,6 +18,7 @@ import com.funcodestudiocb.analyzer.MainActivity
 import com.funcodestudiocb.analyzer.R
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
@@ -31,29 +32,44 @@ import kotlinx.coroutines.launch
 class AnalysisForegroundService : Service() {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    private var watcher: Job? = null
+
+    /** Última petición de arranque recibida: solo se detiene si no ha llegado otra después. */
+    private var lastStartId = 0
 
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         ensureChannel(this)
         val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC else 0
+        // Cada startForegroundService exige su startForeground, también si el análisis ya terminó.
         ServiceCompat.startForeground(this, NOTIFICATION_ID, build(null), type)
-        val coordinator = (application as FuncodeApp).container.coordinator
-        scope.launch {
-            coordinator.state.collect { state ->
-                when (state) {
-                    is AnalysisState.Running -> notify(build(state))
-                    AnalysisState.Importing -> Unit
-                    else -> stopSelfNow()
+        lastStartId = startId
+        if (watcher?.isActive != true) {
+            val coordinator = (application as FuncodeApp).container.coordinator
+            watcher = scope.launch {
+                coordinator.state.collect { state ->
+                    when (state) {
+                        is AnalysisState.Running -> notify(build(state))
+                        AnalysisState.Importing -> Unit
+                        else -> stopIfIdle()
+                    }
                 }
             }
         }
         return START_NOT_STICKY
     }
 
-    private fun stopSelfNow() {
-        ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
-        stopSelf()
+    /**
+     * Se detiene con el identificador de la última petición: si mientras tanto llegó otra (un análisis nuevo),
+     * el sistema no lo detiene. Detenerlo sin más dejaría esa petición sin su startForeground y Android cerraría
+     * la app (ForegroundServiceDidNotStartInTimeException).
+     */
+    private fun stopIfIdle() {
+        if (stopSelfResult(lastStartId)) {
+            ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
+            watcher?.cancel()
+        }
     }
 
     private fun notify(notification: Notification) {

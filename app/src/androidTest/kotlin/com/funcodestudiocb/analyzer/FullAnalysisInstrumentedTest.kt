@@ -93,8 +93,9 @@ class FullAnalysisInstrumentedTest {
             }
         }
         val finished = analyze(Uri.fromFile(file)) as? AnalysisState.Finished ?: fail("Estado inesperado: ${coordinator.state.value}")
+        val diagnosis = "problema=${finished.report.engineProblem}; resultado=${finished.outcome}; etapas=${finished.report.stages}; cobertura=${finished.report.coverage}"
         assertEquals(ArchiveFormat.ZIP, finished.report.archive?.format)
-        assertEquals(setOf("src/App.kt", "src/copia/App.kt", "src/Config.kt"), finished.report.files.map { it.path }.toSet())
+        assertEquals(setOf("src/App.kt", "src/copia/App.kt", "src/Config.kt"), finished.report.files.map { it.path }.toSet(), diagnosis)
         assertTrue(finished.report.files.all { it.status == FileStatus.ANALYZED })
         assertEquals(1, finished.report.duplicates.size)
         assertEquals("node_modules", finished.report.excludedDirectories.single().path)

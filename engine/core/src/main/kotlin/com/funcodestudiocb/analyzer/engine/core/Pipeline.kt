@@ -196,6 +196,10 @@ class PipelineRunner(private val engineVersion: String) {
         } catch (e: StackOverflowError) {
             failure(stage, e, mark, sink)
             return StageStatus.FAILED
+        } catch (e: LinkageError) {
+            // Una clase que no carga en esta versión de Android no debe tumbar el proceso: se informa la etapa.
+            failure(stage, e, mark, sink)
+            return StageStatus.FAILED
         }
 
         val elapsed = mark.elapsedNow().inWholeMilliseconds
