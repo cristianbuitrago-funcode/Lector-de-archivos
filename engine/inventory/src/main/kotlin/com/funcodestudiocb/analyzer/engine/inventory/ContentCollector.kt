@@ -5,6 +5,7 @@ import com.funcodestudiocb.analyzer.engine.api.ContentState
 import com.funcodestudiocb.analyzer.engine.api.CoverageReason
 import com.funcodestudiocb.analyzer.engine.api.FileKind
 import com.funcodestudiocb.analyzer.engine.api.FileLanguage
+import com.funcodestudiocb.analyzer.engine.api.LanguageCategory
 import com.funcodestudiocb.analyzer.engine.api.LanguageStats
 import com.funcodestudiocb.analyzer.engine.api.LineMethod
 import com.funcodestudiocb.analyzer.engine.api.RecordValidator
@@ -17,6 +18,7 @@ import com.funcodestudiocb.analyzer.engine.languages.CountMethod
 import com.funcodestudiocb.analyzer.engine.languages.Language
 import com.funcodestudiocb.analyzer.engine.languages.LanguageAnalysis
 import com.funcodestudiocb.analyzer.engine.languages.LanguageAnalyzer
+import com.funcodestudiocb.analyzer.engine.languages.LanguageKind
 import com.funcodestudiocb.analyzer.engine.languages.Languages
 import com.funcodestudiocb.analyzer.engine.languages.treesitter.TreeSitter
 import com.funcodestudiocb.analyzer.engine.inventory.parse.SafeXmlReader
@@ -64,7 +66,16 @@ internal class LanguageTally(val language: Language) {
     var lexicalFiles = 0
     var filesWithErrors = 0
 
-    fun toRecord() = LanguageStats(language.id, language.name, language.level, files, code, comment, blank, syntaxFiles, lexicalFiles, filesWithErrors)
+    fun toRecord() = LanguageStats(
+        language.id, language.name, language.level,
+        when (language.kind) {
+            LanguageKind.PROGRAMMING -> LanguageCategory.PROGRAMMING
+            LanguageKind.MARKUP -> LanguageCategory.MARKUP
+            LanguageKind.DATA -> LanguageCategory.DATA
+            LanguageKind.PROSE -> LanguageCategory.PROSE
+        },
+        files, code, comment, blank, syntaxFiles, lexicalFiles, filesWithErrors,
+    )
 }
 
 /**

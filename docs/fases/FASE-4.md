@@ -21,7 +21,7 @@ tecnología la evidencia (archivo y línea) y la confianza.
 | `engine:inventory` | El examen del contenido incluye ahora el análisis de lenguaje (sobre el texto ya redactado), el resaltado de la copia y los totales por lenguaje; entrega el texto redactado a las etapas nuevas. |
 | `engine:api` | Esquema de resultados v4: lenguaje y recuento en la ficha, totales por lenguaje, dependencia declarada, tecnología y resaltado de la copia. El proceso principal valida que el resaltado esté dentro del texto y ordenado, y que toda evidencia de una tecnología tenga archivo. |
 | `data` | BD versión 4 (resaltado junto a la copia del código; migración automática desde la 3). |
-| `app` | **Informe**: apartado **Tecnologías, bases de datos y servicios** agrupado por categoría, con la confianza de cada una y, al tocarla, sus evidencias (archivo:línea) y versiones; tocar una evidencia **abre ese archivo en el Explorador**. Apartado aparte de **menciones no concluyentes**. Apartado **Lenguajes** con líneas de código, comentarios y en blanco, y el método usado. **Ficha del archivo**: lenguaje, nivel de soporte, recuento, método y errores de sintaxis; tecnologías encontradas en ese archivo. **Visor con resaltado de sintaxis** (manteniendo visibles los caracteres invisibles y bidireccionales). APK por arquitectura con las bibliotecas nativas comprimidas. |
+| `app` | **Informe**: apartado **Tecnologías, bases de datos y servicios** agrupado por categoría, con la confianza de cada una y, al tocarla, sus evidencias (archivo:línea) y versiones; tocar una evidencia **abre ese archivo en el Explorador**. Apartado aparte de **menciones no concluyentes**. Apartado **Lenguajes** con líneas de código, comentarios y en blanco, y el método usado. El total separa el código de la documentación y los datos. **Ficha del archivo**: lenguaje, nivel de soporte, recuento, método y errores de sintaxis; tecnologías encontradas en ese archivo. **Visor con resaltado de sintaxis** (manteniendo visibles los caracteres invisibles y bidireccionales). APK por arquitectura con las bibliotecas nativas comprimidas. |
 
 ## Pruebas ejecutadas
 
@@ -76,6 +76,10 @@ Android 8.0 (API 26), 15 (API 35) y 16 (API 36). Además de las de fases anterio
    textos literales de los que al menos uno debe aparecer; el resultado sobre el proyecto real es idéntico
    (373 registros comparados) y la lectura baja a **23 s**, dos tercios de ellos en tree-sitter. Los textos del
    catálogo de tecnologías se buscan además todos a la vez, en una sola pasada (Aho–Corasick).
+9. Al revisar las capturas: el total de "líneas de código" incluía Markdown, texto y JSON. Ahora cada lenguaje lleva
+   su tipo (programación, marcado, datos o documentación) y solo los dos primeros cuentan como código; el resto se
+   indica aparte. Y entre evidencias de igual fuerza se muestran antes las del código del producto que las de las
+   pruebas.
 
 ## Cómo probarlo en tu teléfono
 

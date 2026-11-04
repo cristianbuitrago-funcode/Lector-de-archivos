@@ -26,6 +26,7 @@ import com.funcodestudiocb.analyzer.R
 import com.funcodestudiocb.analyzer.analysis.AnalysisReport
 import com.funcodestudiocb.analyzer.engine.api.Confidence
 import com.funcodestudiocb.analyzer.engine.api.EvidenceKind
+import com.funcodestudiocb.analyzer.engine.api.LanguageCategory
 import com.funcodestudiocb.analyzer.engine.api.Technology
 import com.funcodestudiocb.analyzer.ui.components.FuncodePanel
 import com.funcodestudiocb.analyzer.ui.components.StatusChip
@@ -59,24 +60,45 @@ fun LanguagesPanel(report: AnalysisReport) {
             Text(stringResource(R.string.report_languages_none), style = MaterialTheme.typography.bodySmall)
             return@FuncodePanel
         }
+        // Solo la programación y el marcado cuentan como código; la documentación y los datos van aparte.
+        val (code, other) = languages.partition { it.category == LanguageCategory.PROGRAMMING || it.category == LanguageCategory.MARKUP }
         Text(
             stringResource(
                 R.string.report_languages_total,
-                languages.sumOf { it.code }.grouped(),
-                languages.sumOf { it.comment }.grouped(),
-                languages.sumOf { it.blank }.grouped(),
+                code.sumOf { it.code }.grouped(),
+                code.sumOf { it.comment }.grouped(),
+                code.sumOf { it.blank }.grouped(),
             ),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        val total = languages.sumOf { it.code }.coerceAtLeast(1)
-        languages.take(MAX_LANGUAGES).forEach { l ->
+        if (other.isNotEmpty()) {
+            Text(
+                stringResource(R.string.report_languages_other, other.sumOf { it.code + it.comment }.grouped(), other.joinToString(", ") { it.name }),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        val total = code.sumOf { it.code }.coerceAtLeast(1)
+        (code.sortedByDescending { it.code } + other.sortedByDescending { it.code }).take(MAX_LANGUAGES).forEach { l ->
+            val isCode = l.category == LanguageCategory.PROGRAMMING || l.category == LanguageCategory.MARKUP
             HorizontalDivider()
             Column(Modifier.padding(vertical = 4.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(l.name.revealControlCharacters(), fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
-                    Text(stringResource(R.string.report_language_code, l.code.grouped()), style = MaterialTheme.typography.bodyMedium)
-                    Text("  ${(l.code * 100 / total)} %", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    if (isCode) {
+                        Text(stringResource(R.string.report_language_code, l.code.grouped()), style = MaterialTheme.typography.bodyMedium)
+                        Text("  ${(l.code * 100 / total)} %", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    } else {
+                        Text(
+                            stringResource(
+                                if (l.category == LanguageCategory.PROSE) R.string.report_language_prose else R.string.report_language_data,
+                                (l.code + l.comment).grouped(),
+                            ),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
                 Text(
                     pluralStringResource(R.plurals.report_language_detail, l.files, l.files, l.comment.grouped(), l.blank.grouped()),

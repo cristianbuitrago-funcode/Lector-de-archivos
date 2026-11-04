@@ -28,6 +28,10 @@ data class FileLanguage(
     val syntaxErrors: Int = 0,
 )
 
+/** Tipo de lenguaje: solo los de programación y marcado cuentan como "líneas de código". */
+@Serializable
+enum class LanguageCategory { PROGRAMMING, MARKUP, DATA, PROSE }
+
 /** Totales de un lenguaje en el proyecto. */
 @Serializable
 @SerialName("language_stats")
@@ -35,6 +39,7 @@ data class LanguageStats(
     val id: String,
     val name: String,
     val level: Int,
+    val category: LanguageCategory = LanguageCategory.PROGRAMMING,
     val files: Int,
     val code: Long,
     val comment: Long,

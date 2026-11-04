@@ -12,6 +12,7 @@ import com.funcodestudiocb.analyzer.engine.api.FileProfile
 import com.funcodestudiocb.analyzer.engine.api.FrameReader
 import com.funcodestudiocb.analyzer.engine.api.FrameWriter
 import com.funcodestudiocb.analyzer.engine.api.IngestOptions
+import com.funcodestudiocb.analyzer.engine.api.LanguageCategory
 import com.funcodestudiocb.analyzer.engine.api.LanguageStats
 import com.funcodestudiocb.analyzer.engine.api.LineMethod
 import com.funcodestudiocb.analyzer.engine.api.ProtocolJson
@@ -185,6 +186,9 @@ class FullPipelineTest {
         assertEquals(3, stats["dart"]?.code)
         assertEquals(1, stats["dart"]?.blank)
         assertEquals(1, stats["javascript"]?.syntaxFiles)
+        assertEquals(LanguageCategory.PROGRAMMING, stats["php"]?.category)
+        assertEquals(LanguageCategory.PROSE, stats["markdown"]?.category, "La documentación no cuenta como código")
+        assertEquals(LanguageCategory.DATA, stats["json"]?.category)
 
         val server = assertNotNull(run.profile("web/server.js").language)
         assertEquals(LineMethod.SYNTAX, server.method)

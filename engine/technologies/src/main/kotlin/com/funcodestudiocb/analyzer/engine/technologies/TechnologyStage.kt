@@ -289,7 +289,14 @@ class TechnologyStage(
         // Las evidencias más fuertes primero; las menciones al final.
         val order = listOf(EvidenceKind.DEPENDENCY, EvidenceKind.FILE_NAME, EvidenceKind.IMPORT, EvidenceKind.CONTENT, EvidenceKind.MENTION)
         val evidence = hits.kept
-            .sortedWith(compareBy<Hit>({ order.indexOf(it.kind) }, { -(it.signal?.weight ?: 0.0) }))
+            .sortedWith(
+                compareBy<Hit>(
+                    { order.indexOf(it.kind) },
+                    { -it.weight },
+                    // A igual fuerza, primero el código del producto que el de las pruebas.
+                    { TechnologySignalCollector.isTestPath(com.funcodestudiocb.analyzer.engine.inventory.PathInfo(it.path)) },
+                ),
+            )
             .distinctBy { Triple(it.kind, it.path, it.detail) }
             .take(RecordValidator.MAX_EVIDENCE)
             .map { Evidence(it.kind, it.detail.take(RecordValidator.MAX_EVIDENCE_DETAIL), it.path, it.line?.takeIf { l -> l >= 1 }) }

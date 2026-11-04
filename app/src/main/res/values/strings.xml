@@ -477,6 +477,9 @@
         <item quantity="other">%1$d archivos · %2$s comentarios · %3$s en blanco</item>
     </plurals>
     <string name="report_language_code">%1$s líneas</string>
+    <string name="report_languages_other">Además, %1$s líneas de documentación y datos (%2$s), que no cuentan como código</string>
+    <string name="report_language_prose">%1$s líneas de texto</string>
+    <string name="report_language_data">%1$s líneas de datos</string>
     <string name="report_language_lexical">Sin gramática: contado con el analizador léxico</string>
     <plurals name="report_language_partial">
         <item quantity="one">%1$d archivo contado con el analizador léxico</item>
