@@ -13,20 +13,66 @@ import com.funcodestudiocb.analyzer.engine.api.FileProfile
 import com.funcodestudiocb.analyzer.engine.api.FileRole
 import com.funcodestudiocb.analyzer.engine.api.FileStatus
 import com.funcodestudiocb.analyzer.engine.api.InventorySummary
+import com.funcodestudiocb.analyzer.engine.api.ProjectRoot
 import com.funcodestudiocb.analyzer.engine.api.RecordValidator
 import com.funcodestudiocb.analyzer.engine.api.RoleAssignment
+import com.funcodestudiocb.analyzer.engine.core.AttributeKey
 import com.funcodestudiocb.analyzer.engine.core.Stage
 import com.funcodestudiocb.analyzer.engine.core.StageContext
+import com.funcodestudiocb.analyzer.engine.core.StageRegistry
 import com.funcodestudiocb.analyzer.engine.ingest.IngestKeys
 import com.funcodestudiocb.analyzer.engine.ingest.IngestPipeline
 
-/** Pipeline completo del análisis hasta la fase actual. */
-object FullPipeline {
-    fun stages(): List<Stage> {
-        val collector = ContentCollector()
-        return IngestPipeline.registry(listOf(collector))
+/** Datos del inventario que usan las etapas siguientes. */
+object InventoryKeys {
+    /** Subproyectos detectados, de la carpeta más larga a la más corta. */
+    val ROOTS = AttributeKey<List<ProjectRoot>>("inventory.roots")
+}
+
+/** Carpeta del subproyecto al que pertenece una ruta (el más profundo), o `null`. */
+fun List<ProjectRoot>.rootOf(path: String): String? =
+    map { it.directory }.distinct().sortedByDescending { it.length }.firstOrNull { it.isEmpty() || path.startsWith("$it/") }
+
+/** Ingesta, inventario y lenguajes. [listeners] reciben el texto redactado de cada archivo (fases siguientes). */
+object InventoryPipeline {
+    fun registry(collector: ContentCollector): StageRegistry =
+        IngestPipeline.registry(listOf(collector))
             .register(InventoryStage(collector))
-            .plan()
+            .register(LanguageStatsStage(collector))
+
+    fun stages(): List<Stage> = registry(ContentCollector()).plan()
+}
+
+/** Totales por lenguaje (líneas de código, comentario y en blanco) y cobertura del análisis sintáctico. */
+class LanguageStatsStage(private val collector: ContentCollector) : Stage {
+    override val id = "languages"
+    override val title = "Lenguajes y líneas de código"
+    override val dependsOn = setOf("inventory")
+
+    override suspend fun run(context: StageContext) {
+        collector.languages.values
+            .sortedByDescending { it.code }
+            .forEach { context.emit(it.toRecord()) }
+        if (!collector.syntaxAvailable) {
+            context.coverage(
+                CoverageReason.NOT_ANALYZED,
+                "No se pudo cargar tree-sitter en este dispositivo: todas las líneas se contaron con el analizador léxico y no hay resaltado de sintaxis",
+            )
+        }
+        collector.syntaxProblems.groupBy { it.second }.forEach { (problem, files) ->
+            context.coverage(
+                CoverageReason.LIMIT_REACHED,
+                "${files.size} archivos se contaron con el analizador léxico porque $problem",
+                files.first().first,
+            )
+        }
+        val lexicalOnly = collector.languages.values.filter { it.language.grammar == null }.map { it.language.name }
+        if (lexicalOnly.isNotEmpty()) {
+            context.coverage(
+                CoverageReason.UNSUPPORTED,
+                "Sin gramática de tree-sitter (recuento léxico, sin resaltado ni importaciones): ${lexicalOnly.take(20).joinToString()}",
+            )
+        }
     }
 }
 
@@ -64,6 +110,7 @@ class InventoryStage(private val collector: ContentCollector) : Stage {
         context.progress(0.05f, "Buscando subproyectos")
         val roots = ProjectRoots.detect(files.map { it.path }).take(MAX_ROOTS)
         roots.forEach(context::emit)
+        context.attributes[InventoryKeys.ROOTS] = roots
         val rootDirs = roots.map { it.directory }.distinct().sortedByDescending { it.length }
         val rootOf: (String) -> String? = { path -> rootDirs.firstOrNull { it.isEmpty() || path.startsWith("$it/") } }
 
@@ -101,7 +148,7 @@ class InventoryStage(private val collector: ContentCollector) : Stage {
         context.coverage(
             CoverageReason.UNSUPPORTED,
             "Las funciones y los puntos de entrada se deducen del nombre, la ubicación, los manifiestos y patrones de texto. " +
-                "El análisis sintáctico (fases 4 y 5) los precisará, y los archivos que nada usa se detectarán con el análisis de relaciones (Fase 5).",
+                "El análisis de relaciones (Fase 5) los precisará y detectará los archivos que nada usa.",
         )
         context.emit(
             InventorySummary(
@@ -137,7 +184,7 @@ class InventoryStage(private val collector: ContentCollector) : Stage {
             entry.kind == FileKind.TEXT -> ContentState.NOT_READ
             else -> ContentState.BINARY
         }
-        return FileProfile(entry.path, roles.build(), facts?.lineCount, content, facts?.redactions ?: 0, root)
+        return FileProfile(entry.path, roles.build(), facts?.lineCount, content, facts?.redactions ?: 0, root, facts?.language)
     }
 
     /** Ruta → ruta del "original" de su grupo de duplicados (la más corta y, a igualdad, la primera en orden). */

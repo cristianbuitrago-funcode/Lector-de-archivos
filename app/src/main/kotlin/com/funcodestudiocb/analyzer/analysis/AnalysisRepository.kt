@@ -3,6 +3,7 @@ package com.funcodestudiocb.analyzer.analysis
 import com.funcodestudiocb.analyzer.data.db.AnalysisEntity
 import com.funcodestudiocb.analyzer.data.db.AnalysisRecordEntity
 import com.funcodestudiocb.analyzer.data.db.FileContentEntity
+import com.funcodestudiocb.analyzer.data.db.HighlightCodec
 import com.funcodestudiocb.analyzer.data.db.SettingEntity
 import com.funcodestudiocb.analyzer.data.session.SessionManager
 import com.funcodestudiocb.analyzer.engine.api.CoverageNote
@@ -78,7 +79,7 @@ class AnalysisRepository(private val session: SessionManager) {
             val json = ProtocolJson.encodeToString(ResultRecord.serializer(), r)
             AnalysisRecordEntity(analysis.id, i, typeOf(json), json)
         }
-        val contents = analysis.spool?.read()?.map { FileContentEntity(analysis.id, it.path, it.index, it.text) } ?: emptySequence()
+        val contents = analysis.spool?.read()?.map { FileContentEntity(analysis.id, it.path, it.index, it.text, HighlightCodec.encode(it.highlight)) } ?: emptySequence()
         try {
             db.analyses().insert(entity, entities(analysis.records), contents)
         } catch (e: SpoolUnreadableException) {
@@ -90,9 +91,36 @@ class AnalysisRepository(private val session: SessionManager) {
     }
 
     /** Copia redactada de un archivo de un análisis guardado, o `null` si no la hay. */
-    suspend fun content(analysisId: String, path: String): String? {
-        val chunks = session.databaseOrNull()?.analyses()?.content(analysisId, path) ?: return null
-        return if (chunks.isEmpty()) null else chunks.joinToString("")
+    suspend fun content(analysisId: String, path: String): String? = code(analysisId, path)?.text
+
+    /**
+     * Copia redactada con su resaltado de sintaxis (posiciones sobre el texto completo), o `null` si no la hay.
+     * Un resaltado incoherente con su fragmento se descarta: el texto se muestra igualmente, sin colores.
+     */
+    suspend fun code(analysisId: String, path: String): CodeCopy? {
+        val rows = session.databaseOrNull()?.analyses()?.contentRows(analysisId, path) ?: return null
+        if (rows.isEmpty()) return null
+        val text = StringBuilder()
+        val spans = ArrayList<Int>()
+        for (row in rows) {
+            val offset = text.length
+            val decoded = HighlightCodec.decode(row.highlight)
+            var valid = true
+            var previousEnd = 0
+            for (i in decoded.indices step 3) {
+                val start = decoded[i]
+                val end = start + decoded[i + 1]
+                if (start < previousEnd || end > row.text.length || decoded[i + 1] <= 0) valid = false
+                previousEnd = end
+            }
+            if (valid) for (i in decoded.indices step 3) {
+                spans += decoded[i] + offset
+                spans += decoded[i + 1]
+                spans += decoded[i + 2]
+            }
+            text.append(row.text)
+        }
+        return CodeCopy(text.toString(), spans.toIntArray())
     }
 
     fun recent(limit: Int = 20): Flow<List<AnalysisEntity>> =
@@ -124,3 +152,6 @@ class AnalysisRepository(private val session: SessionManager) {
         const val KEY_KEEP_COPY = "analysis.keepCodeCopy"
     }
 }
+
+/** Copia redactada de un archivo y su resaltado: tríos (inicio, longitud, categoría) en caracteres del texto. */
+class CodeCopy(val text: String, val highlight: IntArray)

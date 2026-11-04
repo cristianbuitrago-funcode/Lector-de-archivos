@@ -3,6 +3,7 @@ package com.funcodestudiocb.analyzer.analysis
 import com.funcodestudiocb.analyzer.engine.api.ArchiveRejected
 import com.funcodestudiocb.analyzer.engine.api.ArchiveSummary
 import com.funcodestudiocb.analyzer.engine.api.CoverageNote
+import com.funcodestudiocb.analyzer.engine.api.DeclaredDependency
 import com.funcodestudiocb.analyzer.engine.api.DuplicateGroup
 import com.funcodestudiocb.analyzer.engine.api.EntryPoint
 import com.funcodestudiocb.analyzer.engine.api.ExcludedDirectory
@@ -13,6 +14,7 @@ import com.funcodestudiocb.analyzer.engine.api.FileStatus
 import com.funcodestudiocb.analyzer.engine.api.IngestFinding
 import com.funcodestudiocb.analyzer.engine.api.IngestSummary
 import com.funcodestudiocb.analyzer.engine.api.InventorySummary
+import com.funcodestudiocb.analyzer.engine.api.LanguageStats
 import com.funcodestudiocb.analyzer.engine.api.PasswordRequired
 import com.funcodestudiocb.analyzer.engine.api.ProjectRoot
 import com.funcodestudiocb.analyzer.engine.api.Redaction
@@ -22,6 +24,7 @@ import com.funcodestudiocb.analyzer.engine.api.SessionOutcome
 import com.funcodestudiocb.analyzer.engine.api.Severity
 import com.funcodestudiocb.analyzer.engine.api.StageEvent
 import com.funcodestudiocb.analyzer.engine.api.StageStatus
+import com.funcodestudiocb.analyzer.engine.api.Technology
 
 /** Resultado final de un análisis, tal como se guarda en el historial. */
 enum class AnalysisOutcome {
@@ -63,7 +66,14 @@ data class AnalysisReport(
     val projectRoots: List<ProjectRoot> = emptyList(),
     val redactions: List<Redaction> = emptyList(),
     val inventory: InventorySummary? = null,
+    /** Lenguajes, dependencias declaradas y tecnologías (Fase 4). */
+    val languages: List<LanguageStats> = emptyList(),
+    val dependencies: List<DeclaredDependency> = emptyList(),
+    val technologies: List<Technology> = emptyList(),
 ) {
+    /** El análisis tiene la información de la Fase 4 (lenguajes y tecnologías). */
+    val hasTechnologies: Boolean get() = languages.isNotEmpty() || technologies.isNotEmpty() || stages.any { it.stageId == "technologies" }
+
     /** Archivos no analizados, por motivo. */
     val notAnalyzedByStatus: Map<FileStatus, Int>
         get() = files.filter { it.status != FileStatus.ANALYZED }.groupingBy { it.status }.eachCount()
@@ -107,6 +117,9 @@ data class AnalysisReport(
                 projectRoots = records.filterIsInstance<ProjectRoot>(),
                 redactions = records.filterIsInstance<Redaction>(),
                 inventory = records.filterIsInstance<InventorySummary>().lastOrNull(),
+                languages = records.filterIsInstance<LanguageStats>(),
+                dependencies = records.filterIsInstance<DeclaredDependency>(),
+                technologies = records.filterIsInstance<Technology>(),
             )
 
         /** Etapas que no terminaron bien (para la cobertura). */

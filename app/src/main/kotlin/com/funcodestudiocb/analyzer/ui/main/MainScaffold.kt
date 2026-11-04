@@ -93,7 +93,11 @@ enum class Destination(
 
 const val ROUTE_DIAGNOSTICS = "ajustes/diagnostico"
 const val ROUTE_ANALYSIS_DETAIL = "analisis/{id}"
-const val ROUTE_EXPLORER_ANALYSIS = "explorador/{id}"
+const val ROUTE_EXPLORER_ANALYSIS = "explorador/{id}?archivo={archivo}"
+
+/** Ruta del Explorador de un análisis, abriendo opcionalmente la ficha de un archivo. */
+fun explorerRoute(id: String, path: String? = null): String =
+    "explorador/${android.net.Uri.encode(id)}" + (path?.let { "?archivo=${android.net.Uri.encode(it)}" } ?: "")
 
 private enum class NavLayout { Drawer, Rail, Permanent }
 
@@ -251,7 +255,8 @@ private fun MainNavHost(navController: NavHostController, container: AppContaine
                         NewAnalysisScreen(
                             vm,
                             onOpenAnalysis = { id -> navController.navigate("analisis/$id") },
-                            onOpenExplorer = { id -> navController.navigate("explorador/$id") },
+                            onOpenExplorer = { id -> navController.navigate(explorerRoute(id)) },
+                            onOpenFile = { id, path -> navController.navigate(explorerRoute(id, path)) },
                         )
                     }
                     Destination.Explorer -> ExplorerScreen(containerViewModel("explorador") { ExplorerViewModel(container, null) })
@@ -262,11 +267,26 @@ private fun MainNavHost(navController: NavHostController, container: AppContaine
         composable(ROUTE_ANALYSIS_DETAIL) { entry ->
             val id = entry.arguments?.getString("id").orEmpty()
             val vm = containerViewModel(key = "detalle-$id") { AnalysisDetailViewModel(container, id) }
-            AnalysisDetailScreen(vm, onDeleted = { navController.popBackStack() }, onOpenExplorer = { navController.navigate("explorador/$it") })
+            AnalysisDetailScreen(
+                vm,
+                onDeleted = { navController.popBackStack() },
+                onOpenExplorer = { navController.navigate(explorerRoute(it)) },
+                onOpenFile = { id, path -> navController.navigate(explorerRoute(id, path)) },
+            )
         }
-        composable(ROUTE_EXPLORER_ANALYSIS) { entry ->
+        composable(
+            ROUTE_EXPLORER_ANALYSIS,
+            arguments = listOf(
+                androidx.navigation.navArgument("archivo") {
+                    type = androidx.navigation.NavType.StringType
+                    nullable = true
+                    defaultValue = null
+                },
+            ),
+        ) { entry ->
             val id = entry.arguments?.getString("id").orEmpty()
-            ExplorerScreen(containerViewModel(key = "explorador-$id") { ExplorerViewModel(container, id) })
+            val path = entry.arguments?.getString("archivo")
+            ExplorerScreen(containerViewModel(key = "explorador-$id-${path.orEmpty()}") { ExplorerViewModel(container, id, path) })
         }
         composable(ROUTE_DIAGNOSTICS) {
             val vm = containerViewModel { DiagnosticsViewModel(container) }

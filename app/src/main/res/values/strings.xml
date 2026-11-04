@@ -93,7 +93,7 @@
     <string-array name="placeholder_explorer">
         <item>Árbol interactivo de carpetas y archivos</item>
         <item>Visor de código con los hallazgos marcados</item>
-        <item>Ficha de cada archivo: función, dependencias y relaciones</item>
+        <item>Ficha de cada archivo: función, lenguaje, tecnologías y relaciones</item>
     </string-array>
     <string-array name="placeholder_architecture">
         <item>Diagrama de arquitectura por capas</item>
@@ -259,7 +259,7 @@
         <item quantity="other">%1$d copias idénticas de %2$s</item>
     </plurals>
     <string name="report_coverage_title">Cobertura y limitaciones</string>
-    <string name="report_next_phases">Esta fase identifica, comprueba y lee el comprimido. La estructura, las tecnologías, las relaciones y la seguridad del código se analizarán en las fases 3 a 8.</string>
+    <string name="report_next_phases">Hasta esta fase se identifica y lee el comprimido, se clasifican sus archivos y se reconocen sus lenguajes y tecnologías. Las relaciones entre archivos, la arquitectura y la seguridad del código se analizarán en las fases 5 a 8.</string>
     <string name="severity_critical">Crítico</string>
     <string name="severity_high">Alto</string>
     <string name="severity_medium">Medio</string>
@@ -467,4 +467,67 @@
     <string name="settings_section_analysis">Análisis</string>
     <string name="settings_keep_copy">Guardar copia del código</string>
     <string name="settings_keep_copy_desc">Guarda, cifrada, una copia de los archivos de texto con los posibles secretos ocultados, para leerlos en el Explorador. Si la desactivas, solo se guarda la estructura.</string>
+
+    <!-- Fase 4: lenguajes y tecnologías -->
+    <string name="report_languages">Lenguajes</string>
+    <string name="report_languages_total">%1$s líneas de código, %2$s de comentarios y %3$s en blanco</string>
+    <plurals name="report_language_detail">
+        <item quantity="one">%1$d archivo · %2$s comentarios · %3$s en blanco</item>
+        <item quantity="many">%1$d archivos · %2$s comentarios · %3$s en blanco</item>
+        <item quantity="other">%1$d archivos · %2$s comentarios · %3$s en blanco</item>
+    </plurals>
+    <string name="report_language_code">%1$s líneas</string>
+    <string name="report_language_lexical">Sin gramática: contado con el analizador léxico</string>
+    <plurals name="report_language_partial">
+        <item quantity="one">%1$d archivo contado con el analizador léxico</item>
+        <item quantity="many">%1$d archivos contados con el analizador léxico</item>
+        <item quantity="other">%1$d archivos contados con el analizador léxico</item>
+    </plurals>
+    <string name="report_languages_none">No se reconoció el lenguaje de ningún archivo de texto.</string>
+    <string name="report_technologies">Tecnologías, bases de datos y servicios</string>
+    <string name="report_technologies_intro">Confirmada: declarada como dependencia o con un archivo que solo existe si se usa. Probable: se importa o aparece en el código. Posible: indicio débil. Toca una tecnología para ver dónde se encontró.</string>
+    <string name="report_technologies_none">No se reconoció ninguna tecnología del catálogo.</string>
+    <string name="report_mentions">Menciones no concluyentes</string>
+    <string name="report_mentions_intro">Aparecen solo en documentación o comentarios: no prueban que el proyecto las use.</string>
+    <plurals name="report_dependencies">
+        <item quantity="one">%1$d dependencia directa declarada en %2$d manifiestos</item>
+        <item quantity="many">%1$d dependencias directas declaradas en %2$d manifiestos</item>
+        <item quantity="other">%1$d dependencias directas declaradas en %2$d manifiestos</item>
+    </plurals>
+    <string name="tech_versions">Versiones declaradas: %1$s</string>
+    <plurals name="tech_evidence_more">
+        <item quantity="one">y %d evidencia más</item>
+        <item quantity="many">y %d evidencias más</item>
+        <item quantity="other">y %d evidencias más</item>
+    </plurals>
+    <string name="tech_projects">En: %1$s</string>
+    <string name="tech_category_language_runtime">Entorno de ejecución</string>
+    <string name="tech_category_framework">Frameworks</string>
+    <string name="tech_category_ui">Interfaz</string>
+    <string name="tech_category_mobile">Plataformas móviles</string>
+    <string name="tech_category_game_engine">Motores de juego y gráficos</string>
+    <string name="tech_category_database">Bases de datos</string>
+    <string name="tech_category_data_access">Acceso a datos (ORM)</string>
+    <string name="tech_category_external_service">Servicios externos</string>
+    <string name="tech_category_cloud">Nube</string>
+    <string name="tech_category_authentication">Autenticación</string>
+    <string name="tech_category_networking">Red y API</string>
+    <string name="tech_category_testing">Pruebas</string>
+    <string name="tech_category_build_tool">Compilación</string>
+    <string name="tech_category_devops">Despliegue e infraestructura</string>
+    <string name="tech_category_library">Bibliotecas</string>
+    <string name="file_language">Lenguaje</string>
+    <string name="file_language_level_0">solo inventario y líneas</string>
+    <string name="file_language_level_1">soporte de nivel 1</string>
+    <string name="file_language_level_2">soporte de nivel 2</string>
+    <string name="file_language_level_3">soporte de nivel 3</string>
+    <string name="file_lines_breakdown">%1$d de código · %2$d de comentarios · %3$d en blanco</string>
+    <string name="file_line_method_syntax">Contadas con el árbol sintáctico (tree-sitter)</string>
+    <string name="file_line_method_lexical">Contadas con el analizador léxico (comentarios y cadenas)</string>
+    <plurals name="file_syntax_errors">
+        <item quantity="one">%d error de sintaxis: código incompleto o que la gramática no entiende</item>
+        <item quantity="many">%d errores de sintaxis: código incompleto o que la gramática no entiende</item>
+        <item quantity="other">%d errores de sintaxis: código incompleto o que la gramática no entiende</item>
+    </plurals>
+    <string name="file_technologies">Tecnologías encontradas aquí</string>
 </resources>

@@ -169,7 +169,13 @@ private fun KeyValue(label: String, value: String) {
 
 /** Informe de la ingesta: lo que contiene el comprimido, lo que se analizó, lo que no y por qué. */
 @Composable
-fun ReportView(archiveName: String, report: AnalysisReport, outcome: AnalysisOutcome, onOpenExplorer: (() -> Unit)? = null) {
+fun ReportView(
+    archiveName: String,
+    report: AnalysisReport,
+    outcome: AnalysisOutcome,
+    onOpenExplorer: (() -> Unit)? = null,
+    onOpenFile: ((String) -> Unit)? = null,
+) {
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         val (label, color) = outcomeLabel(outcome)
         FuncodePanel(accent = color) {
@@ -218,6 +224,11 @@ fun ReportView(archiveName: String, report: AnalysisReport, outcome: AnalysisOut
                     Button(onClick = onOpenExplorer, modifier = Modifier.testTag("report_open_explorer")) { Text(stringResource(R.string.report_open_explorer)) }
                 }
             }
+        }
+
+        if (report.hasTechnologies) {
+            TechnologiesPanel(report, onOpenFile)
+            LanguagesPanel(report)
         }
 
         if (report.findings.isNotEmpty()) {

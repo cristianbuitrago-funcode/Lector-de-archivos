@@ -60,10 +60,10 @@ class ExplorerScreenTest {
         compose.waitForIdle()
     }
 
-    private fun analyze() {
+    private fun analyze(entries: Map<String, String>? = null) {
         val file = File(context.cacheDir, "demo.zip")
         ZipOutputStream(file.outputStream()).use { out ->
-            mapOf(
+            (entries ?: mapOf(
                 "demo/app/src/main/AndroidManifest.xml" to """
                     <manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.demo">
                       <application>
@@ -79,7 +79,7 @@ class ExplorerScreenTest {
                 "demo/app/src/main/java/com/demo/MainActivity.kt" to "package com.demo\n\nclass MainActivity : ComponentActivity() {\n\tval token = \"$secret\"\n}\n",
                 "demo/app/src/main/java/com/demo/data/UserDao.kt" to "package com.demo.data\n@Dao\ninterface UserDao\n",
                 "demo/README.md" to "# Demo\n",
-            ).forEach { (name, text) ->
+            )).forEach { (name, text) ->
                 out.putNextEntry(ZipEntry(name))
                 out.write(text.toByteArray())
                 out.closeEntry()
@@ -114,6 +114,8 @@ class ExplorerScreenTest {
         compose.onNodeWithTag("file_detail").assertIsDisplayed()
         compose.onNodeWithText("MainActivity.kt").assertIsDisplayed()
         compose.onAllNodesWithText("Punto de entrada").fetchSemanticsNodes().isNotEmpty().let { check(it) }
+        compose.onNodeWithTag("file_language").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Kotlin · soporte de nivel 1").assertIsDisplayed()
         compose.onNodeWithText("POSIBLES SECRETOS OCULTADOS").performScrollTo().assertIsDisplayed()
         compose.onNodeWithText("Token de GitHub", substring = true).performScrollTo().assertIsDisplayed()
         compose.onAllNodesWithText(secret, substring = true).assertCountEquals(0)
@@ -137,5 +139,44 @@ class ExplorerScreenTest {
         compose.waitForIdle()
         compose.onNodeWithTag("explorer_tree").performScrollToNode(hasTestTag("row:demo/app/src/main/java/com/demo/data/UserDao.kt"))
         compose.onAllNodesWithTag("row:$activity").assertCountEquals(0)
+    }
+
+    @Test
+    fun informeDeTecnologiasConDondeSeEncontroYSuConfianza() {
+        analyze(
+            mapOf(
+                "web/package.json" to "{\"name\": \"web\", \"dependencies\": {\"express\": \"^4.19.0\"}}",
+                "web/server.js" to "const express = require(\"express\");\nconst app = express();\n",
+                "web/README.md" to "Más adelante: Stripe.\n",
+            ),
+        )
+        compose.onNodeWithTag("open_menu").performClick()
+        compose.onNodeWithTag("nav_nuevo").performScrollTo().performClick()
+        awaitCondition { compose.onAllNodesWithTag("report_technologies").fetchSemanticsNodes().isNotEmpty() }
+
+        // Tecnología confirmada, con su categoría, versión y confianza.
+        compose.onNodeWithTag("tech_express").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Versiones declaradas: ^4.19.0").assertIsDisplayed()
+        compose.onAllNodesWithText("Confirmado").fetchSemanticsNodes().isNotEmpty().let { check(it) }
+        // Las menciones van aparte.
+        compose.onNodeWithTag("report_mentions").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithTag("tech_stripe").performScrollTo().assertIsDisplayed()
+        // Lenguajes.
+        compose.onNodeWithTag("report_languages").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("JavaScript").assertIsDisplayed()
+
+        // Dónde se encontró: al tocarla se ven las evidencias con archivo y línea, y se abre el archivo.
+        compose.onNodeWithTag("tech_express").performScrollTo().performClick()
+        compose.waitForIdle()
+        compose.onNodeWithText("web/package.json:1").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("web/server.js:1").performScrollTo().performClick()
+        awaitCondition { compose.onAllNodesWithTag("file_detail").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithText("server.js").assertIsDisplayed()
+        compose.onNodeWithText("TECNOLOGÍAS ENCONTRADAS AQUÍ").performScrollTo().assertIsDisplayed()
+
+        // Visor con resaltado de sintaxis.
+        compose.onNodeWithTag("file_view_code").performScrollTo().performClick()
+        awaitCondition { compose.onAllNodesWithTag("code_line_1").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithText("const express = require", substring = true).assertIsDisplayed()
     }
 }

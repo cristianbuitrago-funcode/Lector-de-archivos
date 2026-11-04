@@ -1,0 +1,1630 @@
+# Catálogo de tecnologías de Funcode Code Analyzer.
+#
+# Cada tecnología se reconoce por señales con un peso. La puntuación es la suma de los pesos de las señales
+# distintas que aparecen (máximo 1). Con `confirmed` (0.8 por defecto) o más es "confirmada"; con `probable`
+# (0.5) o más, "probable"; por debajo, "posible" (indicio débil).
+#
+# Señales:
+#   dependency  nombre del paquete declarado (`prefijo*` para una familia); `ecosystem` lo limita
+#               (npm, composer, jvm = Gradle o Maven, python, pub, nuget, go, cargo, rubygems, cocoapods, cmake,
+#               unity, unreal). Peso por defecto 0.8.
+#   file        nombre de archivo o final de ruta, con `*` como comodín. Peso por defecto 0.5.
+#   import      módulo importado en el código (ese módulo o un submódulo); `languages` lo limita. Peso 0.6.
+#   content     texto literal en el código (fuera de comentarios); `in` limita las extensiones. Peso 0.4.
+#   pattern     expresión RE2 con `hint` (texto literal que debe aparecer antes de evaluarla). Peso 0.4.
+#
+# `version: false` en una dependencia: su versión no es la de la tecnología (p. ej. el complemento de Gradle de
+# Android). Un texto o patrón encontrado solo en archivos de prueba suma la mitad de su peso.
+#
+# `mentions`: textos que, en documentación o comentarios, se listan como "menciones no concluyentes".
+# Las menciones, los archivos de bloqueo y las dependencias transitivas NUNCA suman puntuación.
+version: 1
+technologies:
+
+  # ------------------------------------------------------------------ plataformas móviles y de escritorio
+  - id: android
+    name: Android
+    category: mobile
+    signals:
+      - { file: AndroidManifest.xml, weight: 0.8 }
+      - { dependency: com.android.application, weight: 0.8, version: false }
+      - { dependency: com.android.library, weight: 0.8, version: false }
+      - { import: android, languages: [java, kotlin], weight: 0.6 }
+  - id: flutter
+    name: Flutter
+    category: mobile
+    signals:
+      - { dependency: flutter, ecosystem: pub, weight: 0.8, version: false }
+      - { import: "package:flutter/", weight: 0.6 }
+      - { file: .metadata, weight: 0.1 }
+  - id: react-native
+    name: React Native
+    category: mobile
+    signals:
+      - { dependency: react-native, ecosystem: npm, weight: 0.8 }
+      - { import: react-native, weight: 0.6 }
+      - { file: metro.config.js, weight: 0.3 }
+  - id: expo
+    name: Expo
+    category: mobile
+    signals:
+      - { dependency: expo, ecosystem: npm, weight: 0.8 }
+      - { import: expo, weight: 0.6 }
+      - { file: app.json, weight: 0.1 }
+  - id: ionic
+    name: Ionic
+    category: mobile
+    signals:
+      - { dependency: "@ionic/*", ecosystem: npm, weight: 0.8 }
+      - { file: ionic.config.json, weight: 0.6 }
+  - id: capacitor
+    name: Capacitor
+    category: mobile
+    signals:
+      - { dependency: "@capacitor/core", ecosystem: npm, weight: 0.8 }
+      - { file: capacitor.config.*, weight: 0.6 }
+  - id: cordova
+    name: Apache Cordova
+    category: mobile
+    signals:
+      - { dependency: cordova-*, ecosystem: npm, weight: 0.6 }
+      - { file: config.xml, weight: 0.1 }
+      - { content: "cordova.plugins", in: [js, ts], weight: 0.3 }
+  - id: dotnet-maui
+    name: .NET MAUI / Xamarin
+    category: mobile
+    signals:
+      - { dependency: Microsoft.Maui.*, ecosystem: nuget, weight: 0.8 }
+      - { dependency: Xamarin.*, ecosystem: nuget, weight: 0.8 }
+      - { content: "<UseMaui>true</UseMaui>", in: [csproj], weight: 0.8 }
+  - id: kotlin-multiplatform
+    name: Kotlin Multiplatform
+    category: mobile
+    signals:
+      - { dependency: org.jetbrains.kotlin.multiplatform, weight: 0.8, version: false }
+      - { content: "kotlin(\"multiplatform\")", in: [kts], weight: 0.8 }
+  - id: swiftui
+    name: SwiftUI
+    category: ui
+    signals:
+      - { content: "import SwiftUI", in: [swift], weight: 0.6 }
+  - id: uikit
+    name: UIKit
+    category: ui
+    signals:
+      - { content: "import UIKit", in: [swift], weight: 0.6 }
+      - { content: "#import <UIKit/", in: [m, h, mm], weight: 0.6 }
+  - id: electron
+    name: Electron
+    category: framework
+    signals:
+      - { dependency: electron, ecosystem: npm, weight: 0.8 }
+      - { import: electron, weight: 0.6 }
+  - id: tauri
+    name: Tauri
+    category: framework
+    signals:
+      - { dependency: tauri, ecosystem: cargo, weight: 0.8 }
+      - { dependency: "@tauri-apps/*", ecosystem: npm, weight: 0.8 }
+      - { file: tauri.conf.json, weight: 0.6 }
+
+  # ------------------------------------------------------------------ frameworks web (frontend)
+  - id: react
+    name: React
+    category: ui
+    signals:
+      - { dependency: react, ecosystem: npm, weight: 0.8 }
+      - { import: react, weight: 0.6 }
+  - id: nextjs
+    name: Next.js
+    category: framework
+    signals:
+      - { dependency: next, ecosystem: npm, weight: 0.8 }
+      - { file: next.config.*, weight: 0.6 }
+      - { import: next, weight: 0.4 }
+  - id: angular
+    name: Angular
+    category: framework
+    signals:
+      - { dependency: "@angular/core", ecosystem: npm, weight: 0.8 }
+      - { file: angular.json, weight: 0.6 }
+      - { import: "@angular/", weight: 0.6 }
+  - id: vue
+    name: Vue.js
+    category: framework
+    signals:
+      - { dependency: vue, ecosystem: npm, weight: 0.8 }
+      - { file: "*.vue", weight: 0.6 }
+      - { import: vue, weight: 0.6 }
+  - id: nuxt
+    name: Nuxt
+    category: framework
+    signals:
+      - { dependency: nuxt, ecosystem: npm, weight: 0.8 }
+      - { file: nuxt.config.*, weight: 0.6 }
+  - id: svelte
+    name: Svelte / SvelteKit
+    category: framework
+    signals:
+      - { dependency: svelte, ecosystem: npm, weight: 0.8 }
+      - { dependency: "@sveltejs/kit", ecosystem: npm, weight: 0.8 }
+      - { file: "*.svelte", weight: 0.6 }
+  - id: astro
+    name: Astro
+    category: framework
+    signals:
+      - { dependency: astro, ecosystem: npm, weight: 0.8 }
+      - { file: astro.config.*, weight: 0.6 }
+  - id: jquery
+    name: jQuery
+    category: library
+    signals:
+      - { dependency: jquery, ecosystem: npm, weight: 0.8 }
+      - { file: jquery*.js, weight: 0.5 }
+      - { import: jquery, weight: 0.6 }
+  - id: bootstrap
+    name: Bootstrap
+    category: ui
+    signals:
+      - { dependency: bootstrap, ecosystem: npm, weight: 0.8 }
+      - { file: bootstrap*.css, weight: 0.5 }
+      - { content: "bootstrap.min.css", in: [html, htm, php, cshtml, twig, ejs], weight: 0.5 }
+  - id: tailwind
+    name: Tailwind CSS
+    category: ui
+    signals:
+      - { dependency: tailwindcss, ecosystem: npm, weight: 0.8 }
+      - { file: tailwind.config.*, weight: 0.6 }
+      - { content: "@tailwind ", in: [css, scss], weight: 0.5 }
+  - id: material-ui
+    name: Material UI (MUI)
+    category: ui
+    signals:
+      - { dependency: "@mui/material", ecosystem: npm, weight: 0.8 }
+      - { dependency: "@material-ui/core", ecosystem: npm, weight: 0.8 }
+      - { import: "@mui/", weight: 0.6 }
+  - id: jetpack-compose
+    name: Jetpack Compose
+    category: ui
+    signals:
+      - { dependency: androidx.compose*, ecosystem: jvm, weight: 0.8 }
+      - { dependency: org.jetbrains.kotlin.plugin.compose, weight: 0.8, version: false }
+      - { import: androidx.compose, weight: 0.6 }
+  - id: redux
+    name: Redux
+    category: library
+    signals:
+      - { dependency: redux, ecosystem: npm, weight: 0.8 }
+      - { dependency: "@reduxjs/toolkit", ecosystem: npm, weight: 0.8 }
+      - { import: "@reduxjs/toolkit", weight: 0.6 }
+  - id: rxjs
+    name: RxJS
+    category: library
+    signals:
+      - { dependency: rxjs, ecosystem: npm, weight: 0.8 }
+      - { import: rxjs, weight: 0.6 }
+  - id: threejs
+    name: Three.js
+    category: game_engine
+    signals:
+      - { dependency: three, ecosystem: npm, weight: 0.8 }
+      - { import: three, weight: 0.6 }
+
+  # ------------------------------------------------------------------ frameworks de servidor
+  - id: nodejs
+    name: Node.js
+    category: language_runtime
+    signals:
+      - { file: package.json, weight: 0.5 }
+      - { import: "node:", weight: 0.4 }
+      - { import: fs, languages: [javascript, typescript], weight: 0.3 }
+      - { import: http, languages: [javascript, typescript], weight: 0.3 }
+  - id: express
+    name: Express
+    category: framework
+    signals:
+      - { dependency: express, ecosystem: npm, weight: 0.8 }
+      - { import: express, weight: 0.6 }
+  - id: nestjs
+    name: NestJS
+    category: framework
+    signals:
+      - { dependency: "@nestjs/core", ecosystem: npm, weight: 0.8 }
+      - { import: "@nestjs/", weight: 0.6 }
+      - { file: nest-cli.json, weight: 0.5 }
+  - id: fastify
+    name: Fastify
+    category: framework
+    signals:
+      - { dependency: fastify, ecosystem: npm, weight: 0.8 }
+      - { import: fastify, weight: 0.6 }
+  - id: koa
+    name: Koa
+    category: framework
+    signals:
+      - { dependency: koa, ecosystem: npm, weight: 0.8 }
+      - { import: koa, weight: 0.6 }
+  - id: django
+    name: Django
+    category: framework
+    signals:
+      - { dependency: django, ecosystem: python, weight: 0.8 }
+      - { dependency: Django, ecosystem: python, weight: 0.8 }
+      - { file: manage.py, weight: 0.3 }
+      - { import: django, weight: 0.6 }
+  - id: flask
+    name: Flask
+    category: framework
+    signals:
+      - { dependency: flask, ecosystem: python, weight: 0.8 }
+      - { dependency: Flask, ecosystem: python, weight: 0.8 }
+      - { import: flask, weight: 0.6 }
+  - id: fastapi
+    name: FastAPI
+    category: framework
+    signals:
+      - { dependency: fastapi, ecosystem: python, weight: 0.8 }
+      - { import: fastapi, weight: 0.6 }
+  - id: laravel
+    name: Laravel
+    category: framework
+    signals:
+      - { dependency: laravel/framework, ecosystem: composer, weight: 0.8 }
+      - { file: artisan, weight: 0.3 }
+      - { import: "Illuminate\\", weight: 0.4 }
+  - id: symfony
+    name: Symfony
+    category: framework
+    signals:
+      - { dependency: symfony/framework-bundle, ecosystem: composer, weight: 0.8 }
+      - { dependency: symfony/*, ecosystem: composer, weight: 0.5 }
+      - { import: "Symfony\\", weight: 0.5 }
+  - id: codeigniter
+    name: CodeIgniter
+    category: framework
+    signals:
+      - { dependency: codeigniter4/framework, ecosystem: composer, weight: 0.8 }
+      - { content: "CodeIgniter\\", in: [php], weight: 0.5 }
+      - { file: spark, weight: 0.2 }
+  - id: wordpress
+    name: WordPress
+    category: framework
+    signals:
+      - { file: wp-config.php, weight: 0.8 }
+      - { file: wp-content/*, weight: 0.5 }
+      - { content: "add_action(", in: [php], weight: 0.3 }
+  - id: spring-boot
+    name: Spring Boot
+    category: framework
+    signals:
+      - { dependency: org.springframework.boot*, ecosystem: jvm, weight: 0.8 }
+      - { import: org.springframework.boot, weight: 0.6 }
+      - { file: application.properties, weight: 0.1 }
+  - id: spring
+    name: Spring Framework
+    category: framework
+    signals:
+      - { dependency: org.springframework:*, ecosystem: jvm, weight: 0.8 }
+      - { import: org.springframework, weight: 0.6 }
+  - id: ktor
+    name: Ktor
+    category: framework
+    signals:
+      - { dependency: io.ktor:*, ecosystem: jvm, weight: 0.8 }
+      - { import: io.ktor, weight: 0.6 }
+  - id: aspnet-core
+    name: ASP.NET Core
+    category: framework
+    signals:
+      - { dependency: Microsoft.NET.Sdk.Web, ecosystem: nuget, weight: 0.8, version: false }
+      - { dependency: Microsoft.AspNetCore.*, ecosystem: nuget, weight: 0.8 }
+      - { import: Microsoft.AspNetCore, weight: 0.6 }
+  - id: rails
+    name: Ruby on Rails
+    category: framework
+    signals:
+      - { dependency: rails, ecosystem: rubygems, weight: 0.8 }
+      - { file: config/routes.rb, weight: 0.5 }
+      - { file: bin/rails, weight: 0.4 }
+  - id: sinatra
+    name: Sinatra
+    category: framework
+    signals:
+      - { dependency: sinatra, ecosystem: rubygems, weight: 0.8 }
+      - { content: "require 'sinatra'", in: [rb], weight: 0.6 }
+  - id: gin
+    name: Gin
+    category: framework
+    signals:
+      - { dependency: github.com/gin-gonic/gin, ecosystem: go, weight: 0.8 }
+      - { content: "\"github.com/gin-gonic/gin\"", in: [go], weight: 0.6 }
+  - id: echo
+    name: Echo
+    category: framework
+    signals:
+      - { dependency: github.com/labstack/echo*, ecosystem: go, weight: 0.8 }
+  - id: fiber
+    name: Fiber
+    category: framework
+    signals:
+      - { dependency: github.com/gofiber/fiber*, ecosystem: go, weight: 0.8 }
+  - id: actix-web
+    name: Actix Web
+    category: framework
+    signals:
+      - { dependency: actix-web, ecosystem: cargo, weight: 0.8 }
+  - id: axum
+    name: Axum
+    category: framework
+    signals:
+      - { dependency: axum, ecosystem: cargo, weight: 0.8 }
+  - id: socketio
+    name: Socket.IO
+    category: networking
+    signals:
+      - { dependency: socket.io, ecosystem: npm, weight: 0.8 }
+      - { dependency: socket.io-client, ecosystem: npm, weight: 0.8 }
+      - { import: socket.io, weight: 0.6 }
+      - { import: socket.io-client, weight: 0.6 }
+  - id: graphql
+    name: GraphQL
+    category: networking
+    signals:
+      - { dependency: graphql, ecosystem: npm, weight: 0.8 }
+      - { dependency: "@apollo/*", ecosystem: npm, weight: 0.8 }
+      - { dependency: com.apollographql.*, ecosystem: jvm, weight: 0.8 }
+      - { dependency: graphene, ecosystem: python, weight: 0.8 }
+      - { file: "*.graphql", weight: 0.5 }
+      - { file: "*.gql", weight: 0.5 }
+  - id: grpc
+    name: gRPC
+    category: networking
+    signals:
+      - { dependency: io.grpc:*, ecosystem: jvm, weight: 0.8 }
+      - { dependency: "@grpc/grpc-js", ecosystem: npm, weight: 0.8 }
+      - { dependency: grpcio, ecosystem: python, weight: 0.8 }
+      - { dependency: Grpc.*, ecosystem: nuget, weight: 0.8 }
+      - { dependency: google.golang.org/grpc, ecosystem: go, weight: 0.8 }
+      - { file: "*.proto", weight: 0.4 }
+
+  # ------------------------------------------------------------------ clientes HTTP
+  - id: axios
+    name: Axios
+    category: networking
+    signals:
+      - { dependency: axios, ecosystem: npm, weight: 0.8 }
+      - { import: axios, weight: 0.6 }
+  - id: retrofit
+    name: Retrofit
+    category: networking
+    signals:
+      - { dependency: com.squareup.retrofit2:*, ecosystem: jvm, weight: 0.8 }
+      - { import: retrofit2, weight: 0.6 }
+  - id: okhttp
+    name: OkHttp
+    category: networking
+    signals:
+      - { dependency: com.squareup.okhttp3:*, ecosystem: jvm, weight: 0.8 }
+      - { import: okhttp3, weight: 0.6 }
+  - id: dio
+    name: Dio
+    category: networking
+    signals:
+      - { dependency: dio, ecosystem: pub, weight: 0.8 }
+      - { import: "package:dio/", weight: 0.6 }
+  - id: dart-http
+    name: http (Dart)
+    category: networking
+    signals:
+      - { dependency: http, ecosystem: pub, weight: 0.8 }
+      - { import: "package:http/", weight: 0.6 }
+  - id: alamofire
+    name: Alamofire
+    category: networking
+    signals:
+      - { dependency: Alamofire, ecosystem: cocoapods, weight: 0.8 }
+      - { content: "import Alamofire", in: [swift], weight: 0.6 }
+  - id: python-requests
+    name: Requests (Python)
+    category: networking
+    signals:
+      - { dependency: requests, ecosystem: python, weight: 0.8 }
+      - { import: requests, languages: [python], weight: 0.6 }
+  - id: httpx
+    name: HTTPX
+    category: networking
+    signals:
+      - { dependency: httpx, ecosystem: python, weight: 0.8 }
+      - { import: httpx, languages: [python], weight: 0.6 }
+
+  # ------------------------------------------------------------------ bases de datos
+  - id: postgresql
+    name: PostgreSQL
+    category: database
+    mentions: [PostgreSQL, Postgres]
+    signals:
+      - { dependency: pg, ecosystem: npm, weight: 0.8 }
+      - { dependency: postgres, ecosystem: npm, weight: 0.8 }
+      - { dependency: org.postgresql:postgresql, ecosystem: jvm, weight: 0.8 }
+      - { dependency: psycopg*, ecosystem: python, weight: 0.8 }
+      - { dependency: asyncpg, ecosystem: python, weight: 0.8 }
+      - { dependency: Npgsql*, ecosystem: nuget, weight: 0.8 }
+      - { dependency: pg, ecosystem: rubygems, weight: 0.8 }
+      - { dependency: github.com/lib/pq, ecosystem: go, weight: 0.8 }
+      - { dependency: github.com/jackc/pgx*, ecosystem: go, weight: 0.8 }
+      - { content: "jdbc:postgresql:", weight: 0.6 }
+      - { content: "postgres://", weight: 0.6 }
+      - { content: "postgresql://", weight: 0.6 }
+      - { content: "DB_CONNECTION=pgsql", weight: 0.6 }
+      - { content: "django.db.backends.postgresql", weight: 0.6 }
+      - { pattern: "image:\\s*[\"']?(?:postgres|postgis/postgis|bitnami/postgresql)[:\"'\\s]", hint: postgres, in: [yml, yaml], weight: 0.6 }
+  - id: mysql
+    name: MySQL / MariaDB
+    category: database
+    mentions: [MySQL, MariaDB]
+    signals:
+      - { dependency: mysql, ecosystem: npm, weight: 0.8 }
+      - { dependency: mysql2, ecosystem: npm, weight: 0.8 }
+      - { dependency: mariadb, ecosystem: npm, weight: 0.8 }
+      - { dependency: mysql:mysql-connector-java, ecosystem: jvm, weight: 0.8 }
+      - { dependency: com.mysql:mysql-connector-j, ecosystem: jvm, weight: 0.8 }
+      - { dependency: org.mariadb.jdbc:*, ecosystem: jvm, weight: 0.8 }
+      - { dependency: mysqlclient, ecosystem: python, weight: 0.8 }
+      - { dependency: PyMySQL, ecosystem: python, weight: 0.8 }
+      - { dependency: pymysql, ecosystem: python, weight: 0.8 }
+      - { dependency: MySql.Data, ecosystem: nuget, weight: 0.8 }
+      - { dependency: Pomelo.EntityFrameworkCore.MySql, ecosystem: nuget, weight: 0.8 }
+      - { dependency: mysql2, ecosystem: rubygems, weight: 0.8 }
+      - { dependency: github.com/go-sql-driver/mysql, ecosystem: go, weight: 0.8 }
+      - { content: "jdbc:mysql:", weight: 0.6 }
+      - { content: "jdbc:mariadb:", weight: 0.6 }
+      - { content: "mysql://", weight: 0.6 }
+      - { content: "DB_CONNECTION=mysql", weight: 0.6 }
+      - { content: "new PDO('mysql:", in: [php], weight: 0.6 }
+      - { content: "new PDO(\"mysql:", in: [php], weight: 0.6 }
+      - { content: "mysqli_connect(", in: [php], weight: 0.6 }
+      - { content: "django.db.backends.mysql", weight: 0.6 }
+      - { pattern: "image:\\s*[\"']?(?:mysql|mariadb|bitnami/mysql)[:\"'\\s]", hint: image, in: [yml, yaml], weight: 0.6 }
+  - id: sqlite
+    name: SQLite
+    category: database
+    mentions: [SQLite]
+    signals:
+      - { dependency: sqlite3, ecosystem: npm, weight: 0.8 }
+      - { dependency: better-sqlite3, ecosystem: npm, weight: 0.8 }
+      - { dependency: sqflite, ecosystem: pub, weight: 0.8 }
+      - { dependency: org.xerial:sqlite-jdbc, ecosystem: jvm, weight: 0.8 }
+      - { dependency: Microsoft.Data.Sqlite*, ecosystem: nuget, weight: 0.8 }
+      - { dependency: sqlite3, ecosystem: rubygems, weight: 0.8 }
+      - { dependency: rusqlite, ecosystem: cargo, weight: 0.8 }
+      - { dependency: SQLite3, ecosystem: cmake, weight: 0.8 }
+      - { import: sqlite3, languages: [python, c, cpp], weight: 0.6 }
+      - { import: android.database.sqlite, weight: 0.6 }
+      - { content: "jdbc:sqlite:", weight: 0.6 }
+      - { content: "django.db.backends.sqlite3", weight: 0.6 }
+      - { content: "DB_CONNECTION=sqlite", weight: 0.6 }
+      - { file: "*.sqlite", weight: 0.3 }
+      - { file: "*.sqlite3", weight: 0.3 }
+      - { file: "*.db", weight: 0.1 }
+  - id: sql-server
+    name: Microsoft SQL Server
+    category: database
+    mentions: [SQL Server]
+    signals:
+      - { dependency: mssql, ecosystem: npm, weight: 0.8 }
+      - { dependency: tedious, ecosystem: npm, weight: 0.8 }
+      - { dependency: com.microsoft.sqlserver:*, ecosystem: jvm, weight: 0.8 }
+      - { dependency: pyodbc, ecosystem: python, weight: 0.5 }
+      - { dependency: Microsoft.EntityFrameworkCore.SqlServer, ecosystem: nuget, weight: 0.8 }
+      - { dependency: Microsoft.Data.SqlClient, ecosystem: nuget, weight: 0.8 }
+      - { dependency: System.Data.SqlClient, ecosystem: nuget, weight: 0.8 }
+      - { content: "jdbc:sqlserver:", weight: 0.6 }
+      - { content: "UseSqlServer(", in: [cs], weight: 0.6 }
+      - { content: "DB_CONNECTION=sqlsrv", weight: 0.6 }
+      - { content: "mcr.microsoft.com/mssql", in: [yml, yaml], weight: 0.6 }
+  - id: oracle-db
+    name: Oracle Database
+    category: database
+    signals:
+      - { dependency: oracledb, ecosystem: npm, weight: 0.8 }
+      - { dependency: com.oracle.database.jdbc:*, ecosystem: jvm, weight: 0.8 }
+      - { dependency: oracledb, ecosystem: python, weight: 0.8 }
+      - { dependency: cx_Oracle, ecosystem: python, weight: 0.8 }
+      - { dependency: Oracle.ManagedDataAccess*, ecosystem: nuget, weight: 0.8 }
+      - { content: "jdbc:oracle:", weight: 0.6 }
+  - id: mongodb
+    name: MongoDB
+    category: database
+    mentions: [MongoDB]
+    signals:
+      - { dependency: mongodb, ecosystem: npm, weight: 0.8 }
+      - { dependency: mongoose, ecosystem: npm, weight: 0.8 }
+      - { dependency: org.mongodb:*, ecosystem: jvm, weight: 0.8 }
+      - { dependency: org.springframework.boot:spring-boot-starter-data-mongodb, ecosystem: jvm, weight: 0.8 }
+      - { dependency: pymongo, ecosystem: python, weight: 0.8 }
+      - { dependency: motor, ecosystem: python, weight: 0.6 }
+      - { dependency: MongoDB.Driver, ecosystem: nuget, weight: 0.8 }
+      - { dependency: mongoid, ecosystem: rubygems, weight: 0.8 }
+      - { dependency: go.mongodb.org/mongo-driver*, ecosystem: go, weight: 0.8 }
+      - { dependency: mongodb/mongodb, ecosystem: composer, weight: 0.8 }
+      - { content: "mongodb://", weight: 0.6 }
+      - { content: "mongodb+srv://", weight: 0.6 }
+      - { pattern: "image:\\s*[\"']?(?:mongo|bitnami/mongodb)[:\"'\\s]", hint: mongo, in: [yml, yaml], weight: 0.6 }
+  - id: redis
+    name: Redis
+    category: database
+    mentions: [Redis]
+    signals:
+      - { dependency: redis, ecosystem: npm, weight: 0.8 }
+      - { dependency: ioredis, ecosystem: npm, weight: 0.8 }
+      - { dependency: redis, ecosystem: python, weight: 0.8 }
+      - { dependency: redis.clients:jedis, ecosystem: jvm, weight: 0.8 }
+      - { dependency: io.lettuce:lettuce-core, ecosystem: jvm, weight: 0.8 }
+      - { dependency: org.springframework.boot:spring-boot-starter-data-redis, ecosystem: jvm, weight: 0.8 }
+      - { dependency: StackExchange.Redis, ecosystem: nuget, weight: 0.8 }
+      - { dependency: predis/predis, ecosystem: composer, weight: 0.8 }
+      - { dependency: redis, ecosystem: rubygems, weight: 0.8 }
+      - { dependency: github.com/redis/go-redis*, ecosystem: go, weight: 0.8 }
+      - { dependency: github.com/go-redis/redis*, ecosystem: go, weight: 0.8 }
+      - { content: "redis://", weight: 0.6 }
+      - { content: "rediss://", weight: 0.6 }
+      - { pattern: "image:\\s*[\"']?(?:redis|bitnami/redis)[:\"'\\s]", hint: redis, in: [yml, yaml], weight: 0.6 }
+  - id: elasticsearch
+    name: Elasticsearch / OpenSearch
+    category: database
+    signals:
+      - { dependency: "@elastic/elasticsearch", ecosystem: npm, weight: 0.8 }
+      - { dependency: elasticsearch, ecosystem: python, weight: 0.8 }
+      - { dependency: co.elastic.clients:*, ecosystem: jvm, weight: 0.8 }
+      - { dependency: NEST, ecosystem: nuget, weight: 0.8 }
+      - { dependency: "@opensearch-project/opensearch", ecosystem: npm, weight: 0.8 }
+      - { content: "docker.elastic.co/elasticsearch", in: [yml, yaml], weight: 0.6 }
+  - id: cassandra
+    name: Apache Cassandra
+    category: database
+    signals:
+      - { dependency: cassandra-driver, ecosystem: npm, weight: 0.8 }
+      - { dependency: cassandra-driver, ecosystem: python, weight: 0.8 }
+      - { dependency: com.datastax.oss:*, ecosystem: jvm, weight: 0.8 }
+  - id: neo4j
+    name: Neo4j
+    category: database
+    signals:
+      - { dependency: neo4j-driver, ecosystem: npm, weight: 0.8 }
+      - { dependency: neo4j, ecosystem: python, weight: 0.8 }
+      - { dependency: org.neo4j*, ecosystem: jvm, weight: 0.8 }
+      - { content: "neo4j://", weight: 0.6 }
+      - { content: "bolt://", weight: 0.5 }
+  - id: dynamodb
+    name: Amazon DynamoDB
+    category: database
+    signals:
+      - { dependency: "@aws-sdk/client-dynamodb", ecosystem: npm, weight: 0.8 }
+      - { dependency: software.amazon.awssdk:dynamodb*, ecosystem: jvm, weight: 0.8 }
+      - { dependency: AWSSDK.DynamoDBv2, ecosystem: nuget, weight: 0.8 }
+      - { content: "AWS::DynamoDB::Table", weight: 0.6 }
+  - id: firestore
+    name: Cloud Firestore
+    category: database
+    signals:
+      - { dependency: cloud_firestore, ecosystem: pub, weight: 0.8 }
+      - { dependency: com.google.firebase:firebase-firestore*, ecosystem: jvm, weight: 0.8 }
+      - { dependency: "@google-cloud/firestore", ecosystem: npm, weight: 0.8 }
+      - { dependency: google-cloud-firestore, ecosystem: python, weight: 0.8 }
+      - { dependency: FirebaseFirestore, ecosystem: cocoapods, weight: 0.8 }
+      - { dependency: Firebase/Firestore, ecosystem: cocoapods, weight: 0.8 }
+      - { import: firebase/firestore, weight: 0.6 }
+      - { import: "package:cloud_firestore/", weight: 0.6 }
+      - { file: firestore.rules, weight: 0.6 }
+      - { content: "getFirestore(", in: [js, ts, jsx, tsx], weight: 0.5 }
+      - { content: "FirebaseFirestore.getInstance(", in: [java, kt], weight: 0.6 }
+  - id: firebase-realtime-db
+    name: Firebase Realtime Database
+    category: database
+    signals:
+      - { dependency: firebase_database, ecosystem: pub, weight: 0.8 }
+      - { dependency: com.google.firebase:firebase-database*, ecosystem: jvm, weight: 0.8 }
+      - { import: firebase/database, weight: 0.6 }
+      - { file: database.rules.json, weight: 0.6 }
+      - { content: "firebaseio.com", weight: 0.5 }
+  - id: realm
+    name: Realm
+    category: database
+    signals:
+      - { dependency: realm, ecosystem: npm, weight: 0.8 }
+      - { dependency: io.realm*, ecosystem: jvm, weight: 0.8 }
+      - { dependency: RealmSwift, ecosystem: cocoapods, weight: 0.8 }
+      - { dependency: realm, ecosystem: pub, weight: 0.8 }
+  - id: hive-flutter
+    name: Hive (Flutter)
+    category: database
+    signals:
+      - { dependency: hive, ecosystem: pub, weight: 0.8 }
+      - { dependency: hive_flutter, ecosystem: pub, weight: 0.8 }
+  - id: h2
+    name: H2 Database
+    category: database
+    signals:
+      - { dependency: com.h2database:h2, ecosystem: jvm, weight: 0.8 }
+      - { content: "jdbc:h2:", weight: 0.6 }
+
+  # ------------------------------------------------------------------ acceso a datos (ORM)
+  - id: prisma
+    name: Prisma
+    category: data_access
+    signals:
+      - { dependency: prisma, ecosystem: npm, weight: 0.8 }
+      - { dependency: "@prisma/client", ecosystem: npm, weight: 0.8 }
+      - { file: schema.prisma, weight: 0.8 }
+  - id: sequelize
+    name: Sequelize
+    category: data_access
+    signals:
+      - { dependency: sequelize, ecosystem: npm, weight: 0.8 }
+      - { import: sequelize, weight: 0.6 }
+  - id: typeorm
+    name: TypeORM
+    category: data_access
+    signals:
+      - { dependency: typeorm, ecosystem: npm, weight: 0.8 }
+      - { import: typeorm, weight: 0.6 }
+  - id: mongoose
+    name: Mongoose
+    category: data_access
+    signals:
+      - { dependency: mongoose, ecosystem: npm, weight: 0.8 }
+      - { import: mongoose, weight: 0.6 }
+  - id: knex
+    name: Knex.js
+    category: data_access
+    signals:
+      - { dependency: knex, ecosystem: npm, weight: 0.8 }
+      - { file: knexfile.*, weight: 0.6 }
+  - id: drizzle
+    name: Drizzle ORM
+    category: data_access
+    signals:
+      - { dependency: drizzle-orm, ecosystem: npm, weight: 0.8 }
+      - { file: drizzle.config.*, weight: 0.6 }
+  - id: sqlalchemy
+    name: SQLAlchemy
+    category: data_access
+    signals:
+      - { dependency: sqlalchemy, ecosystem: python, weight: 0.8 }
+      - { dependency: SQLAlchemy, ecosystem: python, weight: 0.8 }
+      - { dependency: flask-sqlalchemy, ecosystem: python, weight: 0.8 }
+      - { dependency: Flask-SQLAlchemy, ecosystem: python, weight: 0.8 }
+      - { import: sqlalchemy, weight: 0.6 }
+  - id: django-orm
+    name: ORM de Django
+    category: data_access
+    signals:
+      - { import: django.db, weight: 0.6 }
+      - { content: "models.Model", in: [py], weight: 0.4 }
+  - id: eloquent
+    name: Eloquent (Laravel)
+    category: data_access
+    signals:
+      - { import: "Illuminate\\Database", weight: 0.6 }
+      - { content: "extends Model", in: [php], weight: 0.3 }
+  - id: doctrine
+    name: Doctrine ORM
+    category: data_access
+    signals:
+      - { dependency: doctrine/orm, ecosystem: composer, weight: 0.8 }
+      - { import: "Doctrine\\ORM", weight: 0.6 }
+  - id: hibernate
+    name: Hibernate / JPA
+    category: data_access
+    signals:
+      - { dependency: org.hibernate*, ecosystem: jvm, weight: 0.8 }
+      - { dependency: org.springframework.boot:spring-boot-starter-data-jpa, ecosystem: jvm, weight: 0.8 }
+      - { import: jakarta.persistence, weight: 0.6 }
+      - { import: javax.persistence, weight: 0.6 }
+  - id: room
+    name: Room (Android)
+    category: data_access
+    signals:
+      - { dependency: androidx.room:*, ecosystem: jvm, weight: 0.8 }
+      - { import: androidx.room, weight: 0.6 }
+  - id: entity-framework
+    name: Entity Framework Core
+    category: data_access
+    signals:
+      - { dependency: Microsoft.EntityFrameworkCore*, ecosystem: nuget, weight: 0.8 }
+      - { import: Microsoft.EntityFrameworkCore, weight: 0.6 }
+  - id: dapper
+    name: Dapper
+    category: data_access
+    signals:
+      - { dependency: Dapper, ecosystem: nuget, weight: 0.8 }
+  - id: exposed
+    name: Exposed
+    category: data_access
+    signals:
+      - { dependency: org.jetbrains.exposed:*, ecosystem: jvm, weight: 0.8 }
+  - id: gorm
+    name: GORM
+    category: data_access
+    signals:
+      - { dependency: gorm.io/gorm, ecosystem: go, weight: 0.8 }
+  - id: diesel
+    name: Diesel
+    category: data_access
+    signals:
+      - { dependency: diesel, ecosystem: cargo, weight: 0.8 }
+  - id: sqlx
+    name: SQLx
+    category: data_access
+    signals:
+      - { dependency: sqlx, ecosystem: cargo, weight: 0.8 }
+  - id: active-record
+    name: Active Record (Rails)
+    category: data_access
+    signals:
+      - { dependency: activerecord, ecosystem: rubygems, weight: 0.8 }
+      - { content: "< ApplicationRecord", in: [rb], weight: 0.5 }
+      - { content: "< ActiveRecord::Base", in: [rb], weight: 0.6 }
+  - id: mybatis
+    name: MyBatis
+    category: data_access
+    signals:
+      - { dependency: org.mybatis*, ecosystem: jvm, weight: 0.8 }
+
+  # ------------------------------------------------------------------ servicios externos y nube
+  - id: firebase
+    name: Firebase
+    category: external_service
+    mentions: [Firebase]
+    signals:
+      - { dependency: firebase, ecosystem: npm, weight: 0.8 }
+      - { dependency: firebase-admin, ecosystem: npm, weight: 0.8 }
+      - { dependency: firebase_core, ecosystem: pub, weight: 0.8 }
+      - { dependency: com.google.firebase:*, ecosystem: jvm, weight: 0.8 }
+      - { dependency: com.google.gms.google-services, weight: 0.8, version: false }
+      - { dependency: firebase-admin, ecosystem: python, weight: 0.8 }
+      - { dependency: Firebase*, ecosystem: cocoapods, weight: 0.8 }
+      - { dependency: FirebaseAdmin, ecosystem: nuget, weight: 0.8 }
+      - { file: google-services.json, weight: 0.8 }
+      - { file: GoogleService-Info.plist, weight: 0.8 }
+      - { file: firebase.json, weight: 0.6 }
+      - { file: .firebaserc, weight: 0.5 }
+      - { import: firebase, weight: 0.6 }
+      - { import: "package:firebase_core/", weight: 0.6 }
+      - { content: "initializeApp(", in: [js, ts, jsx, tsx], weight: 0.2 }
+  - id: firebase-auth
+    name: Firebase Authentication
+    category: authentication
+    signals:
+      - { dependency: firebase_auth, ecosystem: pub, weight: 0.8 }
+      - { dependency: com.google.firebase:firebase-auth*, ecosystem: jvm, weight: 0.8 }
+      - { dependency: FirebaseAuth, ecosystem: cocoapods, weight: 0.8 }
+      - { dependency: Firebase/Auth, ecosystem: cocoapods, weight: 0.8 }
+      - { import: firebase/auth, weight: 0.6 }
+      - { import: "package:firebase_auth/", weight: 0.6 }
+      - { content: "FirebaseAuth.getInstance(", in: [java, kt], weight: 0.6 }
+  - id: firebase-messaging
+    name: Firebase Cloud Messaging
+    category: external_service
+    signals:
+      - { dependency: firebase_messaging, ecosystem: pub, weight: 0.8 }
+      - { dependency: com.google.firebase:firebase-messaging*, ecosystem: jvm, weight: 0.8 }
+      - { import: firebase/messaging, weight: 0.6 }
+      - { content: "FirebaseMessagingService", in: [java, kt, xml], weight: 0.6 }
+  - id: supabase
+    name: Supabase
+    category: external_service
+    mentions: [Supabase]
+    signals:
+      - { dependency: "@supabase/supabase-js", ecosystem: npm, weight: 0.8 }
+      - { dependency: supabase_flutter, ecosystem: pub, weight: 0.8 }
+      - { dependency: supabase, ecosystem: python, weight: 0.8 }
+      - { import: "@supabase/", weight: 0.6 }
+      - { content: ".supabase.co", weight: 0.6 }
+      - { file: supabase/config.toml, weight: 0.6 }
+  - id: aws
+    name: Amazon Web Services (SDK)
+    category: cloud
+    mentions: [AWS]
+    signals:
+      - { dependency: aws-sdk, ecosystem: npm, weight: 0.8 }
+      - { dependency: "@aws-sdk/*", ecosystem: npm, weight: 0.8 }
+      - { dependency: boto3, ecosystem: python, weight: 0.8 }
+      - { dependency: software.amazon.awssdk*, ecosystem: jvm, weight: 0.8 }
+      - { dependency: com.amazonaws:*, ecosystem: jvm, weight: 0.8 }
+      - { dependency: AWSSDK.*, ecosystem: nuget, weight: 0.8 }
+      - { dependency: aws-sdk/aws-sdk-php, ecosystem: composer, weight: 0.8 }
+      - { dependency: github.com/aws/aws-sdk-go*, ecosystem: go, weight: 0.8 }
+      - { content: ".amazonaws.com", weight: 0.5 }
+      - { file: serverless.yml, weight: 0.4 }
+      - { file: template.yaml, weight: 0.1 }
+  - id: google-cloud
+    name: Google Cloud
+    category: cloud
+    signals:
+      - { dependency: "@google-cloud/*", ecosystem: npm, weight: 0.8 }
+      - { dependency: google-cloud-*, ecosystem: python, weight: 0.8 }
+      - { dependency: com.google.cloud:*, ecosystem: jvm, weight: 0.8 }
+      - { dependency: Google.Cloud.*, ecosystem: nuget, weight: 0.8 }
+      - { dependency: cloud.google.com/go*, ecosystem: go, weight: 0.8 }
+      - { file: app.yaml, weight: 0.2 }
+      - { file: cloudbuild.yaml, weight: 0.5 }
+  - id: azure
+    name: Microsoft Azure
+    category: cloud
+    signals:
+      - { dependency: "@azure/*", ecosystem: npm, weight: 0.8 }
+      - { dependency: azure-*, ecosystem: python, weight: 0.8 }
+      - { dependency: com.azure:*, ecosystem: jvm, weight: 0.8 }
+      - { dependency: Azure.*, ecosystem: nuget, weight: 0.8 }
+      - { dependency: Microsoft.Azure.*, ecosystem: nuget, weight: 0.8 }
+      - { content: ".azurewebsites.net", weight: 0.5 }
+      - { content: ".blob.core.windows.net", weight: 0.5 }
+      - { file: azure-pipelines.yml, weight: 0.5 }
+  - id: stripe
+    name: Stripe
+    category: external_service
+    mentions: [Stripe]
+    signals:
+      - { dependency: stripe, ecosystem: npm, weight: 0.8 }
+      - { dependency: "@stripe/*", ecosystem: npm, weight: 0.8 }
+      - { dependency: stripe, ecosystem: python, weight: 0.8 }
+      - { dependency: stripe/stripe-php, ecosystem: composer, weight: 0.8 }
+      - { dependency: com.stripe:*, ecosystem: jvm, weight: 0.8 }
+      - { dependency: Stripe.net, ecosystem: nuget, weight: 0.8 }
+      - { dependency: stripe, ecosystem: rubygems, weight: 0.8 }
+      - { dependency: flutter_stripe, ecosystem: pub, weight: 0.8 }
+      - { content: "api.stripe.com", weight: 0.6 }
+      - { content: "js.stripe.com", weight: 0.6 }
+  - id: paypal
+    name: PayPal
+    category: external_service
+    mentions: [PayPal]
+    signals:
+      - { dependency: "@paypal/*", ecosystem: npm, weight: 0.8 }
+      - { dependency: paypal-rest-sdk, ecosystem: npm, weight: 0.8 }
+      - { dependency: paypalrestsdk, ecosystem: python, weight: 0.8 }
+      - { dependency: paypal/*, ecosystem: composer, weight: 0.8 }
+      - { dependency: com.paypal*, ecosystem: jvm, weight: 0.8 }
+      - { content: "api.paypal.com", weight: 0.6 }
+      - { content: "api-m.paypal.com", weight: 0.6 }
+      - { content: "api-m.sandbox.paypal.com", weight: 0.6 }
+      - { content: "www.paypal.com/sdk/js", weight: 0.6 }
+  - id: mercadopago
+    name: Mercado Pago
+    category: external_service
+    signals:
+      - { dependency: mercadopago, ecosystem: npm, weight: 0.8 }
+      - { dependency: mercadopago, ecosystem: python, weight: 0.8 }
+      - { dependency: mercadopago/dx-php, ecosystem: composer, weight: 0.8 }
+      - { dependency: com.mercadopago:*, ecosystem: jvm, weight: 0.8 }
+      - { content: "api.mercadopago.com", weight: 0.6 }
+  - id: twilio
+    name: Twilio
+    category: external_service
+    signals:
+      - { dependency: twilio, ecosystem: npm, weight: 0.8 }
+      - { dependency: twilio, ecosystem: python, weight: 0.8 }
+      - { dependency: twilio/sdk, ecosystem: composer, weight: 0.8 }
+      - { dependency: com.twilio.sdk:*, ecosystem: jvm, weight: 0.8 }
+      - { dependency: Twilio, ecosystem: nuget, weight: 0.8 }
+      - { content: "api.twilio.com", weight: 0.6 }
+  - id: sendgrid
+    name: SendGrid
+    category: external_service
+    signals:
+      - { dependency: "@sendgrid/mail", ecosystem: npm, weight: 0.8 }
+      - { dependency: sendgrid, ecosystem: python, weight: 0.8 }
+      - { dependency: sendgrid/sendgrid, ecosystem: composer, weight: 0.8 }
+      - { dependency: com.sendgrid:*, ecosystem: jvm, weight: 0.8 }
+      - { dependency: SendGrid, ecosystem: nuget, weight: 0.8 }
+      - { content: "api.sendgrid.com", weight: 0.6 }
+  - id: mailgun
+    name: Mailgun
+    category: external_service
+    signals:
+      - { dependency: mailgun.js, ecosystem: npm, weight: 0.8 }
+      - { dependency: mailgun/mailgun-php, ecosystem: composer, weight: 0.8 }
+      - { content: "api.mailgun.net", weight: 0.6 }
+  - id: nodemailer
+    name: Nodemailer (correo SMTP)
+    category: external_service
+    signals:
+      - { dependency: nodemailer, ecosystem: npm, weight: 0.8 }
+      - { import: nodemailer, weight: 0.6 }
+  - id: openai
+    name: OpenAI API
+    category: external_service
+    mentions: [OpenAI, ChatGPT]
+    signals:
+      - { dependency: openai, ecosystem: npm, weight: 0.8 }
+      - { dependency: openai, ecosystem: python, weight: 0.8 }
+      - { dependency: openai-php/*, ecosystem: composer, weight: 0.8 }
+      - { dependency: com.openai:*, ecosystem: jvm, weight: 0.8 }
+      - { dependency: OpenAI, ecosystem: nuget, weight: 0.8 }
+      - { dependency: dart_openai, ecosystem: pub, weight: 0.8 }
+      - { import: openai, weight: 0.6 }
+      - { content: "api.openai.com", weight: 0.6 }
+  - id: anthropic
+    name: Anthropic API (Claude)
+    category: external_service
+    signals:
+      - { dependency: "@anthropic-ai/sdk", ecosystem: npm, weight: 0.8 }
+      - { dependency: anthropic, ecosystem: python, weight: 0.8 }
+      - { dependency: com.anthropic:*, ecosystem: jvm, weight: 0.8 }
+      - { import: "@anthropic-ai/sdk", weight: 0.6 }
+      - { import: anthropic, languages: [python], weight: 0.6 }
+      - { content: "api.anthropic.com", weight: 0.6 }
+  - id: google-gemini
+    name: Google Gemini API
+    category: external_service
+    signals:
+      - { dependency: "@google/generative-ai", ecosystem: npm, weight: 0.8 }
+      - { dependency: "@google/genai", ecosystem: npm, weight: 0.8 }
+      - { dependency: google-generativeai, ecosystem: python, weight: 0.8 }
+      - { dependency: google-genai, ecosystem: python, weight: 0.8 }
+      - { dependency: google_generative_ai, ecosystem: pub, weight: 0.8 }
+      - { content: "generativelanguage.googleapis.com", weight: 0.6 }
+  - id: google-maps
+    name: Google Maps
+    category: external_service
+    mentions: [Google Maps]
+    signals:
+      - { dependency: com.google.android.gms:play-services-maps, ecosystem: jvm, weight: 0.8 }
+      - { dependency: com.google.maps.android:*, ecosystem: jvm, weight: 0.8 }
+      - { dependency: google_maps_flutter, ecosystem: pub, weight: 0.8 }
+      - { dependency: "@react-google-maps/api", ecosystem: npm, weight: 0.8 }
+      - { dependency: "@googlemaps/*", ecosystem: npm, weight: 0.8 }
+      - { dependency: react-native-maps, ecosystem: npm, weight: 0.6 }
+      - { dependency: GoogleMaps, ecosystem: cocoapods, weight: 0.8 }
+      - { content: "maps.googleapis.com", weight: 0.6 }
+      - { content: "com.google.android.geo.API_KEY", in: [xml], weight: 0.6 }
+  - id: mapbox
+    name: Mapbox
+    category: external_service
+    signals:
+      - { dependency: mapbox-gl, ecosystem: npm, weight: 0.8 }
+      - { dependency: com.mapbox.*, ecosystem: jvm, weight: 0.8 }
+      - { dependency: mapbox_maps_flutter, ecosystem: pub, weight: 0.8 }
+      - { content: "api.mapbox.com", weight: 0.6 }
+  - id: google-analytics
+    name: Google Analytics / Firebase Analytics
+    category: external_service
+    signals:
+      - { dependency: firebase_analytics, ecosystem: pub, weight: 0.8 }
+      - { dependency: com.google.firebase:firebase-analytics*, ecosystem: jvm, weight: 0.8 }
+      - { dependency: react-ga4, ecosystem: npm, weight: 0.8 }
+      - { content: "googletagmanager.com/gtag/js", weight: 0.6 }
+      - { content: "google-analytics.com", weight: 0.6 }
+  - id: admob
+    name: Google AdMob
+    category: external_service
+    signals:
+      - { dependency: com.google.android.gms:play-services-ads*, ecosystem: jvm, weight: 0.8 }
+      - { dependency: google_mobile_ads, ecosystem: pub, weight: 0.8 }
+      - { dependency: Google-Mobile-Ads-SDK, ecosystem: cocoapods, weight: 0.8 }
+      - { content: "com.google.android.gms.ads.APPLICATION_ID", in: [xml], weight: 0.6 }
+  - id: sentry
+    name: Sentry
+    category: external_service
+    signals:
+      - { dependency: "@sentry/*", ecosystem: npm, weight: 0.8 }
+      - { dependency: sentry-sdk, ecosystem: python, weight: 0.8 }
+      - { dependency: io.sentry:*, ecosystem: jvm, weight: 0.8 }
+      - { dependency: sentry_flutter, ecosystem: pub, weight: 0.8 }
+      - { dependency: Sentry*, ecosystem: nuget, weight: 0.8 }
+      - { dependency: sentry/*, ecosystem: composer, weight: 0.8 }
+      - { content: ".ingest.sentry.io", weight: 0.6 }
+  - id: crashlytics
+    name: Firebase Crashlytics
+    category: external_service
+    signals:
+      - { dependency: com.google.firebase:firebase-crashlytics*, ecosystem: jvm, weight: 0.8 }
+      - { dependency: com.google.firebase.crashlytics, weight: 0.8, version: false }
+      - { dependency: firebase_crashlytics, ecosystem: pub, weight: 0.8 }
+  - id: onesignal
+    name: OneSignal
+    category: external_service
+    signals:
+      - { dependency: onesignal_flutter, ecosystem: pub, weight: 0.8 }
+      - { dependency: com.onesignal:*, ecosystem: jvm, weight: 0.8 }
+      - { dependency: react-native-onesignal, ecosystem: npm, weight: 0.8 }
+      - { content: "onesignal.com", weight: 0.5 }
+  - id: cloudinary
+    name: Cloudinary
+    category: external_service
+    signals:
+      - { dependency: cloudinary, ecosystem: npm, weight: 0.8 }
+      - { dependency: cloudinary, ecosystem: python, weight: 0.8 }
+      - { dependency: cloudinary/*, ecosystem: composer, weight: 0.8 }
+      - { content: "res.cloudinary.com", weight: 0.6 }
+  - id: algolia
+    name: Algolia
+    category: external_service
+    signals:
+      - { dependency: algoliasearch, ecosystem: npm, weight: 0.8 }
+      - { dependency: algoliasearch, ecosystem: python, weight: 0.8 }
+      - { content: ".algolia.net", weight: 0.6 }
+  - id: pusher
+    name: Pusher
+    category: external_service
+    signals:
+      - { dependency: pusher, ecosystem: npm, weight: 0.8 }
+      - { dependency: pusher-js, ecosystem: npm, weight: 0.8 }
+      - { dependency: pusher/pusher-php-server, ecosystem: composer, weight: 0.8 }
+  - id: slack-api
+    name: Slack API
+    category: external_service
+    signals:
+      - { dependency: "@slack/*", ecosystem: npm, weight: 0.8 }
+      - { dependency: slack_sdk, ecosystem: python, weight: 0.8 }
+      - { dependency: slack-sdk, ecosystem: python, weight: 0.8 }
+      - { content: "hooks.slack.com", weight: 0.6 }
+  - id: telegram-bot
+    name: Telegram Bot API
+    category: external_service
+    signals:
+      - { dependency: node-telegram-bot-api, ecosystem: npm, weight: 0.8 }
+      - { dependency: telegraf, ecosystem: npm, weight: 0.8 }
+      - { dependency: python-telegram-bot, ecosystem: python, weight: 0.8 }
+      - { dependency: aiogram, ecosystem: python, weight: 0.8 }
+      - { content: "api.telegram.org", weight: 0.6 }
+  - id: discord
+    name: Discord API
+    category: external_service
+    signals:
+      - { dependency: discord.js, ecosystem: npm, weight: 0.8 }
+      - { dependency: discord.py, ecosystem: python, weight: 0.8 }
+      - { dependency: Discord.Net, ecosystem: nuget, weight: 0.8 }
+      - { content: "discord.com/api", weight: 0.6 }
+  - id: revenuecat
+    name: RevenueCat
+    category: external_service
+    signals:
+      - { dependency: purchases_flutter, ecosystem: pub, weight: 0.8 }
+      - { dependency: com.revenuecat.purchases:*, ecosystem: jvm, weight: 0.8 }
+      - { dependency: react-native-purchases, ecosystem: npm, weight: 0.8 }
+  - id: google-play-billing
+    name: Google Play Billing
+    category: external_service
+    signals:
+      - { dependency: com.android.billingclient:*, ecosystem: jvm, weight: 0.8 }
+      - { dependency: in_app_purchase, ecosystem: pub, weight: 0.8 }
+      - { content: "com.android.vending.BILLING", in: [xml], weight: 0.6 }
+  - id: facebook-sdk
+    name: Meta (Facebook) SDK
+    category: external_service
+    signals:
+      - { dependency: com.facebook.android:*, ecosystem: jvm, weight: 0.8 }
+      - { dependency: flutter_facebook_auth, ecosystem: pub, weight: 0.8 }
+      - { dependency: react-native-fbsdk-next, ecosystem: npm, weight: 0.8 }
+      - { dependency: FBSDKCoreKit, ecosystem: cocoapods, weight: 0.8 }
+      - { content: "graph.facebook.com", weight: 0.5 }
+      - { content: "com.facebook.sdk.ApplicationId", in: [xml], weight: 0.6 }
+  - id: google-sign-in
+    name: Google Sign-In
+    category: authentication
+    signals:
+      - { dependency: google_sign_in, ecosystem: pub, weight: 0.8 }
+      - { dependency: com.google.android.gms:play-services-auth, ecosystem: jvm, weight: 0.8 }
+      - { dependency: androidx.credentials:*, ecosystem: jvm, weight: 0.5 }
+      - { dependency: "@react-oauth/google", ecosystem: npm, weight: 0.8 }
+      - { dependency: GoogleSignIn, ecosystem: cocoapods, weight: 0.8 }
+      - { content: "accounts.google.com", weight: 0.4 }
+
+  # ------------------------------------------------------------------ autenticación
+  - id: auth0
+    name: Auth0
+    category: authentication
+    signals:
+      - { dependency: "@auth0/*", ecosystem: npm, weight: 0.8 }
+      - { dependency: auth0-python, ecosystem: python, weight: 0.8 }
+      - { dependency: com.auth0*, ecosystem: jvm, weight: 0.8 }
+      - { dependency: auth0_flutter, ecosystem: pub, weight: 0.8 }
+      - { content: ".auth0.com", weight: 0.6 }
+  - id: passport
+    name: Passport.js
+    category: authentication
+    signals:
+      - { dependency: passport, ecosystem: npm, weight: 0.8 }
+      - { import: passport, weight: 0.6 }
+  - id: jwt
+    name: JSON Web Tokens (JWT)
+    category: authentication
+    signals:
+      - { dependency: jsonwebtoken, ecosystem: npm, weight: 0.8 }
+      - { dependency: jose, ecosystem: npm, weight: 0.8 }
+      - { dependency: pyjwt, ecosystem: python, weight: 0.8 }
+      - { dependency: PyJWT, ecosystem: python, weight: 0.8 }
+      - { dependency: djangorestframework-simplejwt, ecosystem: python, weight: 0.8 }
+      - { dependency: io.jsonwebtoken:*, ecosystem: jvm, weight: 0.8 }
+      - { dependency: com.auth0:java-jwt, ecosystem: jvm, weight: 0.8 }
+      - { dependency: firebase/php-jwt, ecosystem: composer, weight: 0.8 }
+      - { dependency: tymon/jwt-auth, ecosystem: composer, weight: 0.8 }
+      - { dependency: System.IdentityModel.Tokens.Jwt, ecosystem: nuget, weight: 0.8 }
+      - { dependency: Microsoft.AspNetCore.Authentication.JwtBearer, ecosystem: nuget, weight: 0.8 }
+      - { dependency: jwt, ecosystem: rubygems, weight: 0.8 }
+      - { dependency: github.com/golang-jwt/jwt*, ecosystem: go, weight: 0.8 }
+      - { dependency: jsonwebtoken, ecosystem: cargo, weight: 0.8 }
+      - { import: jsonwebtoken, weight: 0.6 }
+      - { import: jwt, languages: [python], weight: 0.6 }
+  - id: nextauth
+    name: Auth.js (NextAuth)
+    category: authentication
+    signals:
+      - { dependency: next-auth, ecosystem: npm, weight: 0.8 }
+      - { dependency: "@auth/*", ecosystem: npm, weight: 0.8 }
+  - id: spring-security
+    name: Spring Security
+    category: authentication
+    signals:
+      - { dependency: org.springframework.boot:spring-boot-starter-security, ecosystem: jvm, weight: 0.8 }
+      - { dependency: org.springframework.security:*, ecosystem: jvm, weight: 0.8 }
+      - { import: org.springframework.security, weight: 0.6 }
+  - id: laravel-sanctum
+    name: Laravel Sanctum / Passport
+    category: authentication
+    signals:
+      - { dependency: laravel/sanctum, ecosystem: composer, weight: 0.8 }
+      - { dependency: laravel/passport, ecosystem: composer, weight: 0.8 }
+  - id: devise
+    name: Devise
+    category: authentication
+    signals:
+      - { dependency: devise, ecosystem: rubygems, weight: 0.8 }
+  - id: keycloak
+    name: Keycloak
+    category: authentication
+    signals:
+      - { dependency: keycloak-js, ecosystem: npm, weight: 0.8 }
+      - { dependency: org.keycloak*, ecosystem: jvm, weight: 0.8 }
+      - { content: "quay.io/keycloak", in: [yml, yaml], weight: 0.6 }
+  - id: bcrypt
+    name: bcrypt (contraseñas)
+    category: authentication
+    signals:
+      - { dependency: bcrypt, ecosystem: npm, weight: 0.8 }
+      - { dependency: bcryptjs, ecosystem: npm, weight: 0.8 }
+      - { dependency: bcrypt, ecosystem: python, weight: 0.8 }
+      - { dependency: BCrypt.Net-Next, ecosystem: nuget, weight: 0.8 }
+      - { dependency: bcrypt, ecosystem: rubygems, weight: 0.8 }
+      - { content: "password_hash(", in: [php], weight: 0.5 }
+
+  # ------------------------------------------------------------------ motores de juego
+  - id: unity
+    name: Unity
+    category: game_engine
+    signals:
+      - { file: ProjectSettings/ProjectVersion.txt, weight: 0.8 }
+      - { file: "*.unity", weight: 0.6 }
+      - { dependency: com.unity.*, ecosystem: unity, weight: 0.8 }
+      - { import: UnityEngine, weight: 0.6 }
+  - id: unreal
+    name: Unreal Engine
+    category: game_engine
+    signals:
+      - { file: "*.uproject", weight: 0.8 }
+      - { file: "*.uasset", weight: 0.5 }
+      - { file: "*.Build.cs", weight: 0.6 }
+      - { content: "#include \"CoreMinimal.h\"", in: [h, cpp], weight: 0.6 }
+  - id: godot
+    name: Godot
+    category: game_engine
+    signals:
+      - { file: project.godot, weight: 0.8 }
+      - { file: "*.gd", weight: 0.5 }
+      - { file: "*.tscn", weight: 0.5 }
+  - id: phaser
+    name: Phaser
+    category: game_engine
+    signals:
+      - { dependency: phaser, ecosystem: npm, weight: 0.8 }
+      - { import: phaser, weight: 0.6 }
+      - { content: "new Phaser.Game(", in: [js, ts], weight: 0.6 }
+  - id: pygame
+    name: Pygame
+    category: game_engine
+    signals:
+      - { dependency: pygame, ecosystem: python, weight: 0.8 }
+      - { import: pygame, weight: 0.6 }
+  - id: libgdx
+    name: libGDX
+    category: game_engine
+    signals:
+      - { dependency: com.badlogicgames.gdx:*, ecosystem: jvm, weight: 0.8 }
+      - { import: com.badlogic.gdx, weight: 0.6 }
+  - id: monogame
+    name: MonoGame
+    category: game_engine
+    signals:
+      - { dependency: MonoGame.*, ecosystem: nuget, weight: 0.8 }
+      - { import: Microsoft.Xna.Framework, weight: 0.6 }
+  - id: bevy
+    name: Bevy
+    category: game_engine
+    signals:
+      - { dependency: bevy, ecosystem: cargo, weight: 0.8 }
+  - id: flame
+    name: Flame (Flutter)
+    category: game_engine
+    signals:
+      - { dependency: flame, ecosystem: pub, weight: 0.8 }
+      - { import: "package:flame/", weight: 0.6 }
+  - id: sdl
+    name: SDL
+    category: game_engine
+    signals:
+      - { dependency: SDL2, ecosystem: cmake, weight: 0.8 }
+      - { dependency: SDL3, ecosystem: cmake, weight: 0.8 }
+      - { import: SDL2/SDL.h, weight: 0.6 }
+      - { import: SDL.h, weight: 0.5 }
+      - { import: SDL3/SDL.h, weight: 0.6 }
+
+  # ------------------------------------------------------------------ inyección de dependencias y estado
+  - id: hilt
+    name: Hilt / Dagger
+    category: library
+    signals:
+      - { dependency: com.google.dagger*, ecosystem: jvm, weight: 0.8 }
+      - { dependency: com.google.dagger.hilt.android, weight: 0.8, version: false }
+      - { import: dagger, weight: 0.6 }
+  - id: koin
+    name: Koin
+    category: library
+    signals:
+      - { dependency: io.insert-koin:*, ecosystem: jvm, weight: 0.8 }
+      - { import: org.koin, weight: 0.6 }
+  - id: kotlin-coroutines
+    name: Kotlin Coroutines
+    category: library
+    signals:
+      - { dependency: org.jetbrains.kotlinx:kotlinx-coroutines-*, ecosystem: jvm, weight: 0.8 }
+      - { import: kotlinx.coroutines, weight: 0.6 }
+  - id: rxjava
+    name: RxJava
+    category: library
+    signals:
+      - { dependency: io.reactivex.rxjava*, ecosystem: jvm, weight: 0.8 }
+  - id: provider-flutter
+    name: Provider (Flutter)
+    category: library
+    signals:
+      - { dependency: provider, ecosystem: pub, weight: 0.8 }
+  - id: riverpod
+    name: Riverpod
+    category: library
+    signals:
+      - { dependency: flutter_riverpod, ecosystem: pub, weight: 0.8 }
+      - { dependency: riverpod, ecosystem: pub, weight: 0.8 }
+      - { dependency: hooks_riverpod, ecosystem: pub, weight: 0.8 }
+  - id: bloc
+    name: BLoC
+    category: library
+    signals:
+      - { dependency: flutter_bloc, ecosystem: pub, weight: 0.8 }
+      - { dependency: bloc, ecosystem: pub, weight: 0.8 }
+  - id: getx
+    name: GetX
+    category: library
+    signals:
+      - { dependency: get, ecosystem: pub, weight: 0.8 }
+
+  # ------------------------------------------------------------------ datos y aprendizaje automático
+  - id: pandas
+    name: pandas
+    category: library
+    signals:
+      - { dependency: pandas, ecosystem: python, weight: 0.8 }
+      - { import: pandas, weight: 0.6 }
+  - id: numpy
+    name: NumPy
+    category: library
+    signals:
+      - { dependency: numpy, ecosystem: python, weight: 0.8 }
+      - { import: numpy, weight: 0.6 }
+  - id: tensorflow
+    name: TensorFlow
+    category: library
+    signals:
+      - { dependency: tensorflow*, ecosystem: python, weight: 0.8 }
+      - { dependency: "@tensorflow/*", ecosystem: npm, weight: 0.8 }
+      - { dependency: org.tensorflow:*, ecosystem: jvm, weight: 0.8 }
+      - { dependency: tflite_flutter, ecosystem: pub, weight: 0.8 }
+      - { import: tensorflow, weight: 0.6 }
+      - { file: "*.tflite", weight: 0.5 }
+  - id: pytorch
+    name: PyTorch
+    category: library
+    signals:
+      - { dependency: torch, ecosystem: python, weight: 0.8 }
+      - { import: torch, languages: [python], weight: 0.6 }
+  - id: scikit-learn
+    name: scikit-learn
+    category: library
+    signals:
+      - { dependency: scikit-learn, ecosystem: python, weight: 0.8 }
+      - { import: sklearn, weight: 0.6 }
+  - id: celery
+    name: Celery
+    category: library
+    signals:
+      - { dependency: celery, ecosystem: python, weight: 0.8 }
+      - { import: celery, weight: 0.6 }
+  - id: opencv
+    name: OpenCV
+    category: library
+    signals:
+      - { dependency: opencv-python*, ecosystem: python, weight: 0.8 }
+      - { dependency: OpenCV, ecosystem: cmake, weight: 0.8 }
+      - { dependency: org.opencv*, ecosystem: jvm, weight: 0.8 }
+      - { import: cv2, languages: [python], weight: 0.6 }
+      - { import: opencv2, languages: [c, cpp], weight: 0.6 }
+
+  # ------------------------------------------------------------------ pruebas
+  - id: jest
+    name: Jest
+    category: testing
+    signals:
+      - { dependency: jest, ecosystem: npm, weight: 0.8 }
+      - { file: jest.config.*, weight: 0.6 }
+  - id: vitest
+    name: Vitest
+    category: testing
+    signals:
+      - { dependency: vitest, ecosystem: npm, weight: 0.8 }
+      - { file: vitest.config.*, weight: 0.6 }
+  - id: mocha
+    name: Mocha
+    category: testing
+    signals:
+      - { dependency: mocha, ecosystem: npm, weight: 0.8 }
+      - { file: .mocharc*, weight: 0.6 }
+  - id: cypress
+    name: Cypress
+    category: testing
+    signals:
+      - { dependency: cypress, ecosystem: npm, weight: 0.8 }
+      - { file: cypress.config.*, weight: 0.6 }
+  - id: playwright
+    name: Playwright
+    category: testing
+    signals:
+      - { dependency: "@playwright/test", ecosystem: npm, weight: 0.8 }
+      - { dependency: playwright, ecosystem: npm, weight: 0.8 }
+      - { dependency: playwright, ecosystem: python, weight: 0.8 }
+      - { file: playwright.config.*, weight: 0.6 }
+  - id: selenium
+    name: Selenium
+    category: testing
+    signals:
+      - { dependency: selenium-webdriver, ecosystem: npm, weight: 0.8 }
+      - { dependency: selenium, ecosystem: python, weight: 0.8 }
+      - { dependency: org.seleniumhq.selenium:*, ecosystem: jvm, weight: 0.8 }
+  - id: junit
+    name: JUnit
+    category: testing
+    signals:
+      - { dependency: junit:junit, ecosystem: jvm, weight: 0.8 }
+      - { dependency: org.junit*, ecosystem: jvm, weight: 0.8 }
+      - { import: org.junit, weight: 0.6 }
+  - id: espresso
+    name: Espresso
+    category: testing
+    signals:
+      - { dependency: androidx.test.espresso:*, ecosystem: jvm, weight: 0.8 }
+      - { import: androidx.test.espresso, weight: 0.6 }
+  - id: mockito
+    name: Mockito
+    category: testing
+    signals:
+      - { dependency: org.mockito*, ecosystem: jvm, weight: 0.8 }
+      - { import: org.mockito, weight: 0.6 }
+  - id: robolectric
+    name: Robolectric
+    category: testing
+    signals:
+      - { dependency: org.robolectric:*, ecosystem: jvm, weight: 0.8 }
+  - id: pytest
+    name: pytest
+    category: testing
+    signals:
+      - { dependency: pytest, ecosystem: python, weight: 0.8 }
+      - { file: pytest.ini, weight: 0.6 }
+      - { file: conftest.py, weight: 0.5 }
+      - { import: pytest, weight: 0.6 }
+  - id: phpunit
+    name: PHPUnit
+    category: testing
+    signals:
+      - { dependency: phpunit/phpunit, ecosystem: composer, weight: 0.8 }
+      - { file: phpunit.xml*, weight: 0.6 }
+  - id: rspec
+    name: RSpec
+    category: testing
+    signals:
+      - { dependency: rspec*, ecosystem: rubygems, weight: 0.8 }
+      - { file: .rspec, weight: 0.6 }
+  - id: xunit
+    name: xUnit / NUnit / MSTest
+    category: testing
+    signals:
+      - { dependency: xunit*, ecosystem: nuget, weight: 0.8 }
+      - { dependency: NUnit*, ecosystem: nuget, weight: 0.8 }
+      - { dependency: MSTest.*, ecosystem: nuget, weight: 0.8 }
+  - id: flutter-test
+    name: flutter_test
+    category: testing
+    signals:
+      - { dependency: flutter_test, ecosystem: pub, weight: 0.8 }
+  - id: googletest
+    name: GoogleTest
+    category: testing
+    signals:
+      - { dependency: GTest, ecosystem: cmake, weight: 0.8 }
+      - { dependency: googletest, ecosystem: cmake, weight: 0.8 }
+      - { import: gtest/gtest.h, weight: 0.6 }
+
+  # ------------------------------------------------------------------ compilación
+  - id: gradle
+    name: Gradle
+    category: build_tool
+    signals:
+      - { file: build.gradle, weight: 0.8 }
+      - { file: build.gradle.kts, weight: 0.8 }
+      - { file: gradlew, weight: 0.5 }
+  - id: maven
+    name: Maven
+    category: build_tool
+    signals:
+      - { file: pom.xml, weight: 0.8 }
+      - { file: mvnw, weight: 0.5 }
+  - id: cmake
+    name: CMake
+    category: build_tool
+    signals:
+      - { file: CMakeLists.txt, weight: 0.8 }
+  - id: webpack
+    name: webpack
+    category: build_tool
+    signals:
+      - { dependency: webpack, ecosystem: npm, weight: 0.8 }
+      - { file: webpack.config.*, weight: 0.6 }
+  - id: vite
+    name: Vite
+    category: build_tool
+    signals:
+      - { dependency: vite, ecosystem: npm, weight: 0.8 }
+      - { file: vite.config.*, weight: 0.6 }
+  - id: babel
+    name: Babel
+    category: build_tool
+    signals:
+      - { dependency: "@babel/core", ecosystem: npm, weight: 0.8 }
+      - { file: babel.config.*, weight: 0.6 }
+      - { file: .babelrc, weight: 0.6 }
+  - id: typescript-compiler
+    name: Compilador de TypeScript
+    category: build_tool
+    signals:
+      - { dependency: typescript, ecosystem: npm, weight: 0.8 }
+      - { file: tsconfig.json, weight: 0.6 }
+  - id: eslint
+    name: ESLint
+    category: build_tool
+    signals:
+      - { dependency: eslint, ecosystem: npm, weight: 0.8 }
+      - { file: .eslintrc*, weight: 0.6 }
+      - { file: eslint.config.*, weight: 0.6 }
+  - id: yarn
+    name: Yarn
+    category: build_tool
+    signals:
+      - { file: yarn.lock, weight: 0.8 }
+  - id: pnpm
+    name: pnpm
+    category: build_tool
+    signals:
+      - { file: pnpm-lock.yaml, weight: 0.8 }
+  - id: poetry
+    name: Poetry
+    category: build_tool
+    signals:
+      - { file: poetry.lock, weight: 0.8 }
+      - { content: "[tool.poetry]", in: [toml], weight: 0.8 }
+  - id: dotnet-sdk
+    name: .NET SDK (MSBuild)
+    category: build_tool
+    signals:
+      - { file: "*.csproj", weight: 0.8 }
+      - { file: "*.sln", weight: 0.6 }
+
+  # ------------------------------------------------------------------ despliegue e infraestructura
+  - id: docker
+    name: Docker
+    category: devops
+    signals:
+      - { file: Dockerfile, weight: 0.8 }
+      - { file: Dockerfile.*, weight: 0.8 }
+      - { file: "*.dockerfile", weight: 0.8 }
+      - { file: .dockerignore, weight: 0.4 }
+  - id: docker-compose
+    name: Docker Compose
+    category: devops
+    signals:
+      - { file: docker-compose.yml, weight: 0.8 }
+      - { file: docker-compose.yaml, weight: 0.8 }
+      - { file: compose.yml, weight: 0.8 }
+      - { file: compose.yaml, weight: 0.8 }
+      - { file: docker-compose.*.yml, weight: 0.8 }
+  - id: kubernetes
+    name: Kubernetes
+    category: devops
+    signals:
+      - { file: Chart.yaml, weight: 0.6 }
+      - { file: kustomization.yaml, weight: 0.6 }
+      - { pattern: "^kind:\\s*(?:Deployment|StatefulSet|Ingress|Service|DaemonSet)\\s*$", hint: "kind:", in: [yml, yaml], weight: 0.6 }
+  - id: github-actions
+    name: GitHub Actions
+    category: devops
+    signals:
+      - { file: .github/workflows/*.yml, weight: 0.8 }
+      - { file: .github/workflows/*.yaml, weight: 0.8 }
+  - id: gitlab-ci
+    name: GitLab CI
+    category: devops
+    signals:
+      - { file: .gitlab-ci.yml, weight: 0.8 }
+  - id: jenkins
+    name: Jenkins
+    category: devops
+    signals:
+      - { file: Jenkinsfile, weight: 0.8 }
+  - id: terraform
+    name: Terraform
+    category: devops
+    signals:
+      - { file: "*.tf", weight: 0.8 }
+  - id: nginx
+    name: Nginx
+    category: devops
+    signals:
+      - { file: nginx.conf, weight: 0.8 }
+      - { file: "*/nginx/*.conf", weight: 0.6 }
+      - { content: "proxy_pass ", in: [conf], weight: 0.4 }
+  - id: apache-httpd
+    name: Apache HTTP Server
+    category: devops
+    signals:
+      - { file: .htaccess, weight: 0.6 }
+      - { file: httpd.conf, weight: 0.8 }
+  - id: heroku
+    name: Heroku
+    category: devops
+    signals:
+      - { file: Procfile, weight: 0.5 }
+      - { file: app.json, weight: 0.1 }
+      - { content: ".herokuapp.com", weight: 0.4 }
+  - id: vercel
+    name: Vercel
+    category: devops
+    signals:
+      - { file: vercel.json, weight: 0.8 }
+      - { content: ".vercel.app", weight: 0.4 }
+  - id: netlify
+    name: Netlify
+    category: devops
+    signals:
+      - { file: netlify.toml, weight: 0.8 }
+      - { content: ".netlify.app", weight: 0.4 }
+  - id: firebase-hosting
+    name: Firebase Hosting
+    category: devops
+    signals:
+      - { content: "\"hosting\"", in: [json], weight: 0.3 }
+      - { file: firebase.json, weight: 0.3 }
+      - { content: ".web.app", weight: 0.3 }
+  - id: fastlane
+    name: fastlane
+    category: devops
+    signals:
+      - { file: fastlane/Fastfile, weight: 0.8 }

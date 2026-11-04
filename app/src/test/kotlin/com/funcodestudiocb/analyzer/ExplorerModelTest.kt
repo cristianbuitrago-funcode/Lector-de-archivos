@@ -88,4 +88,27 @@ class ExplorerModelTest {
         assertEquals("a".repeat(10), text)
         assertEquals(30, original)
     }
+
+    @Test
+    fun elResaltadoSeRepartePorLineasYRespetaLaPresentacionSegura() {
+        val text = "/* a\nb */ x\n\tval s = \"y\""
+        val lines = text.split('\n')
+        // Comentario de bloque de dos líneas (0..9), número (10..11) y cadena en la tercera línea.
+        val spans = intArrayOf(0, 9, 3, 10, 1, 4, text.indexOf('"'), 3, 2)
+        val perLine = com.funcodestudiocb.analyzer.ui.explorer.splitHighlight(lines, spans)
+        assertEquals(listOf(0, 4, 3), perLine[0].toList())
+        assertEquals(listOf(0, 4, 3, 5, 1, 4), perLine[1].toList())
+        assertEquals(listOf(9, 3, 2), perLine[2].toList())
+
+        val (shown, original) = com.funcodestudiocb.analyzer.ui.explorer.highlightedCodeLine(lines[2] + "\u202E", perLine[2], 2_000)
+        assertEquals("    val s = \"y\"\\u202E", shown.text, "Tabuladores y caracteres invisibles como antes")
+        assertEquals(null, original)
+        val string = shown.spanStyles.single()
+        assertEquals("\"y\"", shown.text.substring(string.start, string.end))
+
+        val (cut, length) = com.funcodestudiocb.analyzer.ui.explorer.highlightedCodeLine("abcdef", intArrayOf(4, 2, 1), 5)
+        assertEquals("abcde", cut.text)
+        assertEquals(6, length)
+        assertEquals(1, cut.spanStyles.single().end - cut.spanStyles.single().start, "El resaltado se recorta con la línea")
+    }
 }

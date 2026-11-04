@@ -21,7 +21,7 @@ import com.funcodestudiocb.analyzer.engine.core.ProgressUpdate
 import com.funcodestudiocb.analyzer.engine.ingest.ArchiveSource
 import com.funcodestudiocb.analyzer.engine.ingest.IngestKeys
 import com.funcodestudiocb.analyzer.engine.ingest.PasswordHolder
-import com.funcodestudiocb.analyzer.engine.inventory.FullPipeline
+import com.funcodestudiocb.analyzer.engine.pipeline.FullPipeline
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.File

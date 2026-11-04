@@ -28,9 +28,11 @@ android {
 
 dependencies {
     api(project(":engine:core"))
-    api(project(":engine:inventory"))
+    api(project(":engine:pipeline"))
     // Biblioteca nativa de UnRAR (libfuncode_unrar.so) que carga el lector RAR en el proceso aislado.
     implementation(project(":native:unrar"))
+    // tree-sitter y sus gramáticas (libfuncode_treesitter.so) para el análisis sintáctico en el proceso aislado.
+    implementation(project(":native:treesitter"))
     implementation(libs.kotlinx.coroutines.android)
 
     testImplementation(libs.junit4)

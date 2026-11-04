@@ -184,12 +184,12 @@ Las decisiones tomadas durante la implementación y sus desviaciones respecto a 
 
 | Necesidad | Tecnología | Motivo / alternativa descartada |
 |-----------|-----------|---------------------------------|
-| Análisis sintáctico | **tree-sitter** con los *bindings* oficiales de Kotlin (**KTreeSitter**); gramáticas compiladas desde su código C con el **NDK** | Un motor para todos los lenguajes, tolerante a errores. Descartado ANTLR: lento y poco tolerante a errores |
+| Análisis sintáctico | **tree-sitter** 0.25 con un **puente JNI propio** (una llamada por archivo, recorrido iterativo, tiempo máximo) y 15 gramáticas compiladas desde su código C con el **NDK**; fuentes descargadas de npm con integridad SHA-512 (ADR 0006) | Un motor para todos los lenguajes, tolerante a errores. Descartados ANTLR (lento y poco tolerante a errores) y KTreeSitter (una llamada JNI por nodo y sin artefacto para todas las gramáticas) |
 | ZIP | **Apache Commons Compress** (acceso aleatorio) + validación propia | Control total sobre cada entrada |
 | RAR | **Biblioteca UnRAR oficial de RARLAB** (C++) compilada con el NDK | Soporta RAR4 y RAR5 y detecta cifrado. Descartada `junrar` (Java), que **no soporta RAR5**, el formato por defecto de las versiones actuales de WinRAR |
 | Regex sobre contenido no confiable | **RE2/J** | Tiempo lineal: inmune a ReDoS |
 | XML | **Lector XML propio** que salta el DTD y solo resuelve las entidades predefinidas (ADR 0005) | Sin XXE ni *billion laughs* por construcción, y el mismo comportamiento en el PC y en Android |
-| YAML / TOML / JSON | **snakeyaml-engine** con límites de alias; **tomlj**; lector JSON por flujo con límite de profundidad | Parsers seguros frente a bombas |
+| YAML / TOML / JSON | **snakeyaml-engine 2.x** usado solo por eventos (árbol propio sin recursión, alias nunca expandidos, profundidad limitada); lector TOML parcial por líneas para las tablas de dependencias; JSON con límite de profundidad comprobado antes de analizarlo (ADR 0006) | Parsers seguros frente a bombas. tomlj se descartó por su dependencia de ANTLR |
 | Grafos | Algoritmos propios: Tarjan (ciclos), PageRank (importancia), alcanzabilidad (impacto), disposición por capas tipo Sugiyama | Pequeños, auditables y comunes a pantalla, PDF y SVG |
 | Complejidad | Cálculo propio sobre el árbol de tree-sitter | lizard (Python) no existe en Android |
 | SAST | **Motor de reglas propio de Funcode**: consultas tree-sitter + RE2/J + chequeos de configuración, con análisis de flujo intraprocedural | Semgrep no puede ejecutarse en Android. Al ser una herramienta interna (D2), las reglas comunitarias de Semgrep pueden servir de referencia técnica, porque su licencia permite el uso interno |
@@ -232,15 +232,16 @@ en un PC, y en el teléfono se ejecuta dentro del proceso aislado.
 | `engine:core` | Orquestador del pipeline, contexto, cobertura, presupuestos de memoria/tiempo | 1 |
 | `engine:ingest` | ZIP/RAR, validación, lectura en memoria, exclusiones, duplicados | 2 |
 | `engine:inventory` | Árbol, roles de archivo, puntos de entrada, archivos posiblemente innecesarios | 3 |
-| `engine:languages` | Detección de lenguaje, conteo de líneas, carga de gramáticas | 4 |
-| `engine:technologies` | Motor de reglas declarativas (YAML) con evidencia | 4 |
+| `engine:languages` | Detección de lenguaje, conteo de líneas (sintáctico o léxico), importaciones, resaltado, puente con tree-sitter | 4 |
+| `engine:technologies` | Motor de reglas declarativas (catálogo YAML) con evidencia y confianza | 4 |
+| `engine:pipeline` | Composición del pipeline completo (lo usan el servicio aislado y la CLI) | 4 |
 | `engine:relations` | Extractores por lenguaje, resolutores por ecosistema, analizadores de framework, grafo, impacto | 5 |
 | `engine:security` | Reglas, secretos, redacción, auditores de configuración | 3 (redactor) → 6 |
-| `engine:dependencies` | Parsers de manifiestos/lockfiles, índice OSV, fin de soporte, uso real, criticidad | 7 |
+| `engine:dependencies` | Parsers de manifiestos (4); archivos de bloqueo, índice OSV, fin de soporte, uso real, criticidad (7) | 4 → 7 |
 | `engine:layout` | Disposición de grafos (pantalla, PDF, SVG) | 8 |
 | `engine:metrics` | Complejidad, duplicación, índice de mantenimiento | 9 |
 | `engine:report` | JSON, HTML, comparación entre análisis | 9 |
-| `native:treesitter` | Gramáticas tree-sitter compiladas + JNI | 5 |
+| `native:treesitter` | Núcleo de tree-sitter + 15 gramáticas compiladas + JNI | 4 |
 | `native:unrar` | UnRAR + JNI | 2 |
 | `engine:cli` | Ejecutable de consola **solo para pruebas y CI**: ejecuta el motor en un PC sobre un ZIP | 2 |
 

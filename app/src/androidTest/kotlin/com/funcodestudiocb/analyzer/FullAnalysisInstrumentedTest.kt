@@ -7,6 +7,9 @@ import com.funcodestudiocb.analyzer.analysis.AnalysisOutcome
 import com.funcodestudiocb.analyzer.analysis.AnalysisState
 import com.funcodestudiocb.analyzer.data.vault.UnlockResult
 import com.funcodestudiocb.analyzer.engine.api.ArchiveFormat
+import com.funcodestudiocb.analyzer.engine.api.Confidence
+import com.funcodestudiocb.analyzer.engine.api.EvidenceKind
+import com.funcodestudiocb.analyzer.engine.api.LineMethod
 import com.funcodestudiocb.analyzer.engine.api.EntryPointKind
 import com.funcodestudiocb.analyzer.engine.api.ExclusionOptions
 import com.funcodestudiocb.analyzer.engine.api.FileRole
@@ -84,6 +87,8 @@ class FullAnalysisInstrumentedTest {
                 "src/App.kt" to "fun main() = println(\"hola\")",
                 "src/copia/App.kt" to "fun main() = println(\"hola\")",
                 "src/Config.kt" to "val apiKey = \"abcd1234efgh5678ijkl\"\n",
+                "web/package.json" to "{\"dependencies\": {\"express\": \"^4.19.0\"}}",
+                "web/server.js" to "// servidor\nconst express = require(\"express\");\n",
                 "node_modules/react/index.js" to "x",
                 "../fuera.txt" to "malicioso",
             ).forEach { (name, text) ->
@@ -95,7 +100,7 @@ class FullAnalysisInstrumentedTest {
         val finished = analyze(Uri.fromFile(file)) as? AnalysisState.Finished ?: fail("Estado inesperado: ${coordinator.state.value}")
         val diagnosis = "problema=${finished.report.engineProblem}; resultado=${finished.outcome}; etapas=${finished.report.stages}; cobertura=${finished.report.coverage}"
         assertEquals(ArchiveFormat.ZIP, finished.report.archive?.format)
-        assertEquals(setOf("src/App.kt", "src/copia/App.kt", "src/Config.kt"), finished.report.files.map { it.path }.toSet(), diagnosis)
+        assertEquals(setOf("src/App.kt", "src/copia/App.kt", "src/Config.kt", "web/package.json", "web/server.js"), finished.report.files.map { it.path }.toSet(), diagnosis)
         assertTrue(finished.report.files.all { it.status == FileStatus.ANALYZED })
         assertEquals(1, finished.report.duplicates.size)
         assertEquals("node_modules", finished.report.excludedDirectories.single().path)
@@ -111,6 +116,18 @@ class FullAnalysisInstrumentedTest {
         val copy = runBlocking { container.repository.content(finished.analysisId, "src/Config.kt") } ?: fail("Sin copia del código")
         assertFalse(copy.contains("abcd1234efgh5678ijkl"), "El secreto no sale del proceso aislado")
         assertTrue(File(context.noBackupFilesDir, "copia-codigo").listFiles().isNullOrEmpty(), "El almacén temporal cifrado debe borrarse")
+
+        // Lenguajes con tree-sitter nativo y tecnologías, en el proceso aislado (Fase 4).
+        val kotlin = finished.report.languages.single { it.id == "kotlin" }
+        assertEquals(3, kotlin.syntaxFiles, "tree-sitter no se cargó en el proceso aislado: ${finished.report.coverage}")
+        val server = finished.report.profiles.single { it.path == "web/server.js" }.language ?: fail("Sin lenguaje")
+        assertEquals(LineMethod.SYNTAX, server.method)
+        assertEquals(1, server.comment)
+        val express = finished.report.technologies.single { it.id == "express" }
+        assertEquals(Confidence.CONFIRMED, express.confidence)
+        assertTrue(express.evidence.any { it.kind == EvidenceKind.IMPORT && it.path == "web/server.js" && it.line == 2 }, express.toString())
+        val code = runBlocking { container.repository.code(finished.analysisId, "web/server.js") } ?: fail("Sin copia")
+        assertTrue(code.highlight.isNotEmpty(), "Sin resaltado de sintaxis")
     }
 
     @Test

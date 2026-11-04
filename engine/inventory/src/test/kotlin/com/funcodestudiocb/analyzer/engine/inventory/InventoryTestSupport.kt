@@ -74,7 +74,7 @@ fun runFull(file: File, inventory: InventoryOptions = InventoryOptions()): Inven
         val config = AnalysisConfig("prueba", AnalysisMode.FULL, ingest = IngestOptions(file.name), inventory = inventory)
         val bytes = ByteArrayOutputStream()
         val writer = FrameWriter(bytes)
-        runBlocking { PipelineRunner("test").run(config, FullPipeline.stages(), writer::write, attributes) }
+        runBlocking { PipelineRunner("test").run(config, InventoryPipeline.stages(), writer::write, attributes) }
         writer.close()
         val session = SessionReader(FrameReader(ByteArrayInputStream(bytes.toByteArray())), maxBufferedRecords = Int.MAX_VALUE).readAll()
         if (session.violation != null) fail("El motor produjo un flujo inválido: ${session.violation}")

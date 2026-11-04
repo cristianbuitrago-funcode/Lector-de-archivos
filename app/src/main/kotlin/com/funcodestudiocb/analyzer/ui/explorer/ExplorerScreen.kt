@@ -67,6 +67,7 @@ import com.funcodestudiocb.analyzer.engine.api.Evidence
 import com.funcodestudiocb.analyzer.engine.api.FileKind
 import com.funcodestudiocb.analyzer.engine.api.FileRole
 import com.funcodestudiocb.analyzer.engine.api.FileStatus
+import com.funcodestudiocb.analyzer.engine.api.LineMethod
 import com.funcodestudiocb.analyzer.ui.analysis.formatBytes
 import com.funcodestudiocb.analyzer.ui.analysis.statusLabel
 import com.funcodestudiocb.analyzer.ui.components.FuncodePanel
@@ -382,6 +383,36 @@ private fun FileDetail(s: ExplorerUiState.Loaded, path: String, viewModel: Explo
             entry.sha256?.let { KeyValue(stringResource(R.string.file_sha256), it, mono = true) }
         }
 
+        profile?.language?.let { language ->
+            FuncodePanel(accent = FuncodeColors.Electric) {
+                SectionTitle(stringResource(R.string.file_language))
+                Text("${language.name.revealControlCharacters()} · ${languageLevelLabel(language.level)}", fontWeight = FontWeight.Medium, modifier = Modifier.testTag("file_language"))
+                Text(stringResource(R.string.file_lines_breakdown, language.code, language.comment, language.blank), style = MaterialTheme.typography.bodySmall)
+                Text(
+                    stringResource(if (language.method == LineMethod.SYNTAX) R.string.file_line_method_syntax else R.string.file_line_method_lexical),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                if (language.syntaxErrors > 0) {
+                    Text(pluralStringResource(R.plurals.file_syntax_errors, language.syntaxErrors, language.syntaxErrors), style = MaterialTheme.typography.bodySmall, color = FuncodeColors.Medium)
+                }
+            }
+        }
+
+        val technologies = s.model.technologiesIn(path)
+        if (technologies.isNotEmpty()) {
+            FuncodePanel(accent = FuncodeColors.Gold) {
+                SectionTitle(stringResource(R.string.file_technologies))
+                technologies.forEach { (tech, evidence) ->
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 4.dp)) {
+                        Text(tech.name.revealControlCharacters(), fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
+                        StatusChip(confidenceLabel(tech.confidence), confidenceColor(tech.confidence))
+                    }
+                    evidence.forEach { e -> EvidenceLine(e.copy(path = null), onOpen = viewModel::select) }
+                }
+            }
+        }
+
         FuncodePanel(accent = FuncodeColors.Gold) {
             SectionTitle(stringResource(R.string.file_function))
             if (profile == null || profile.roles.isEmpty()) {
@@ -477,7 +508,7 @@ private fun CodeViewer(code: CodeView, onClose: () -> Unit) {
                     LazyColumn(Modifier.fillMaxSize().padding(horizontal = 4.dp)) {
                         itemsIndexed(lines) { index, raw ->
                             val number = index + 1
-                            val (text, originalLength) = displayCodeLine(raw)
+                            val (text, originalLength) = highlightedCodeLine(raw, code.highlight.getOrNull(index), MAX_LINE_CHARS)
                             Row(
                                 Modifier
                                     .fillMaxWidth()
@@ -491,8 +522,9 @@ private fun CodeViewer(code: CodeView, onClose: () -> Unit) {
                                     color = FuncodeColors.Info,
                                     modifier = Modifier.width((gutter * 8 + 8).dp),
                                 )
+                                val suffix = if (originalLength != null) stringResource(R.string.code_long_line, originalLength) else ""
                                 Text(
-                                    text + if (originalLength != null) stringResource(R.string.code_long_line, originalLength) else "",
+                                    if (suffix.isEmpty()) text else text + androidx.compose.ui.text.AnnotatedString(suffix),
                                     fontFamily = FontFamily.Monospace,
                                     fontSize = 12.sp,
                                     modifier = Modifier.weight(1f),
@@ -511,12 +543,8 @@ private fun CodeViewer(code: CodeView, onClose: () -> Unit) {
  * dirección bidireccional visible (contra el "Trojan Source"). Las líneas muy largas se recortan.
  * Devuelve el texto y, si se recortó, la longitud original.
  */
-internal fun displayCodeLine(raw: String, maxChars: Int = MAX_LINE_CHARS): Pair<String, Int?> {
-    val line = raw.removeSuffix("\r")
-    val cut = if (line.length > maxChars) line.take(maxChars) else line
-    val shown = cut.replace("\t", "    ").revealControlCharacters()
-    return shown to if (line.length > maxChars) line.length else null
-}
+internal fun displayCodeLine(raw: String, maxChars: Int = MAX_LINE_CHARS): Pair<String, Int?> =
+    highlightedCodeLine(raw, null, maxChars).let { (text, original) -> text.text to original }
 
 private const val MAX_LISTED = 200
 private const val MAX_INDENT_LEVELS = 12

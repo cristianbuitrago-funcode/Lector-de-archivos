@@ -93,7 +93,27 @@ data class FileContentEntity(
     val path: String,
     val chunk: Int,
     val text: String,
+    /** Resaltado de sintaxis del fragmento (Fase 4): enteros separados por comas, ver [HighlightCodec]. */
+    @ColumnInfo(defaultValue = "") val highlight: String = "",
 )
+
+/** Fragmento de la copia del código con su resaltado. */
+data class ContentRow(val text: String, val highlight: String)
+
+/** Los tríos (inicio, longitud, categoría) del resaltado se guardan como texto compacto. */
+object HighlightCodec {
+    fun encode(spans: List<Int>): String = spans.joinToString(",")
+
+    /** Devuelve una lista vacía si el texto no es válido (nunca falla al abrir el visor). */
+    fun decode(text: String): IntArray {
+        if (text.isEmpty()) return IntArray(0)
+        val parts = text.split(',')
+        if (parts.size % 3 != 0) return IntArray(0)
+        val out = IntArray(parts.size)
+        for (i in parts.indices) out[i] = parts[i].toIntOrNull()?.takeIf { it >= 0 } ?: return IntArray(0)
+        return out
+    }
+}
 
 /** Ajustes de la app que se guardan cifrados (p. ej. las exclusiones por defecto). */
 @Entity(tableName = "app_settings")
@@ -127,6 +147,9 @@ abstract class AnalysisDao {
 
     @Query("SELECT text FROM file_contents WHERE analysis_id = :id AND path = :path ORDER BY chunk")
     abstract suspend fun content(id: String, path: String): List<String>
+
+    @Query("SELECT text, highlight FROM file_contents WHERE analysis_id = :id AND path = :path ORDER BY chunk")
+    abstract suspend fun contentRows(id: String, path: String): List<ContentRow>
 
     @Query("SELECT COUNT(*) FROM file_contents WHERE analysis_id = :id")
     abstract suspend fun contentChunkCount(id: String): Int
@@ -171,9 +194,9 @@ interface SettingsDao {
 
 @Database(
     entities = [RunEntity::class, AnalysisEntity::class, AnalysisRecordEntity::class, SettingEntity::class, FileContentEntity::class],
-    version = 3,
+    version = 4,
     exportSchema = true,
-    autoMigrations = [AutoMigration(from = 1, to = 2), AutoMigration(from = 2, to = 3)],
+    autoMigrations = [AutoMigration(from = 1, to = 2), AutoMigration(from = 2, to = 3), AutoMigration(from = 3, to = 4)],
 )
 abstract class FuncodeDatabase : RoomDatabase() {
     abstract fun runs(): RunDao

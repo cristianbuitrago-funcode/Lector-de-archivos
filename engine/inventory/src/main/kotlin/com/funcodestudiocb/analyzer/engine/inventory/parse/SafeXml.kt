@@ -38,18 +38,30 @@ class SafeXmlReader(
     private var pos = 0
     private val lineStarts: IntArray = computeLineStarts(text)
 
-    fun parse(onStart: (XmlStart) -> Unit, onEnd: (String) -> Unit = {}): Boolean {
+    /**
+     * @param onText texto entre etiquetas (sin espacios alrededor y con las entidades resueltas) y secciones CDATA;
+     * solo se calcula si se pide
+     */
+    fun parse(onStart: (XmlStart) -> Unit, onEnd: (String) -> Unit = {}, onText: ((String) -> Unit)? = null): Boolean {
         val stack = ArrayList<String>()
         val namespaces = ArrayList<Map<String, String>>()
         var events = 0
         while (pos < text.length) {
             val lt = text.indexOf('<', pos)
             if (lt < 0) return stack.isEmpty()
+            if (onText != null && lt > pos && stack.isNotEmpty()) {
+                val raw = text.substring(pos, lt).trim()
+                if (raw.isNotEmpty()) onText(decodeEntities(raw))
+            }
             pos = lt
             if (++events > maxEvents) return false
             when {
                 text.startsWith("<!--", pos) -> pos = skipPast("-->", pos + 4) ?: return false
-                text.startsWith("<![CDATA[", pos) -> pos = skipPast("]]>", pos + 9) ?: return false
+                text.startsWith("<![CDATA[", pos) -> {
+                    val end = skipPast("]]>", pos + 9) ?: return false
+                    if (onText != null) text.substring(pos + 9, end - 3).trim().takeIf { it.isNotEmpty() }?.let(onText)
+                    pos = end
+                }
                 text.startsWith("<?", pos) -> pos = skipPast("?>", pos + 2) ?: return false
                 text.startsWith("<!", pos) -> pos = skipDeclaration(pos + 2) ?: return false
                 text.startsWith("</", pos) -> {
@@ -209,7 +221,7 @@ class SafeXmlReader(
         private fun codePoint(cp: Int): String? =
             if (cp in 1..0x10FFFF && cp !in 0xD800..0xDFFF) String(Character.toChars(cp)) else null
 
-        internal fun computeLineStarts(text: String): IntArray {
+        fun computeLineStarts(text: String): IntArray {
             var count = 1
             for (ch in text) if (ch == '\n') count++
             val starts = IntArray(count)

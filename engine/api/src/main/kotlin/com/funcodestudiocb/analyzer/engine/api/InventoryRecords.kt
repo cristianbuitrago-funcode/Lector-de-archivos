@@ -56,6 +56,15 @@ enum class EvidenceKind {
 
     /** Contenido idéntico a otro archivo. */
     DUPLICATE,
+
+    /** Dependencia declarada en un manifiesto (package.json, build.gradle, pubspec.yaml…). */
+    DEPENDENCY,
+
+    /** Importación en el código, obtenida del árbol sintáctico. */
+    IMPORT,
+
+    /** Mención en texto que no basta para afirmar el uso (comentarios, documentación, cadenas). */
+    MENTION,
 }
 
 /**
@@ -114,6 +123,8 @@ data class FileProfile(
     val redactions: Int = 0,
     /** Carpeta del subproyecto al que pertenece ("" = raíz del comprimido). */
     val projectRoot: String? = null,
+    /** Lenguaje y recuento de líneas (Fase 4); `null` si no es texto o no se reconoce el lenguaje. */
+    val language: FileLanguage? = null,
 ) : ResultRecord
 
 @Serializable
@@ -251,6 +262,11 @@ data class ContentChunk(
     val index: Int,
     val text: String,
     val last: Boolean,
+    /**
+     * Resaltado de sintaxis (Fase 4): tríos (inicio, longitud, categoría) en caracteres de [text], en orden y sin
+     * solaparse. Vacío si el lenguaje no tiene gramática o no se pudo analizar.
+     */
+    val highlight: List<Int> = emptyList(),
 ) : ResultRecord
 
 /** Totales del inventario. */

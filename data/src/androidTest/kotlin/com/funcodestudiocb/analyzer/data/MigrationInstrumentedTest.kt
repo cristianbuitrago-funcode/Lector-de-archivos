@@ -56,6 +56,26 @@ class MigrationInstrumentedTest {
         }
     }
 
+    @Test
+    fun migra3a4ConservandoLaCopiaDelCodigoSinResaltado() {
+        helper.createDatabase(NAME, 3).use { db ->
+            db.execSQL(
+                "INSERT INTO analyses (id, archive_name, archive_size, archive_sha256, format, status, started_at, finished_at, " +
+                    "file_count, analyzed_count, excluded_count, finding_count, duplicate_groups, message) " +
+                    "VALUES ('a1', 'p.zip', 10, 'x', 'ZIP', 'COMPLETED', 1, 2, 3, 3, 0, 0, 0, NULL)",
+            )
+            db.execSQL("INSERT INTO file_contents (analysis_id, path, chunk, text) VALUES ('a1', 'a.kt', 0, 'fun main() {}')")
+        }
+        helper.runMigrationsAndValidate(NAME, 4, true).use { db ->
+            db.query("SELECT text, highlight FROM file_contents WHERE analysis_id = 'a1'").use { c ->
+                c.moveToFirst()
+                assertEquals("fun main() {}", c.getString(0))
+                assertEquals("", c.getString(1), "Los análisis anteriores quedan sin resaltado")
+            }
+            db.execSQL("INSERT INTO file_contents (analysis_id, path, chunk, text, highlight) VALUES ('a1', 'b.kt', 0, 'val x = 1', '0,3,1')")
+        }
+    }
+
     private companion object {
         const val NAME = "migracion-prueba.db"
     }

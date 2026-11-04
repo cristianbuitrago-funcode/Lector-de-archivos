@@ -84,6 +84,12 @@ android {
                     "robolectric.dependency.repo.url",
                     "https://maven-central.storage-download.googleapis.com/maven2",
                 )
+                // tree-sitter compilado para el PC: el motor analiza con gramáticas también en estas pruebas.
+                it.dependsOn(":engine:languages:buildHostTreeSitter")
+                it.systemProperty(
+                    "java.library.path",
+                    project(":engine:languages").layout.buildDirectory.dir("host-native/out").get().asFile.absolutePath,
+                )
                 // Robolectric (SDK 36) necesita acceder a internos del JDK 21.
                 it.jvmArgs(
                     "--add-exports=java.base/jdk.internal.access=ALL-UNNAMED",
@@ -96,6 +102,19 @@ android {
 
     packaging {
         resources.excludes += setOf("META-INF/versions/9/OSGI-INF/MANIFEST.MF", "META-INF/{AL2.0,LGPL2.1}")
+        // Las bibliotecas nativas se guardan comprimidas en el APK: las tablas de las gramáticas de tree-sitter
+        // (unos 23 MB por arquitectura) se comprimen muy bien. Se extraen al instalar.
+        jniLibs.useLegacyPackaging = true
+    }
+
+    // Un APK por arquitectura (más pequeño; el del móvil suele ser arm64-v8a) y uno universal.
+    splits {
+        abi {
+            isEnable = true
+            reset()
+            include("arm64-v8a", "armeabi-v7a", "x86_64")
+            isUniversalApk = true
+        }
     }
 }
 

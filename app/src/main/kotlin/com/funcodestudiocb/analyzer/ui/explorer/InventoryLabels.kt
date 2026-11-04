@@ -150,3 +150,34 @@ fun relationLabel(reason: RelationReason): String = stringResource(
         RelationReason.UNITY_META -> R.string.related_unity_meta
     },
 )
+
+@Composable
+fun categoryLabel(category: com.funcodestudiocb.analyzer.engine.api.TechnologyCategory): String = stringResource(
+    when (category) {
+        com.funcodestudiocb.analyzer.engine.api.TechnologyCategory.LANGUAGE_RUNTIME -> R.string.tech_category_language_runtime
+        com.funcodestudiocb.analyzer.engine.api.TechnologyCategory.FRAMEWORK -> R.string.tech_category_framework
+        com.funcodestudiocb.analyzer.engine.api.TechnologyCategory.UI -> R.string.tech_category_ui
+        com.funcodestudiocb.analyzer.engine.api.TechnologyCategory.MOBILE -> R.string.tech_category_mobile
+        com.funcodestudiocb.analyzer.engine.api.TechnologyCategory.GAME_ENGINE -> R.string.tech_category_game_engine
+        com.funcodestudiocb.analyzer.engine.api.TechnologyCategory.DATABASE -> R.string.tech_category_database
+        com.funcodestudiocb.analyzer.engine.api.TechnologyCategory.DATA_ACCESS -> R.string.tech_category_data_access
+        com.funcodestudiocb.analyzer.engine.api.TechnologyCategory.EXTERNAL_SERVICE -> R.string.tech_category_external_service
+        com.funcodestudiocb.analyzer.engine.api.TechnologyCategory.CLOUD -> R.string.tech_category_cloud
+        com.funcodestudiocb.analyzer.engine.api.TechnologyCategory.AUTHENTICATION -> R.string.tech_category_authentication
+        com.funcodestudiocb.analyzer.engine.api.TechnologyCategory.NETWORKING -> R.string.tech_category_networking
+        com.funcodestudiocb.analyzer.engine.api.TechnologyCategory.TESTING -> R.string.tech_category_testing
+        com.funcodestudiocb.analyzer.engine.api.TechnologyCategory.BUILD_TOOL -> R.string.tech_category_build_tool
+        com.funcodestudiocb.analyzer.engine.api.TechnologyCategory.DEVOPS -> R.string.tech_category_devops
+        com.funcodestudiocb.analyzer.engine.api.TechnologyCategory.LIBRARY -> R.string.tech_category_library
+    },
+)
+
+@Composable
+fun languageLevelLabel(level: Int): String = stringResource(
+    when (level) {
+        1 -> R.string.file_language_level_1
+        2 -> R.string.file_language_level_2
+        3 -> R.string.file_language_level_3
+        else -> R.string.file_language_level_0
+    },
+)

@@ -16,7 +16,7 @@ internal data class RoleHint(
 )
 
 /** Partes de una ruta del comprimido que usan las reglas. */
-internal class PathInfo(val path: String) {
+class PathInfo(val path: String) {
     val name: String = path.substringAfterLast('/')
     val lower: String = name.lowercase()
 

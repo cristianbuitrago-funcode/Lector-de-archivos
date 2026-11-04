@@ -173,6 +173,12 @@ class AnalysisCoordinatorTest {
         assertFalse(copy.contains(secret), "La copia guardada no contiene el secreto")
         assertTrue(copy.contains("abcd") && copy.contains("kl"))
         assertEquals("fun main() {\n  println(1)\n}\n", runBlocking { container.repository.content(finished.analysisId, "demo/src/Main.kt") })
+        // El resaltado de sintaxis se guarda con la copia y vuelve con posiciones válidas.
+        val code = assertNotNull(runBlocking { container.repository.code(finished.analysisId, "demo/src/Main.kt") })
+        assertTrue(code.highlight.isNotEmpty(), "Sin resaltado")
+        for (i in code.highlight.indices step 3) assertTrue(code.highlight[i] + code.highlight[i + 1] <= code.text.length)
+        assertEquals("fun", code.text.substring(code.highlight[0], code.highlight[0] + code.highlight[1]))
+        assertEquals("Kotlin", report.languages.single { it.id == "kotlin" }.name)
         assertTrue(File(context.noBackupFilesDir, "copia-codigo").listFiles().isNullOrEmpty(), "El almacén temporal cifrado se borra al guardar")
 
         // Al cargar el análisis guardado se recupera el inventario.

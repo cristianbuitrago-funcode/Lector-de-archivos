@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<lint>
+    <!-- snakeyaml-engine 3.x necesita API de Java 11 que Android 8 (minSdk 26) no tiene: se mantiene la rama 2.x
+         a propósito (ver docs/adr/0006-lenguajes-y-tecnologias.md). -->
+    <issue id="NewerVersionAvailable">
+        <ignore regexp="snakeyaml-engine" />
+    </issue>
+</lint>

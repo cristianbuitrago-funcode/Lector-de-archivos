@@ -26,6 +26,8 @@ data class CodeView(
     /** Líneas (desde 1) con algún posible secreto ocultado. */
     val redactedLines: Set<Int>,
     val missing: Boolean = false,
+    /** Resaltado de cada línea (tríos relativos a la línea); vacío si no hay. */
+    val highlight: List<IntArray> = emptyList(),
 )
 
 sealed interface ExplorerUiState {
@@ -48,7 +50,7 @@ sealed interface ExplorerUiState {
 }
 
 /** Explorador de un análisis guardado: árbol, filtros, ficha de cada archivo y visor de la copia redactada. */
-class ExplorerViewModel(private val container: AppContainer, initialId: String?) : ViewModel() {
+class ExplorerViewModel(private val container: AppContainer, initialId: String?, private val initialPath: String? = null) : ViewModel() {
 
     private val repository = container.repository
     private val _state = MutableStateFlow<ExplorerUiState>(ExplorerUiState.Loading)
@@ -61,6 +63,9 @@ class ExplorerViewModel(private val container: AppContainer, initialId: String?)
 
     /** Desde el menú se muestra el análisis más reciente (también el que acaba de terminar) hasta elegir otro. */
     private var followLatest = initialId == null
+
+    /** Análisis al que pertenece [initialPath]. */
+    private val entityIdForPath = initialId
 
     init {
         if (initialId != null) {
@@ -93,7 +98,9 @@ class ExplorerViewModel(private val container: AppContainer, initialId: String?)
             val (entity, report) = loaded
             val model = withContext(Dispatchers.Default) { ExplorerModel(report) }
             val expanded = model.initiallyExpanded()
-            _state.value = ExplorerUiState.Loaded(entity, model, expanded, rows = model.rows(expanded, null, ""))
+            // Desde una evidencia del informe se abre directamente la ficha de ese archivo.
+            val selected = initialPath?.takeIf { it in model.files && id == entityIdForPath }
+            _state.value = ExplorerUiState.Loaded(entity, model, expanded, rows = model.rows(expanded, null, ""), selected = selected)
         }
     }
 
@@ -125,9 +132,17 @@ class ExplorerViewModel(private val container: AppContainer, initialId: String?)
         updateLoaded { it.copy(code = CodeView(path, null, redacted)) }
         codeJob?.cancel()
         codeJob = viewModelScope.launch {
-            val text = repository.content(s.analysis.id, path)
-            val lines = text?.let { withContext(Dispatchers.Default) { it.removeSuffix("\n").split('\n') } }
-            updateLoaded { cur -> if (cur.code?.path == path) cur.copy(code = CodeView(path, lines.orEmpty(), redacted, missing = lines == null)) else cur }
+            val copy = repository.code(s.analysis.id, path)
+            val prepared = copy?.let {
+                withContext(Dispatchers.Default) {
+                    val lines = it.text.removeSuffix("\n").split('\n')
+                    lines to splitHighlight(lines, it.highlight)
+                }
+            }
+            updateLoaded { cur ->
+                if (cur.code?.path != path) return@updateLoaded cur
+                cur.copy(code = CodeView(path, prepared?.first.orEmpty(), redacted, missing = prepared == null, highlight = prepared?.second.orEmpty()))
+            }
         }
     }
 

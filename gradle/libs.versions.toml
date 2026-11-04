@@ -27,6 +27,7 @@ androidxTestCore = "1.7.0"
 iconsCore = "1.7.8"
 commonsCompress = "1.28.0"
 re2j = "1.8"
+snakeyamlEngine = "2.10"
 zip4j = "2.11.6"
 ndk = "29.0.14206865"
 cmake = "3.31.0"
@@ -55,6 +56,7 @@ sqlcipher-android = { module = "net.zetetic:sqlcipher-android", version.ref = "s
 bouncycastle-prov = { module = "org.bouncycastle:bcprov-jdk18on", version.ref = "bouncycastle" }
 commons-compress = { module = "org.apache.commons:commons-compress", version.ref = "commonsCompress" }
 re2j = { module = "com.google.re2j:re2j", version.ref = "re2j" }
+snakeyaml-engine = { module = "org.snakeyaml:snakeyaml-engine", version.ref = "snakeyamlEngine" }
 zip4j = { module = "net.lingala.zip4j:zip4j", version.ref = "zip4j" }
 
 compose-bom = { module = "androidx.compose:compose-bom", version.ref = "composeBom" }

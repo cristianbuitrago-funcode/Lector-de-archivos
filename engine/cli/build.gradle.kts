@@ -19,7 +19,7 @@ java {
 }
 
 dependencies {
-    implementation(project(":engine:inventory"))
+    implementation(project(":engine:pipeline"))
 }
 
 application {
@@ -27,8 +27,11 @@ application {
     applicationName = "funcode-analyzer"
 }
 
-val hostLibDir = project(":engine:ingest").layout.buildDirectory.dir("host-native/out").get().asFile.absolutePath
+// UnRAR y tree-sitter compilados para el PC.
+val hostLibDirs = listOf(":engine:ingest", ":engine:languages").joinToString(File.pathSeparator) {
+    project(it).layout.buildDirectory.dir("host-native/out").get().asFile.absolutePath
+}
 tasks.named<JavaExec>("run") {
-    dependsOn(":engine:ingest:buildHostUnrar")
-    systemProperty("java.library.path", hostLibDir)
+    dependsOn(":engine:ingest:buildHostUnrar", ":engine:languages:buildHostTreeSitter")
+    systemProperty("java.library.path", hostLibDirs)
 }

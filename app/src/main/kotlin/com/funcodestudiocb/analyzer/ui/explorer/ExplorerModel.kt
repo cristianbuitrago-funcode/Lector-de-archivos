@@ -158,6 +158,10 @@ class ExplorerModel(val report: AnalysisReport) {
         return out
     }
 
+    /** Tecnologías con alguna evidencia en este archivo, con esas evidencias. */
+    fun technologiesIn(path: String): List<Pair<com.funcodestudiocb.analyzer.engine.api.Technology, List<com.funcodestudiocb.analyzer.engine.api.Evidence>>> =
+        report.technologies.mapNotNull { t -> t.evidence.filter { it.path == path }.takeIf { it.isNotEmpty() }?.let { t to it } }
+
     /** Relaciones que ya se conocen en esta fase (las de código llegan en la Fase 5). */
     fun related(path: String): List<RelatedFile> {
         val file = files[path] ?: return emptyList()

@@ -4,11 +4,21 @@ import com.funcodestudiocb.analyzer.engine.api.ContentChunk
 import com.funcodestudiocb.analyzer.engine.api.ContentState
 import com.funcodestudiocb.analyzer.engine.api.CoverageReason
 import com.funcodestudiocb.analyzer.engine.api.FileKind
+import com.funcodestudiocb.analyzer.engine.api.FileLanguage
+import com.funcodestudiocb.analyzer.engine.api.LanguageStats
+import com.funcodestudiocb.analyzer.engine.api.LineMethod
 import com.funcodestudiocb.analyzer.engine.api.RecordValidator
 import com.funcodestudiocb.analyzer.engine.api.Redaction
 import com.funcodestudiocb.analyzer.engine.core.StageContext
 import com.funcodestudiocb.analyzer.engine.ingest.FileContentConsumer
+import com.funcodestudiocb.analyzer.engine.ingest.IngestKeys
 import com.funcodestudiocb.analyzer.engine.ingest.ReadFile
+import com.funcodestudiocb.analyzer.engine.languages.CountMethod
+import com.funcodestudiocb.analyzer.engine.languages.Language
+import com.funcodestudiocb.analyzer.engine.languages.LanguageAnalysis
+import com.funcodestudiocb.analyzer.engine.languages.LanguageAnalyzer
+import com.funcodestudiocb.analyzer.engine.languages.Languages
+import com.funcodestudiocb.analyzer.engine.languages.treesitter.TreeSitter
 import com.funcodestudiocb.analyzer.engine.inventory.parse.SafeXmlReader
 import com.funcodestudiocb.analyzer.engine.security.SecretRedactor
 import java.nio.ByteBuffer
@@ -21,7 +31,41 @@ class FileFacts(
     val content: ContentState,
     val redactions: Int,
     val signals: List<SignalHit>,
+    val language: FileLanguage? = null,
 )
+
+/**
+ * Texto de un archivo con los posibles secretos ya ocultados, su lenguaje y lo que obtuvo el análisis de lenguaje
+ * (importaciones, rangos de comentarios). Es lo único del contenido que ven las demás etapas.
+ */
+class RedactedText(
+    val path: String,
+    val info: PathInfo,
+    val text: String,
+    val lineStarts: IntArray,
+    val language: Language?,
+    val analysis: LanguageAnalysis?,
+    /** Si hay copia para el visor o por qué no (un archivo generado no es código escrito por el equipo). */
+    val state: ContentState,
+)
+
+/** Recibe el texto redactado de cada archivo examinado, en el mismo recorrido del comprimido. */
+fun interface RedactedTextListener {
+    fun onText(context: StageContext, file: RedactedText)
+}
+
+/** Totales de un lenguaje mientras se recorre el comprimido. */
+internal class LanguageTally(val language: Language) {
+    var files = 0
+    var code = 0L
+    var comment = 0L
+    var blank = 0L
+    var syntaxFiles = 0
+    var lexicalFiles = 0
+    var filesWithErrors = 0
+
+    fun toRecord() = LanguageStats(language.id, language.name, language.level, files, code, comment, blank, syntaxFiles, lexicalFiles, filesWithErrors)
+}
 
 /**
  * Examina el contenido de cada archivo de texto en el mismo recorrido del comprimido (el contenido no se
@@ -30,7 +74,7 @@ class FileFacts(
  *
  * Todo lo que sale de aquí ya está redactado o es texto del propio motor.
  */
-class ContentCollector : FileContentConsumer {
+class ContentCollector(private val listeners: List<RedactedTextListener> = emptyList()) : FileContentConsumer {
 
     val facts = HashMap<String, FileFacts>()
     val androidManifests = mutableListOf<Pair<String, AndroidManifestFacts>>()
@@ -60,6 +104,16 @@ class ContentCollector : FileContentConsumer {
         private set
     private var limitReported = false
 
+    internal val languages = LinkedHashMap<String, LanguageTally>()
+
+    /** Archivos cuyo análisis sintáctico no terminó (tiempo, memoria), con el motivo. */
+    val syntaxProblems = mutableListOf<Pair<String, String>>()
+
+    /** Tiempo total dedicado al análisis sintáctico; al agotarse el presupuesto se sigue con el recuento léxico. */
+    private var syntaxMillis = 0L
+    private var syntaxBudgetReported = false
+    private var cppProject: Boolean? = null
+
     override fun accept(context: StageContext, file: ReadFile) {
         if (file.kind != FileKind.TEXT) return
         val options = context.config.inventory
@@ -74,6 +128,7 @@ class ContentCollector : FileContentConsumer {
         val text = decode(bytes, file.encoding)
         val lineStarts = SafeXmlReader.computeLineStarts(text)
         val lineCount = if (text.isEmpty()) 0 else lineStarts.size - if (text.endsWith('\n')) 1 else 0
+        val language = Languages.detect(file.path, text.take(DETECTION_HEAD), isCppProject(context))
 
         val signals = ContentSignals.scan(info, text, lineStarts)
         readManifest(info, text, lineStarts)
@@ -100,13 +155,68 @@ class ContentCollector : FileContentConsumer {
             chunkCount(redaction.text) > RecordValidator.MAX_CHUNKS_PER_FILE -> ContentState.NOT_STORED_LIMIT
             else -> ContentState.STORED
         }
+        // El análisis de lenguaje trabaja sobre el texto redactado (misma longitud que el original): lo que se
+        // obtiene de él (importaciones, nombres) nunca contiene un secreto completo.
+        val analysis = language?.let { analyzeLanguage(context, file.path, it, redaction.text, state) }
         if (state == ContentState.STORED) {
-            emitChunks(context, file.path, redaction.text)
+            emitChunks(context, file.path, redaction.text, analysis?.highlight)
             storedFiles++
             storedChars += text.length
         }
-        facts[file.path] = FileFacts(lineCount, state, redaction.secrets.size, signals)
+        val fileLanguage = analysis?.let {
+            FileLanguage(
+                it.language.id, it.language.name, it.language.level,
+                if (it.method == CountMethod.SYNTAX) LineMethod.SYNTAX else LineMethod.LEXICAL,
+                it.codeLines, it.commentLines, it.blankLines, it.syntaxErrors,
+            )
+        }
+        facts[file.path] = FileFacts(lineCount, state, redaction.secrets.size, signals, fileLanguage)
+        if (listeners.isNotEmpty()) {
+            val redacted = RedactedText(file.path, info, redaction.text, lineStarts, language, analysis, state)
+            listeners.forEach { it.onText(context, redacted) }
+        }
     }
+
+    private fun analyzeLanguage(context: StageContext, path: String, language: Language, text: String, state: ContentState): LanguageAnalysis {
+        val remaining = SYNTAX_BUDGET_MS - syntaxMillis
+        val useSyntax = state != ContentState.NOT_STORED_GENERATED && remaining > 0
+        if (!useSyntax && remaining <= 0 && language.grammar != null && !syntaxBudgetReported) {
+            syntaxBudgetReported = true
+            context.coverage(
+                CoverageReason.LIMIT_REACHED,
+                "Se agotó el tiempo total del análisis sintáctico (${SYNTAX_BUDGET_MS / 1000} s): los archivos restantes se contaron con el analizador léxico",
+            )
+        }
+        val started = System.nanoTime()
+        val analysis = LanguageAnalyzer.analyze(
+            language, text,
+            highlight = state == ContentState.STORED,
+            timeoutMs = minOf(LanguageAnalyzer.DEFAULT_TIMEOUT_MS.toLong(), remaining.coerceAtLeast(1)).toInt(),
+            syntax = useSyntax,
+        )
+        if (language.grammar != null && useSyntax) syntaxMillis += (System.nanoTime() - started) / 1_000_000
+        analysis.syntaxProblem?.let { if (syntaxProblems.size < MAX_SYNTAX_PROBLEMS) syntaxProblems += path to it }
+
+        val tally = languages.getOrPut(language.id) { LanguageTally(language) }
+        tally.files++
+        tally.code += analysis.codeLines
+        tally.comment += analysis.commentLines
+        tally.blank += analysis.blankLines
+        if (analysis.method == CountMethod.SYNTAX) tally.syntaxFiles++ else tally.lexicalFiles++
+        if (analysis.syntaxErrors > 0) tally.filesWithErrors++
+        return analysis
+    }
+
+    /** El proyecto tiene fuentes C++: los `.h` se analizan como C++ (si no, como C). */
+    private fun isCppProject(context: StageContext): Boolean = cppProject ?: run {
+        val included = context.attributes[IngestKeys.PLAN]?.included?.values.orEmpty()
+        val cpp = included.any { path -> CPP_EXTENSIONS.any { path.endsWith(it, ignoreCase = true) } }
+        cppProject = cpp
+        cpp
+    }
+
+    /** Estado de tree-sitter para la cobertura del análisis. */
+    val syntaxAvailable: Boolean get() = TreeSitter.available
 
     private fun readManifest(info: PathInfo, text: String, lineStarts: IntArray) {
         val path = info.path
@@ -124,14 +234,19 @@ class ContentCollector : FileContentConsumer {
         }
     }
 
-    /** Parte el texto en fragmentos de hasta [RecordValidator.MAX_CHUNK_CHARS], cortando por líneas si se puede. */
-    private fun emitChunks(context: StageContext, path: String, text: String) {
+    /**
+     * Parte el texto en fragmentos de hasta [RecordValidator.MAX_CHUNK_CHARS], cortando por líneas si se puede.
+     * [highlight] son tríos (inicio, longitud, categoría) sobre el texto completo: cada fragmento lleva los suyos,
+     * relativos a su inicio (un comentario que cruza el corte se reparte entre los dos).
+     */
+    private fun emitChunks(context: StageContext, path: String, text: String, highlight: IntArray?) {
         if (text.isEmpty()) {
             context.emit(ContentChunk(path, 0, "", last = true))
             return
         }
         var start = 0
         var index = 0
+        var span = 0
         while (start < text.length) {
             var end = minOf(text.length, start + RecordValidator.MAX_CHUNK_CHARS)
             if (end < text.length) {
@@ -139,7 +254,24 @@ class ContentCollector : FileContentConsumer {
                 end = if (newline >= start + RecordValidator.MAX_CHUNK_CHARS / 2) newline + 1 else end
                 if (Character.isHighSurrogate(text[end - 1])) end--
             }
-            context.emit(ContentChunk(path, index++, text.substring(start, end), last = end >= text.length))
+            val spans = ArrayList<Int>()
+            if (highlight != null) {
+                while (span + 2 < highlight.size) {
+                    val s0 = highlight[span]
+                    val e0 = s0 + highlight[span + 1]
+                    if (s0 >= end) break
+                    val from = maxOf(s0, start)
+                    val to = minOf(e0, end)
+                    if (to > from && spans.size < RecordValidator.MAX_HIGHLIGHT_SPANS * 3) {
+                        spans += from - start
+                        spans += to - from
+                        spans += highlight[span + 2]
+                    }
+                    if (e0 > end) break // sigue en el fragmento siguiente
+                    span += 3
+                }
+            }
+            context.emit(ContentChunk(path, index++, text.substring(start, end), last = end >= text.length, highlight = spans))
             start = end
         }
     }
@@ -154,6 +286,12 @@ class ContentCollector : FileContentConsumer {
 
     internal companion object {
         const val MAX_REDACTIONS_PER_FILE = 1_000
+        private const val DETECTION_HEAD = 512
+        private const val MAX_SYNTAX_PROBLEMS = 200
+
+        /** Tiempo total para el análisis sintáctico de todo el proyecto. */
+        const val SYNTAX_BUDGET_MS = 180_000L
+        private val CPP_EXTENSIONS = listOf(".cpp", ".cc", ".cxx", ".hpp", ".hh", ".hxx", ".ino")
         private const val MINIFIED_MIN_CHARS = 10_000
         private const val MINIFIED_AVG_LINE = 500
 

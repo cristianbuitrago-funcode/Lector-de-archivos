@@ -22,6 +22,12 @@ object RecordValidator {
     const val MAX_CHUNK_CHARS = 32_768
     const val MAX_CHUNKS_PER_FILE = 1_024
     const val MAX_MASKED_LENGTH = 32
+    const val MAX_HIGHLIGHT_SPANS = 12_000
+    const val MAX_HIGHLIGHT_CATEGORY = 7
+    const val MAX_NAME_LENGTH = 200
+    const val MAX_VERSION_LENGTH = 100
+    const val MAX_TECH_VERSIONS = 8
+    const val MAX_TECH_ROOTS = 50
 
     /** Caracteres visibles que puede mostrar un secreto enmascarado: 4 al principio y 2 al final (§8.4). */
     const val MAX_VISIBLE_SECRET_CHARS = 6
@@ -114,6 +120,12 @@ object RecordValidator {
                 record.roles.forEach { checkEvidence(errors, it.evidence) }
                 if ((record.lineCount ?: 0) < 0 || record.redactions < 0) errors += "Valores negativos en la ficha"
                 record.projectRoot?.let { checkDirectory(errors, it) }
+                record.language?.let { language ->
+                    checkPattern(errors, "language.id", language.id, ID_PATTERN)
+                    checkName(errors, "language.name", language.name)
+                    if (language.level !in 0..3) errors += "Nivel de soporte inválido"
+                    if (listOf(language.code, language.comment, language.blank, language.syntaxErrors).any { it < 0 }) errors += "Recuento de líneas negativo"
+                }
             }
             is ProjectRoot -> {
                 checkDirectory(errors, record.directory)
@@ -138,6 +150,34 @@ object RecordValidator {
                 checkPath(errors, record.path)
                 if (record.index !in 0 until MAX_CHUNKS_PER_FILE) errors += "Índice de fragmento fuera de rango"
                 checkText(errors, "text", record.text, MAX_CHUNK_CHARS)
+                checkHighlight(errors, record.highlight, record.text.length)
+            }
+            is LanguageStats -> {
+                checkPattern(errors, "id", record.id, ID_PATTERN)
+                checkName(errors, "name", record.name)
+                if (record.level !in 0..3) errors += "Nivel de soporte inválido"
+                val counts = listOf(record.files, record.syntaxFiles, record.lexicalFiles, record.filesWithErrors)
+                if (counts.any { it < 0 } || listOf(record.code, record.comment, record.blank).any { it < 0 }) errors += "Totales negativos"
+                if (record.syntaxFiles + record.lexicalFiles > record.files || record.filesWithErrors > record.files) errors += "Totales de lenguaje incoherentes"
+            }
+            is DeclaredDependency -> {
+                checkPath(errors, record.manifest)
+                checkName(errors, "name", record.name)
+                record.version?.let { checkName(errors, "version", it, MAX_VERSION_LENGTH) }
+                if ((record.line ?: 1) < 1) errors += "Línea inválida"
+                record.projectRoot?.let { checkDirectory(errors, it) }
+            }
+            is Technology -> {
+                checkPattern(errors, "id", record.id, ID_PATTERN)
+                checkName(errors, "name", record.name)
+                if (record.versions.size > MAX_TECH_VERSIONS) errors += "Demasiadas versiones"
+                record.versions.forEach { checkName(errors, "version", it, MAX_VERSION_LENGTH) }
+                if (record.evidence.isEmpty()) errors += "Tecnología sin evidencia"
+                if (record.evidence.any { it.path == null }) errors += "Evidencia de tecnología sin archivo"
+                checkEvidence(errors, record.evidence)
+                if (record.evidenceCount < record.evidence.size) errors += "Recuento de evidencias incoherente"
+                if (record.projectRoots.size > MAX_TECH_ROOTS) errors += "Demasiados subproyectos"
+                record.projectRoots.forEach { checkDirectory(errors, it) }
             }
             is InventorySummary -> {
                 val values = listOf(record.files, record.entryPoints, record.projectRoots, record.unclassified, record.storedFiles, record.redactions)
@@ -171,6 +211,32 @@ object RecordValidator {
         if (visible.length > MAX_VISIBLE_SECRET_CHARS || visible.any { it !in '!'..'~' }) {
             errors += "El secreto enmascarado muestra demasiado"
         }
+    }
+
+    /** Tríos (inicio, longitud, categoría) dentro del texto, en orden y sin solaparse. */
+    private fun checkHighlight(errors: MutableList<String>, spans: List<Int>, textLength: Int) {
+        if (spans.isEmpty()) return
+        if (spans.size % 3 != 0 || spans.size > MAX_HIGHLIGHT_SPANS * 3) {
+            errors += "Resaltado con formato inválido"
+            return
+        }
+        var previousEnd = 0
+        for (i in spans.indices step 3) {
+            val start = spans[i]
+            val length = spans[i + 1]
+            val category = spans[i + 2]
+            if (start < previousEnd || length < 1 || start.toLong() + length > textLength || category !in 1..MAX_HIGHLIGHT_CATEGORY) {
+                errors += "Resaltado fuera del texto o desordenado"
+                return
+            }
+            previousEnd = start + length
+        }
+    }
+
+    /** Nombre o versión corto, sin caracteres de control. */
+    private fun checkName(errors: MutableList<String>, field: String, value: String, max: Int = MAX_NAME_LENGTH) {
+        if (value.isEmpty() || value.length > max) errors += "Campo '$field' vacío o demasiado largo"
+        if (value.any { it.isISOControl() }) errors += "Campo '$field' con caracteres de control"
     }
 
     /** Carpeta dentro del comprimido; "" es la raíz. */
