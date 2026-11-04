@@ -32,14 +32,14 @@ tecnología la evidencia (archivo y línea) y la confianza.
 | `engine:languages` | 19 | Las 15 gramáticas se cargan. Por lenguaje: líneas de código, comentario y en blanco, e importaciones (JavaScript con `require` e `import()` y sin los de los comentarios, TypeScript, TSX, Python con importaciones múltiples, Java con `static`, Kotlin, C#, Dart, PHP, C, C++ y CSS); HTML, SQL y GDScript. Código roto (errores contados, sin fallar). Tiempo agotado → recuento léxico con el motivo. 40 000 líneas en menos de 5 s. Resaltado en caracteres con texto no ASCII y emojis. Rangos de comentarios sintácticos y léxicos. Recuento léxico con bloques, cadenas, CRLF y sin salto final. Detección del lenguaje y casos ambiguos. |
 | `engine:dependencies` | 10 | Un manifiesto de cada ecosistema con versión, alcance y línea; catálogo de versiones de Gradle; dependencias locales y transitivas excluidas; opciones de pip con credenciales ignoradas; nombres no válidos y límite por manifiesto; YAML: alias sin expandir (*bomba YAML* en menos de 2 s), profundidad máxima, documento inválido. |
 | `engine:technologies` | 5 | Búsqueda de muchos textos a la vez (Aho–Corasick): apariciones solapadas, sin distinguir mayúsculas, parada anticipada. El catálogo empaquetado se carga y valida (≥ 150 tecnologías, ≥ 15 bases de datos, ≥ 20 servicios externos, todas alcanzables); catálogos erróneos rechazados (repetición acotada grande, patrón sin aviso, ecosistema o categoría desconocidos, peso fuera de rango); importaciones por módulo o submódulo sin falsos prefijos; comodines de archivo. |
-| `engine:pipeline` | 5 | **Criterio de aceptación** con un proyecto de tres partes (Laravel, Flutter + Firebase, Express + PostgreSQL): cada tecnología con su confianza y su evidencia en el archivo y la línea exactos (dependencia, archivo característico, importación, código); MySQL "probable" solo por la configuración; Redis y Stripe como menciones; tecnologías ausentes no inventadas. Ningún secreto completo en ningún registro. Lenguajes, líneas, dependencias con subproyecto y resaltado. Android con catálogo de versiones (complemento, BOM de Compose, Room con su importación). Proyecto sin código: ninguna tecnología y la cobertura lo explica. |
+| `engine:pipeline` | 6 | **Criterio de aceptación** con un proyecto de tres partes (Laravel, Flutter + Firebase, Express + PostgreSQL): cada tecnología con su confianza y su evidencia en el archivo y la línea exactos (dependencia, archivo característico, importación, código); MySQL "probable" solo por la configuración; Redis y Stripe como menciones; tecnologías ausentes no inventadas. Ningún secreto completo en ningún registro. Lenguajes, líneas, dependencias con subproyecto y resaltado. Android con catálogo de versiones (complemento, BOM de Compose, Room con su importación). Proyecto sin código: ninguna tecnología y la cobertura lo explica. Sin catálogo, el análisis sigue y la cobertura lo dice. |
 | `engine:inventory` | 14 | Las de la Fase 3, ahora con el análisis de lenguaje integrado. |
 | `engine:api` | 28 | Las anteriores con el esquema v4. |
 | `engine:ingest`, `engine:core`, `engine:security` | 36 + 10 + 8 | Sin cambios de comportamiento. |
 | `data` | 18 | Las anteriores. |
 | `analyzer-service` | 1 | Las anteriores. |
 | `app` (Robolectric) | 27 | Las anteriores más: el resaltado se guarda con la copia y vuelve con posiciones válidas; reparto del resaltado por líneas y recorte seguro; **recorrido del informe**: tecnología confirmada con versión, menciones aparte, lenguajes, evidencias con archivo:línea y apertura del archivo en el Explorador, ficha con lenguaje y tecnologías, visor con resaltado. |
-| **Total** | **181** | **0 fallos** |
+| **Total** | **182** | **0 fallos** |
 
 Además: **Android Lint sin ningún hallazgo**, APK de publicación con R8 correcto y **prueba con un proyecto real**
 (este repositorio, 349 archivos, en unos 4 s en el PC; un proyecto sintético de 3 000 archivos y 65 MB, en 25 s): Android, Jetpack Compose (con las versiones del BOM), Room,
@@ -80,6 +80,15 @@ Android 8.0 (API 26), 15 (API 35) y 16 (API 36). Además de las de fases anterio
    su tipo (programación, marcado, datos o documentación) y solo los dos primeros cuentan como código; el resto se
    indica aparte. Y entre evidencias de igual fuerza se muestran antes las del código del producto que las de las
    pruebas.
+
+Y el que detectó el CI en los tres emuladores (en el PC todo pasaba):
+
+10. **El proceso aislado se cerraba al empezar cualquier análisis.** El cargador del catálogo validaba los patrones
+    con una expresión de `java.util.regex` que tenía una `}` sin escapar. La JVM del PC la acepta; Android usa ICU,
+    que la rechaza: la clase del catálogo no se podía inicializar y el proceso aislado se cerraba antes de enviar
+    nada (también con los RAR). Se vio en el registro del emulador. Ahora esa comprobación usa RE2/J (el mismo código
+    en el PC y en Android) con la llave escapada, y si el catálogo no se pudiera cargar el análisis sigue sin
+    tecnologías y la cobertura lo explica (prueba nueva).
 
 ## Cómo probarlo en tu teléfono
 

@@ -12,6 +12,7 @@ import com.funcodestudiocb.analyzer.engine.api.RecordValidator
 import com.funcodestudiocb.analyzer.engine.api.Technology
 import com.funcodestudiocb.analyzer.engine.core.Stage
 import com.funcodestudiocb.analyzer.engine.core.StageContext
+import com.funcodestudiocb.analyzer.engine.core.StageStoppedException
 import com.funcodestudiocb.analyzer.engine.dependencies.DependencyKeys
 import com.funcodestudiocb.analyzer.engine.dependencies.label
 import com.funcodestudiocb.analyzer.engine.ingest.IngestKeys
@@ -59,7 +60,7 @@ internal class Hits {
  * Busca, en el texto redactado de cada archivo, las importaciones, los textos y los patrones del catálogo, y las
  * menciones en documentación y comentarios. Las coincidencias dentro de comentarios solo cuentan como mención.
  */
-class TechnologySignalCollector(private val catalog: TechnologyCatalog = TechnologyCatalog.default) : RedactedTextListener {
+class TechnologySignalCollector(internal val catalog: TechnologyCatalog = TechnologyCatalog.default) : RedactedTextListener {
 
     internal val hits = HashMap<String, Hits>()
     var scannedFiles = 0
@@ -208,10 +209,12 @@ class TechnologySignalCollector(private val catalog: TechnologyCatalog = Technol
  * característicos y los indicios del código, puntúa cada tecnología del catálogo y emite las que tienen alguna
  * evidencia, con dónde se encontró y su confianza.
  */
-class TechnologyStage(
-    private val collector: TechnologySignalCollector,
-    private val catalog: TechnologyCatalog = TechnologyCatalog.default,
-) : Stage {
+class TechnologyStage(private val signals: TechnologySignalCollector?) : Stage {
+    /** Sin catálogo (no se pudo cargar), la etapa se detiene y la cobertura lo dice; el resto del análisis sigue. */
+    private val collector: TechnologySignalCollector
+        get() = signals ?: throw StageStoppedException("No se pudo cargar el catálogo de tecnologías: no se buscaron tecnologías")
+    private val catalog: TechnologyCatalog get() = collector.catalog
+
     override val id = "technologies"
     override val title = "Tecnologías, bases de datos y servicios externos"
     override val dependsOn = setOf("dependencies")

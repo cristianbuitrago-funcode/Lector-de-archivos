@@ -248,4 +248,33 @@ class FullPipelineTest {
         assertTrue(run.all<CoverageNote>().any { it.detail.contains("catálogo v1") })
         assertTrue(run.all<CoverageNote>().any { it.detail.contains("Fase 7") })
     }
+
+    @Test
+    fun `sin catalogo de tecnologias el analisis sigue y la cobertura lo explica`() {
+        val file = File.createTempFile("proyecto", ".zip", dir)
+        ZipOutputStream(file.outputStream()).use { out ->
+            out.putNextEntry(ZipEntry("src/App.kt"))
+            out.write("fun main() = println(1)\n".toByteArray())
+            out.closeEntry()
+        }
+        val dependencies = com.funcodestudiocb.analyzer.engine.dependencies.DependencyCollector()
+        val stages = com.funcodestudiocb.analyzer.engine.inventory.InventoryPipeline
+            .registry(com.funcodestudiocb.analyzer.engine.inventory.ContentCollector(listOf(dependencies)))
+            .register(com.funcodestudiocb.analyzer.engine.dependencies.DependencyStage(dependencies))
+            .register(com.funcodestudiocb.analyzer.engine.technologies.TechnologyStage(null))
+            .plan()
+        FileInputStream(file).use { stream ->
+            val attributes = Attributes()
+            attributes[IngestKeys.SOURCE] = ArchiveSource(stream.channel, file.absolutePath)
+            attributes[IngestKeys.PASSWORD] = attributes.closeLater(PasswordHolder(null))
+            val sink = mutableListOf<ResultRecord>()
+            runBlocking { PipelineRunner("test").run(AnalysisConfig("prueba", AnalysisMode.FULL, ingest = IngestOptions(file.name)), stages, { sink += it }, attributes) }
+            val events = sink.filterIsInstance<StageEvent>().associateBy { it.stageId }
+            assertEquals(StageStatus.COMPLETED, events["inventory"]?.status)
+            assertEquals(StageStatus.COMPLETED, events["languages"]?.status)
+            assertTrue(events["technologies"]?.status != StageStatus.COMPLETED)
+            assertTrue(sink.filterIsInstance<CoverageNote>().any { it.stageId == "technologies" && it.detail.contains("catálogo de tecnologías") })
+            assertTrue(sink.filterIsInstance<FileProfile>().any { it.path == "src/App.kt" && it.language?.name == "Kotlin" })
+        }
+    }
 }

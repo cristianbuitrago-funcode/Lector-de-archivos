@@ -5,6 +5,7 @@ import com.funcodestudiocb.analyzer.engine.dependencies.DependencyCollector
 import com.funcodestudiocb.analyzer.engine.dependencies.DependencyStage
 import com.funcodestudiocb.analyzer.engine.inventory.ContentCollector
 import com.funcodestudiocb.analyzer.engine.inventory.InventoryPipeline
+import com.funcodestudiocb.analyzer.engine.technologies.TechnologyCatalog
 import com.funcodestudiocb.analyzer.engine.technologies.TechnologySignalCollector
 import com.funcodestudiocb.analyzer.engine.technologies.TechnologyStage
 
@@ -15,8 +16,9 @@ import com.funcodestudiocb.analyzer.engine.technologies.TechnologyStage
 object FullPipeline {
     fun stages(): List<Stage> {
         val dependencies = DependencyCollector()
-        val technologies = TechnologySignalCollector()
-        val collector = ContentCollector(listOf(dependencies, technologies))
+        // Si el catálogo no se puede cargar, el análisis sigue sin tecnologías (la etapa lo informa).
+        val technologies = TechnologyCatalog.loadDefault()?.let(::TechnologySignalCollector)
+        val collector = ContentCollector(listOfNotNull(dependencies, technologies))
         return InventoryPipeline.registry(collector)
             .register(DependencyStage(dependencies))
             .register(TechnologyStage(technologies))

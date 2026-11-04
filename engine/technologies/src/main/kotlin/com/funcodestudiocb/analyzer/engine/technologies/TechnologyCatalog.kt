@@ -67,8 +67,12 @@ class TechnologyCatalog(val version: Int, val rules: List<TechnologyRule>) {
         private const val RESOURCE = "catalog.yaml"
         private val ID = Regex("^[a-z0-9][a-z0-9-]{0,63}$")
 
-        /** Repeticiones acotadas grandes: RE2/J las compila con recursión profunda (ver Fase 3). */
-        private val LARGE_REPETITION = Regex("""\{\s*\d*\s*,?\s*(\d{2,})\s*}""")
+        /**
+         * Repeticiones acotadas grandes: RE2/J las compila con recursión profunda (ver Fase 3). Se usa RE2/J, que es el
+         * mismo código en el PC y en Android (las expresiones de `java.util.regex` de Android usan ICU, más estricto:
+         * una `}` sin escapar que el PC acepta cerraba el proceso aislado al cargar el catálogo).
+         */
+        private val LARGE_REPETITION = Pattern.compile("""\{\s*\d*\s*,?\s*(\d{2,})\s*\}""")
 
         private val ECOSYSTEMS = mapOf(
             "npm" to setOf(Ecosystem.NPM),
@@ -95,6 +99,18 @@ class TechnologyCatalog(val version: Int, val rules: List<TechnologyRule>) {
             SignalKind.CONTENT to 0.4,
             SignalKind.PATTERN to 0.4,
         )
+
+        /**
+         * El catálogo empaquetado, o `null` si no se pudo cargar: el análisis continúa sin tecnologías y la etapa lo
+         * indica en la cobertura, en lugar de cerrar el proceso aislado.
+         */
+        fun loadDefault(): TechnologyCatalog? = try {
+            default
+        } catch (e: Exception) {
+            null
+        } catch (e: LinkageError) {
+            null
+        }
 
         val default: TechnologyCatalog by lazy {
             val text = TechnologyCatalog::class.java.getResourceAsStream(RESOURCE)?.use { it.readBytes().toString(Charsets.UTF_8) }
@@ -153,7 +169,7 @@ class TechnologyCatalog(val version: Int, val rules: List<TechnologyRule>) {
             val pattern = if (kind == SignalKind.PATTERN) {
                 val hint = map.string("hint") ?: fail("$tech: patrón sin texto de aviso (hint) en la línea ${map.line}")
                 if (hint.isEmpty()) fail("$tech: hint vacío")
-                if (LARGE_REPETITION.containsMatchIn(value)) fail("$tech: repetición acotada grande en un patrón (desborda la pila en Android)")
+                if (LARGE_REPETITION.matcher(value).find()) fail("$tech: repetición acotada grande en un patrón (desborda la pila en Android)")
                 Pattern.compile(value, Pattern.MULTILINE)
             } else {
                 null
