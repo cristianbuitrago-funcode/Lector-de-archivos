@@ -55,7 +55,9 @@ Android 8.0 (API 26), 15 (API 35) y 16 (API 36). Además de las de fases anterio
   guardada tiene resaltado.
 - `MigrationInstrumentedTest`: la BD de la Fase 3 migra a la versión 4 conservando la copia del código.
 
-**Resultado:** _pendiente de la ejecución del CI_.
+**Resultado: 13 de 13 correctas en las tres versiones** (ejecución n.º 17 del CI: 3 de aislamiento, 3 de cifrado,
+3 de migración, 3 de análisis completo y 1 recorrido de extremo a extremo). Las ejecuciones 15 y 16 fallaron por los
+incidentes 10 y 11.
 
 ### Errores encontrados y corregidos durante la fase
 
