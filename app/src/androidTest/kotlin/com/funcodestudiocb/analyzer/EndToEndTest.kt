@@ -6,6 +6,9 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.funcodestudiocb.analyzer.data.session.SessionState
@@ -41,10 +44,30 @@ class EndToEndTest {
     @get:Rule
     val rules: RuleChain = RuleChain.outerRule(cleanState).around(compose)
 
+    /**
+     * Cierra el teclado y espera a que termine su animación: si se pulsa mientras el teclado se mueve, el botón se
+     * desplaza entre el cálculo de la posición y la pulsación y esta se pierde (fallo intermitente en Android 15).
+     */
+    private fun hideKeyboard() {
+        compose.activityRule.scenario.onActivity { activity ->
+            WindowCompat.getInsetsController(activity.window, activity.window.decorView).hide(WindowInsetsCompat.Type.ime())
+        }
+        compose.waitUntil(10_000) {
+            var visible = false
+            compose.activityRule.scenario.onActivity { activity ->
+                visible = ViewCompat.getRootWindowInsets(activity.window.decorView)?.isVisible(WindowInsetsCompat.Type.ime()) == true
+            }
+            !visible
+        }
+        InstrumentationRegistry.getInstrumentation().waitForIdleSync()
+        compose.waitForIdle()
+    }
+
     @Test
     fun crearAccesoYVerificarElAislamiento() {
         compose.onNodeWithTag("setup_password").performTextInput("Funcode-2026")
         compose.onNodeWithTag("setup_confirm").performTextInput("Funcode-2026")
+        hideKeyboard()
         compose.onNodeWithTag("setup_create").performScrollTo().performClick()
         compose.waitUntil(30_000) { app.container.session.state.value == SessionState.Unlocked }
 

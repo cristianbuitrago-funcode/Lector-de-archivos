@@ -89,6 +89,9 @@ Y el que detectó el CI en los tres emuladores (en el PC todo pasaba):
     nada (también con los RAR). Se vio en el registro del emulador. Ahora esa comprobación usa RE2/J (el mismo código
     en el PC y en Android) con la llave escapada, y si el catálogo no se pudiera cargar el análisis sigue sin
     tecnologías y la cobertura lo explica (prueba nueva).
+11. Con esa corrección, en Android 15 falló una vez la prueba de extremo a extremo de la Fase 1: la pulsación de
+    "Crear acceso" llegó mientras el teclado aún se animaba y el botón se movió. La prueba ahora cierra el teclado y
+    espera a que la interfaz quede quieta antes de pulsar.
 
 ## Cómo probarlo en tu teléfono
 
