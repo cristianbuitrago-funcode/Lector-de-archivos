@@ -45,7 +45,8 @@ Android 8.0 (API 26), 15 (API 35) y 16 (API 36). Además de las de fases anterio
   una copia redactada en la que el secreto no aparece; el almacén temporal cifrado se borra.
 - `MigrationInstrumentedTest`: la BD de la Fase 2 migra a la versión 3 sin perder los análisis.
 
-El resultado de la ejecución del CI se indica en el mensaje de entrega de la fase.
+**Resultado: 12 de 12 correctas en las tres versiones** (ejecución n.º 12 del CI: 3 de aislamiento, 3 de cifrado,
+2 de migración, 3 de análisis completo y 1 recorrido de extremo a extremo).
 
 ### Errores encontrados y corregidos durante la fase
 
