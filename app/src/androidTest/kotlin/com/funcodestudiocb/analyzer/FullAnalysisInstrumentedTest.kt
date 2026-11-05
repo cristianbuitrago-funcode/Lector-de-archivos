@@ -11,6 +11,7 @@ import com.funcodestudiocb.analyzer.engine.api.Confidence
 import com.funcodestudiocb.analyzer.engine.api.EvidenceKind
 import com.funcodestudiocb.analyzer.engine.api.LineMethod
 import com.funcodestudiocb.analyzer.engine.api.RelationConfidence
+import com.funcodestudiocb.analyzer.engine.api.RelationKind
 import com.funcodestudiocb.analyzer.engine.api.EntryPointKind
 import com.funcodestudiocb.analyzer.engine.api.ExclusionOptions
 import com.funcodestudiocb.analyzer.engine.api.FileRole
@@ -89,8 +90,8 @@ class FullAnalysisInstrumentedTest {
                 "src/copia/App.kt" to "fun main() = println(\"hola\")",
                 "src/Config.kt" to "val apiKey = \"abcd1234efgh5678ijkl\"\n",
                 "web/package.json" to "{\"dependencies\": {\"express\": \"^4.19.0\"}}",
-                "web/server.js" to "// servidor\nconst express = require(\"express\");\nconst util = require(\"./util\");\n",
-                "web/util.js" to "module.exports = {};\n",
+                "web/server.js" to "// servidor\nconst express = require(\"express\");\nconst util = require(\"./util\");\nconst app = express();\napp.get(\"/api/ping\", (req, res) => res.send(\"ok\"));\n",
+                "web/util.js" to "module.exports = { ping: () => fetch(\"/api/ping\") };\n",
                 "node_modules/react/index.js" to "x",
                 "../fuera.txt" to "malicioso",
             ).forEach { (name, text) ->
@@ -138,6 +139,15 @@ class FullAnalysisInstrumentedTest {
         assertEquals(1, util.impact.directDependents)
         assertTrue(finished.report.relations.any { it.source == "web/server.js" && it.external == "express" && it.confidence == RelationConfidence.VERIFIED })
         assertEquals(1, finished.report.fileGraphs.single { it.path == "web/util.js" }.incoming)
+
+        // Relaciones de framework (Fase 5B): la ruta de Express y la llamada que la usa.
+        val ping = finished.report.endpoints.single { it.path == "/api/ping" }
+        assertEquals("GET", ping.method)
+        assertEquals("web/server.js", ping.file)
+        assertEquals(listOf("web/util.js:1"), ping.callers)
+        val call = finished.report.relations.single { it.source == "web/util.js" && it.kind == RelationKind.HTTP }
+        assertEquals("web/server.js", call.target)
+        assertEquals(RelationConfidence.PROBABLE, call.confidence)
     }
 
     @Test

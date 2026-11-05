@@ -33,6 +33,10 @@ object RecordValidator {
     const val MAX_SYMBOLS = 300
     const val MAX_CYCLE_PATHS = 100
     const val MAX_IMPACT_ENTRY_POINTS = 3
+    const val MAX_SAMPLES = 5
+    const val MAX_ROUTE_LENGTH = 512
+    const val MAX_OPERATIONS = 8
+    val HTTP_METHODS = setOf("GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS", "ANY")
 
     /** Caracteres visibles que puede mostrar un secreto enmascarado: 4 al principio y 2 al final (§8.4). */
     const val MAX_VISIBLE_SECRET_CHARS = 6
@@ -194,6 +198,34 @@ object RecordValidator {
                 if (listOf(impact.directDependents, impact.transitiveDependents, impact.entryPointCount).any { it < 0 }) errors += "Impacto negativo"
                 if (impact.entryPoints.size > MAX_IMPACT_ENTRY_POINTS || impact.entryPoints.size > impact.entryPointCount) errors += "Puntos de entrada del impacto incoherentes"
                 impact.entryPoints.forEach { checkPath(errors, it) }
+                checkSamples(errors, "affected", impact.affected, impact.affectedCount)
+            }
+            is Endpoint -> {
+                if (record.method !in HTTP_METHODS) errors += "Método HTTP desconocido"
+                checkName(errors, "path", record.path, MAX_ROUTE_LENGTH)
+                if (!record.path.startsWith("/")) errors += "La ruta no empieza por /"
+                checkName(errors, "framework", record.framework)
+                checkPath(errors, record.file)
+                if (record.line < 1) errors += "Línea inválida"
+                record.handler?.let { checkName(errors, "handler", it) }
+                record.handlerFile?.let { checkPath(errors, it) }
+                checkSamples(errors, "callers", record.callers, record.callerCount)
+            }
+            is DataEntity -> {
+                checkName(errors, "name", record.name)
+                record.file?.let { checkPath(errors, it) }
+                if ((record.line ?: 1) < 1) errors += "Línea inválida"
+                if ((record.file == null) != (record.line == null)) errors += "Definición de datos incompleta"
+                record.definedBy?.let { checkName(errors, "definedBy", it) }
+                if (record.accessedBy < 0) errors += "Recuento negativo"
+                if (record.operations.size > MAX_OPERATIONS) errors += "Demasiadas operaciones"
+                record.operations.forEach { checkName(errors, "operation", it) }
+            }
+            is ConfigKey -> {
+                checkName(errors, "name", record.name)
+                if (record.definedIn.size > MAX_SAMPLES) errors += "Demasiados archivos de definición"
+                record.definedIn.forEach { checkPath(errors, it) }
+                checkSamples(errors, "readers", record.readers, record.readCount)
             }
             is FileGraph -> {
                 checkPath(errors, record.path)
@@ -211,7 +243,11 @@ object RecordValidator {
                 record.paths.forEach { checkPath(errors, it) }
             }
             is RelationsSummary -> {
-                val values = listOf(record.files, record.relations, record.internal, record.external, record.broken, record.cycles, record.unreferencedFiles)
+                val values = listOf(
+                    record.files, record.relations, record.internal, record.external, record.broken, record.cycles, record.unreferencedFiles,
+                    record.endpoints, record.pages, record.httpCalls, record.httpMatched, record.dataEntities, record.configKeys,
+                )
+                if (record.httpMatched > record.httpCalls) errors += "Llamadas HTTP incoherentes"
                 if (values.any { it < 0 } || record.byKind.values.any { it < 0 } || record.byConfidence.values.any { it < 0 }) errors += "Totales negativos"
             }
             is Technology -> {
@@ -278,6 +314,12 @@ object RecordValidator {
             }
             previousEnd = start + length
         }
+    }
+
+    /** Muestras "archivo:línea" (como máximo [MAX_SAMPLES]) y su total. */
+    private fun checkSamples(errors: MutableList<String>, field: String, samples: List<String>, count: Int) {
+        if (samples.size > MAX_SAMPLES || count < samples.size) errors += "Campo '$field' incoherente"
+        samples.forEach { checkName(errors, field, it, MAX_PATH_LENGTH + 12) }
     }
 
     /** Nombre o versión corto, sin caracteres de control. */

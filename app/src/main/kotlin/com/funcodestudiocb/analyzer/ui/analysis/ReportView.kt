@@ -229,6 +229,7 @@ fun ReportView(
         if (report.hasTechnologies) {
             TechnologiesPanel(report, onOpenFile)
             RelationsReportPanel(report, onOpenFile)
+            FrameworkReportPanel(report, onOpenFile)
             LanguagesPanel(report)
         }
 

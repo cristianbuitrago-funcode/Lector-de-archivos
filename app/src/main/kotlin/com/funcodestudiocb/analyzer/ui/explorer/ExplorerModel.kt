@@ -167,6 +167,9 @@ class ExplorerModel(val report: AnalysisReport) {
     /** El análisis tiene relaciones (Fase 5A o posterior). */
     val hasRelations: Boolean = report.relationsSummary != null
 
+    /** Rutas que declara cada archivo (Fase 5B). */
+    val endpointsByFile: Map<String, List<com.funcodestudiocb.analyzer.engine.api.Endpoint>> = report.endpoints.groupBy { it.file }
+
     /** Tecnologías con alguna evidencia en este archivo, con esas evidencias. */
     fun technologiesIn(path: String): List<Pair<com.funcodestudiocb.analyzer.engine.api.Technology, List<com.funcodestudiocb.analyzer.engine.api.Evidence>>> =
         report.technologies.mapNotNull { t -> t.evidence.filter { it.path == path }.takeIf { it.isNotEmpty() }?.let { t to it } }

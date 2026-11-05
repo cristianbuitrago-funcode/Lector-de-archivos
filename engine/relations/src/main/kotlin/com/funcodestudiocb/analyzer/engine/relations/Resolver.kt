@@ -581,6 +581,18 @@ class Resolver(private val index: ProjectIndex) {
         }
         // Las de sistema o de bibliotecas que no están en el comprimido no se registran como relación.
         if (system) return null
+        // Qt: ui_x.h la genera uic a partir de x.ui; moc_*.cpp y *.moc los genera moc.
+        if (name.startsWith("ui_") && name.endsWith(".h")) {
+            val ui = name.removePrefix("ui_").removeSuffix(".h") + ".ui"
+            val forms = index.withName(ui)
+            if (forms.isNotEmpty()) {
+                return Resolution(forms.maxBy { commonPrefix(it, file.path) }, confidence = RelationConfidence.PROBABLE, how = "cabecera que Qt (uic) genera al compilar a partir de $ui", kind = RelationKind.RESOURCE)
+            }
+            return Resolution(external = spec, confidence = RelationConfidence.UNVERIFIED, how = "cabecera que Qt (uic) genera al compilar")
+        }
+        if (name.startsWith("moc_") || name.endsWith(".moc")) {
+            return Resolution(external = spec, confidence = RelationConfidence.UNVERIFIED, how = "archivo que Qt (moc) genera al compilar")
+        }
         val dirPart = spec.substringBeforeLast('/', "")
         if (dirPart.isNotEmpty() && index.dirs.none { it == dirPart || it.endsWith("/$dirPart") }) {
             return Resolution(external = spec, confidence = RelationConfidence.UNVERIFIED, how = "cabecera de una biblioteca cuya carpeta no está en el comprimido")

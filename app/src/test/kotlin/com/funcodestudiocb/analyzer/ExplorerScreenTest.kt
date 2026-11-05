@@ -228,4 +228,46 @@ class ExplorerScreenTest {
         compose.onNodeWithTag("file_relations").performScrollTo()
         compose.onNodeWithText("Lo usan (1)").assertIsDisplayed()
     }
+
+    @Test
+    fun rutasLlamadasDatosYConfiguracionDeFramework() {
+        analyze(
+            mapOf(
+                "server/package.json" to "{\"name\": \"server\", \"dependencies\": {\"express\": \"^4.0.0\"}}",
+                "server/.env.example" to "DATABASE_URL=x\n",
+                "server/app.js" to "const express = require('express');\nconst ctrl = require('./users');\nconst app = express();\napp.get('/api/users', ctrl.list);\n",
+                "server/users.js" to "exports.list = (req, res) => db.query('SELECT * FROM users WHERE id = ?', [1]);\nconst url = process.env.DATABASE_URL;\nconst key = process.env.STRIPE_KEY;\n",
+                "web/api.js" to "export const users = () => fetch('/api/users');\nexport const orders = () => fetch('/api/orders');\n",
+            ),
+        )
+        compose.onNodeWithTag("open_menu").performClick()
+        compose.onNodeWithTag("nav_nuevo").performScrollTo().performClick()
+        awaitCondition { compose.onAllNodesWithTag("report_framework").fetchSemanticsNodes().isNotEmpty() }
+
+        // Informe: rutas con su controlador y sus llamadas, llamada sin ruta, tablas y claves sin definir.
+        compose.onNodeWithTag("report_framework").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("1 rutas del backend", substring = true).performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("GET /api/users").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("→ ctrl.list · Express · 1 llamada", substring = true).performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Llamadas HTTP sin ruta en el backend analizado (1)").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("GET /api/orders").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Tablas y colecciones (1)").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Se configuran fuera del comprimido (1)").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("STRIPE_KEY").performScrollTo().assertIsDisplayed()
+
+        // La ruta abre el archivo que la atiende; la conexión desde el cliente muestra sus cinco atributos.
+        compose.onNodeWithText("GET /api/users").performScrollTo().performClick()
+        awaitCondition { compose.onAllNodesWithTag("file_detail").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithText("users.js").assertIsDisplayed()
+        compose.onNodeWithTag("file_relations").performScrollTo()
+        compose.onNodeWithText("web/api.js").performScrollTo().performClick()
+        compose.waitForIdle()
+        compose.onNodeWithTag("relation_detail").assertIsDisplayed()
+        compose.onNodeWithText("Llamada HTTP").assertIsDisplayed()
+        compose.onNodeWithTag("relation_exchanged").performScrollTo()
+        compose.onNodeWithText("GET /api/users").assertIsDisplayed()
+        compose.onNodeWithTag("relation_impact").performScrollTo()
+        compose.onNodeWithText("Si la ruta del backend cambia o desaparece, esta petición falla", substring = true).assertIsDisplayed()
+        compose.onNodeWithText("ruta HTTP literal idéntica en el backend", substring = true).performScrollTo().assertIsDisplayed()
+    }
 }

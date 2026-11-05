@@ -54,6 +54,7 @@ fun relationKindLabel(kind: RelationKind): String = stringResource(
         RelationKind.RESOURCE -> R.string.relation_kind_resource
         RelationKind.IPC -> R.string.relation_kind_ipc
         RelationKind.INJECTION -> R.string.relation_kind_injection
+        RelationKind.REGISTRATION -> R.string.relation_kind_registration
     },
 )
 
@@ -101,7 +102,10 @@ private fun symbolCategoryLabel(category: SymbolCategory): String = stringResour
 @Composable
 fun relationDestination(relation: Relation): String = when {
     relation.target != null -> relation.target!!.revealControlCharacters()
-    relation.external != null -> stringResource(R.string.relation_external, relation.external!!.revealControlCharacters())
+    relation.external != null -> stringResource(
+        if (relation.kind in LANGUAGE_KINDS) R.string.relation_external else R.string.relation_external_other,
+        relation.external!!.revealControlCharacters(),
+    )
     else -> stringResource(R.string.relation_missing, relation.reference.revealControlCharacters())
 }
 
@@ -143,6 +147,17 @@ fun RelationsPanel(model: ExplorerModel, path: String, onOpen: (Relation) -> Uni
     FuncodePanel(accent = FuncodeColors.Electric, modifier = Modifier.testTag("file_relations")) {
         Title(stringResource(R.string.file_relations))
         graph?.let { GraphFacts(it, model) }
+        model.endpointsByFile[path]?.takeIf { it.isNotEmpty() }?.let { routes ->
+            Text(stringResource(R.string.file_routes, routes.size), fontWeight = FontWeight.Medium, modifier = Modifier.padding(top = 6.dp).testTag("file_routes"))
+            routes.take(MAX_ROWS).forEach { e ->
+                Text(
+                    "${e.method} ${e.path}".revealControlCharacters() + (e.handler?.let { " → $it" } ?: "") + " · ${e.framework}",
+                    fontFamily = FontFamily.Monospace,
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(vertical = 2.dp),
+                )
+            }
+        }
         Text(stringResource(R.string.file_relations_uses, out.size), fontWeight = FontWeight.Medium, modifier = Modifier.padding(top = 6.dp))
         if (out.isEmpty()) Text(stringResource(R.string.file_relations_none), style = MaterialTheme.typography.bodySmall)
         out.take(MAX_ROWS).forEach { RelationRow(it, relationDestination(it), onOpen) }
@@ -270,14 +285,28 @@ private fun impactLines(relation: Relation): List<String> {
             out += stringResource(R.string.impact_broken)
             out += pluralStringResource(R.plurals.impact_broken_dependents, impact.transitiveDependents, impact.transitiveDependents)
         }
-        relation.external != null -> out += pluralStringResource(R.plurals.impact_external, impact.directDependents, relation.external!!.revealControlCharacters(), impact.directDependents)
+        relation.external != null -> {
+            when (relation.kind) {
+                RelationKind.HTTP, RelationKind.DB_ACCESS, RelationKind.IPC, RelationKind.RESOURCE -> out += stringResource(R.string.impact_http_external)
+                RelationKind.CONFIG_READ -> out += stringResource(R.string.impact_config_external)
+                else -> out += pluralStringResource(R.plurals.impact_external, impact.directDependents, relation.external!!.revealControlCharacters(), impact.directDependents)
+            }
+        }
         else -> {
-            if (impact.undefinedSymbols.isNotEmpty()) out += stringResource(R.string.impact_undefined, impact.undefinedSymbols.joinToString(", "))
-            else if (relation.kind == RelationKind.RESOURCE) out += stringResource(R.string.impact_resource)
-            else out += stringResource(R.string.impact_source_breaks)
+            out += when {
+                impact.undefinedSymbols.isNotEmpty() -> stringResource(R.string.impact_undefined, impact.undefinedSymbols.joinToString(", "))
+                else -> kindEffect(relation.kind)
+            }
             out += if (impact.transitiveCapped) pluralStringResource(R.plurals.impact_dependents_capped, impact.directDependents, impact.directDependents, impact.transitiveDependents)
             else pluralStringResource(R.plurals.impact_dependents, impact.directDependents, impact.directDependents, impact.transitiveDependents)
         }
+    }
+    // Lugares concretos afectados: llamadas a la misma ruta, lecturas de la misma clave, usos de la misma tabla…
+    val places = impact.affected.joinToString(", ") { it.substringAfterLast('/') } + if (impact.affectedCount > impact.affected.size) "…" else ""
+    when {
+        relation.kind == RelationKind.ROUTE_HANDLER && impact.affectedCount == 0 -> out += stringResource(R.string.impact_route_no_callers)
+        relation.kind == RelationKind.ROUTE_HANDLER -> out += pluralStringResource(R.plurals.impact_affected_route, impact.affectedCount, impact.affectedCount, places)
+        impact.affectedCount > 0 -> out += pluralStringResource(R.plurals.impact_affected, impact.affectedCount, impact.affectedCount, places)
     }
     out += when {
         impact.entryPointCount == 0 -> stringResource(R.string.impact_no_entry)
@@ -288,5 +317,24 @@ private fun impactLines(relation: Relation): List<String> {
     }
     return out
 }
+
+/** Efecto propio de cada tipo de conexión al cambiar o eliminar su destino. */
+@Composable
+private fun kindEffect(kind: RelationKind): String = stringResource(
+    when (kind) {
+        RelationKind.RESOURCE -> R.string.impact_resource
+        RelationKind.ROUTE_HANDLER -> R.string.impact_route
+        RelationKind.HTTP -> R.string.impact_http
+        RelationKind.DB_ACCESS -> R.string.impact_db
+        RelationKind.CONFIG_READ -> R.string.impact_config
+        RelationKind.INJECTION -> R.string.impact_injection
+        RelationKind.IPC -> R.string.impact_ipc
+        RelationKind.REGISTRATION -> R.string.impact_registration
+        else -> R.string.impact_source_breaks
+    },
+)
+
+/** Tipos de conexión del lenguaje (su destino externo es un paquete). */
+private val LANGUAGE_KINDS = setOf(RelationKind.IMPORT, RelationKind.INHERITANCE, RelationKind.IMPLEMENTATION, RelationKind.REFERENCE)
 
 private const val MAX_ROWS = 50

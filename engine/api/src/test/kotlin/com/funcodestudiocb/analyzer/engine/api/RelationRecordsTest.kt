@@ -24,7 +24,13 @@ class RelationRecordsTest {
             relation(target = null, confidence = RelationConfidence.BROKEN),
             FileGraph("b.ts", 0, 1, 2, 1.0, 1, 3, cycle = 0, reachableFromEntryPoint = true, symbols = listOf(SymbolInfo("b", SymbolCategory.FUNCTION, 1))),
             DependencyCycle(0, listOf("a.ts", "b.ts"), 2),
-            RelationsSummary(2, 3, 1, 1, 1, 1, 0, mapOf(RelationKind.IMPORT to 3), mapOf(RelationConfidence.VERIFIED to 2)),
+            RelationsSummary(2, 3, 1, 1, 1, 1, 0, mapOf(RelationKind.IMPORT to 3), mapOf(RelationConfidence.VERIFIED to 2), endpoints = 2, pages = 1, httpCalls = 3, httpMatched = 2, dataEntities = 1, configKeys = 1),
+            relation().copy(kind = RelationKind.HTTP, impact = RelationImpact(affected = listOf("web/api.ts:3", "web/b.ts:9"), affectedCount = 7)),
+            Endpoint(EndpointKind.API, "GET", "/api/users/:id", "Express", "routes/users.js", 4, "ctrl.get", "controllers/users.js", callers = listOf("web/api.ts:3"), callerCount = 1),
+            Endpoint(EndpointKind.PAGE, "ANY", "/", "React Router", "src/App.jsx", 7, prefixKnown = false),
+            DataEntity("users", DataEntityKind.TABLE, "db/schema.sql", 3, "CREATE TABLE", 2, listOf("lectura", "escritura")),
+            DataEntity("pedidos", DataEntityKind.COLLECTION, accessedBy = 1, operations = listOf("acceso")),
+            ConfigKey("DATABASE_URL", listOf(".env.example"), listOf("server/db.js:2"), 1),
         )
         records.forEach {
             val json = ProtocolJson.encodeToString(ResultRecord.serializer(), it)
@@ -47,5 +53,16 @@ class RelationRecordsTest {
         invalid(FileGraph("b.ts", 0, 1, 0, 1.5, 1, 0))
         invalid(FileGraph("b.ts", 0, 1, 0, 0.5, 0, 0))
         invalid(DependencyCycle(0, listOf("a.ts"), 1))
+        // Fase 5B
+        invalid(relation(impact = RelationImpact(affected = listOf("a:1", "b:2"), affectedCount = 1)))
+        invalid(relation(impact = RelationImpact(affected = (1..6).map { "a:$it" }, affectedCount = 6)))
+        invalid(Endpoint(EndpointKind.API, "FETCH", "/x", "Express", "a.js", 1))
+        invalid(Endpoint(EndpointKind.API, "GET", "sin-barra", "Express", "a.js", 1))
+        invalid(Endpoint(EndpointKind.API, "GET", "/x", "Express", "a.js", 0))
+        invalid(Endpoint(EndpointKind.API, "GET", "/x\u0000", "Express", "a.js", 1))
+        invalid(DataEntity("users", DataEntityKind.TABLE, file = "db.sql", line = null))
+        invalid(DataEntity("users", DataEntityKind.TABLE, accessedBy = -1))
+        invalid(ConfigKey("KEY", readers = listOf("a:1", "b:2"), readCount = 1))
+        invalid(RelationsSummary(1, 1, 1, 0, 0, 0, 0, emptyMap(), emptyMap(), httpCalls = 1, httpMatched = 2))
     }
 }

@@ -3,7 +3,7 @@ package com.funcodestudiocb.analyzer.engine.api
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
-/** Tipo de conexión entre archivos (§6.2 de la arquitectura). Los de framework llegan en la Fase 5B. */
+/** Tipo de conexión entre archivos (§6.2 de la arquitectura). */
 @Serializable
 enum class RelationKind {
     IMPORT,
@@ -22,6 +22,9 @@ enum class RelationKind {
     RESOURCE,
     IPC,
     INJECTION,
+
+    /** Un archivo de configuración o del framework registra al destino (manifiesto, montaje de rutas, CMake, autoload…). */
+    REGISTRATION,
 }
 
 /**
@@ -48,6 +51,12 @@ data class RelationImpact(
     /** Puntos de entrada desde los que se llega al origen (como máximo 3) y cuántos son en total. */
     val entryPoints: List<String> = emptyList(),
     val entryPointCount: Int = 0,
+    /**
+     * Otros lugares del proyecto que dependen del mismo destino concreto ("archivo:línea", como máximo 5) y cuántos
+     * son: llamadas a la misma ruta, lecturas de la misma clave, accesos a la misma tabla, usos del mismo canal…
+     */
+    val affected: List<String> = emptyList(),
+    val affectedCount: Int = 0,
 )
 
 /**
@@ -126,4 +135,75 @@ data class RelationsSummary(
     val unreferencedFiles: Int,
     val byKind: Map<RelationKind, Int>,
     val byConfidence: Map<RelationConfidence, Int>,
+    /** Rutas del backend y páginas del frontend encontradas. */
+    val endpoints: Int = 0,
+    val pages: Int = 0,
+    /** Llamadas HTTP encontradas y cuántas coinciden con una ruta del proyecto. */
+    val httpCalls: Int = 0,
+    val httpMatched: Int = 0,
+    val dataEntities: Int = 0,
+    val configKeys: Int = 0,
+) : ResultRecord
+
+@Serializable
+enum class EndpointKind {
+    /** Ruta del backend (API o página servida por el servidor). */
+    API,
+
+    /** Ruta del enrutador del frontend (React Router, Vue Router, Angular, Flutter…) o página por archivo. */
+    PAGE,
+}
+
+/** Ruta declarada en el proyecto, con lo que la atiende y quién la llama. */
+@Serializable
+@SerialName("endpoint")
+data class Endpoint(
+    val kind: EndpointKind,
+    /** GET, POST, PUT, PATCH, DELETE, HEAD, OPTIONS o ANY. */
+    val method: String,
+    /** Ruta completa con los prefijos conocidos (`/api/users/:id`). */
+    val path: String,
+    val framework: String,
+    /** Dónde se declara la ruta. */
+    val file: String,
+    val line: Int,
+    /** Lo que la atiende, como está escrito (`UserController@index`, `views.detail`). */
+    val handler: String? = null,
+    val handlerFile: String? = null,
+    /** Se conocen todos los prefijos de la ruta (si no, puede faltar el inicio). */
+    val prefixKnown: Boolean = true,
+    /** Llamadas del proyecto a esta ruta ("archivo:línea", como máximo 5) y cuántas son. */
+    val callers: List<String> = emptyList(),
+    val callerCount: Int = 0,
+) : ResultRecord
+
+@Serializable
+enum class DataEntityKind { TABLE, COLLECTION }
+
+/** Tabla o colección de datos: dónde se define (si está en el proyecto) y quién la usa. */
+@Serializable
+@SerialName("data_entity")
+data class DataEntity(
+    val name: String,
+    val kind: DataEntityKind,
+    val file: String? = null,
+    val line: Int? = null,
+    /** Cómo se define: `CREATE TABLE`, modelo de Django, `@Entity`… */
+    val definedBy: String? = null,
+    /** Archivos que la leen o escriben. */
+    val accessedBy: Int = 0,
+    /** Operaciones encontradas (SELECT, INSERT, UPDATE, DELETE, lectura, escritura). */
+    val operations: List<String> = emptyList(),
+) : ResultRecord
+
+/** Clave de configuración que el código lee. Nunca lleva su valor. */
+@Serializable
+@SerialName("config_key")
+data class ConfigKey(
+    val name: String,
+    /** Archivos que la definen (como máximo 5). Vacío: se configura fuera del comprimido. */
+    val definedIn: List<String> = emptyList(),
+    /** Lecturas ("archivo:línea", como máximo 5) y cuántas son. */
+    val readers: List<String> = emptyList(),
+    val readCount: Int = 0,
 ) : ResultRecord

@@ -3,6 +3,7 @@ package com.funcodestudiocb.analyzer.engine.relations
 import com.funcodestudiocb.analyzer.engine.api.CoverageReason
 import com.funcodestudiocb.analyzer.engine.api.DependencyCycle
 import com.funcodestudiocb.analyzer.engine.api.Evidence
+import com.funcodestudiocb.analyzer.engine.api.EndpointKind
 import com.funcodestudiocb.analyzer.engine.api.EvidenceKind
 import com.funcodestudiocb.analyzer.engine.api.FileEntry
 import com.funcodestudiocb.analyzer.engine.api.FileGraph
@@ -24,6 +25,8 @@ import com.funcodestudiocb.analyzer.engine.inventory.InventoryKeys
 import com.funcodestudiocb.analyzer.engine.inventory.PathInfo
 import com.funcodestudiocb.analyzer.engine.languages.Languages
 import com.funcodestudiocb.analyzer.engine.languages.SymbolKind
+import com.funcodestudiocb.analyzer.engine.relations.framework.DraftSink
+import com.funcodestudiocb.analyzer.engine.relations.framework.FrameworkLinker
 
 /** Relación antes de calcular su impacto. */
 internal class Draft(
@@ -37,12 +40,16 @@ internal class Draft(
     val exchangedNote: String?,
     val confidence: RelationConfidence,
     val evidence: MutableList<Evidence>,
-)
+) {
+    /** Otros lugares que dependen del mismo destino concreto (llamadas a la misma ruta, lecturas de la misma clave…). */
+    val affected = LinkedHashSet<String>()
+}
 
 /**
- * Fase 5A: relaciones entre archivos. Resuelve las importaciones, inclusiones, herencias y referencias de cada
- * archivo, construye el grafo y calcula, para cada conexión, sus cinco atributos: origen y destino, tipo, información
- * intercambiada, impacto de modificarla o eliminarla, y confianza con su evidencia.
+ * Fases 5A y 5B: relaciones entre archivos. Resuelve las importaciones, inclusiones, herencias y referencias de cada
+ * archivo y las conexiones propias de cada framework (rutas, llamadas HTTP, datos, configuración, inyección,
+ * recursos, escenas, canales), construye el grafo y calcula, para cada conexión, sus cinco atributos: origen y
+ * destino, tipo, información intercambiada, impacto de modificarla o eliminarla, y confianza con su evidencia.
  */
 class RelationStage(private val collector: RelationCollector) : Stage {
     override val id = "relations"
@@ -80,10 +87,31 @@ class RelationStage(private val collector: RelationCollector) : Stage {
             }
         }
 
+        context.progress(0.45f, "Analizando rutas, datos, configuración y recursos de cada framework")
+        val importsBySource = HashMap<String, MutableList<Pair<String, List<String>>>>()
+        drafts.values.filter { it.kind == RelationKind.IMPORT && it.target != null && it.confidence != RelationConfidence.BROKEN }
+            .forEach { importsBySource.getOrPut(it.source) { mutableListOf() } += it.target!! to it.exchanged.toList() }
+        val sink = object : DraftSink {
+            override fun add(source: String, line: Int?, r: Resolution, reference: String, kind: RelationKind, what: String, extra: Pair<String, Int>?): String? =
+                add(drafts, source, line, r, reference, kind, what, extra)
+
+            override fun affected(key: String, places: Collection<String>) {
+                val d = drafts[key] ?: return
+                val own = if (d.line != null) "${d.source}:${d.line}" else d.source
+                places.forEach { if (it != own && d.affected.size < MAX_AFFECTED) d.affected += it }
+            }
+
+            override fun importsOf(source: String): List<Pair<String, List<String>>> = importsBySource[source].orEmpty()
+        }
+        val linker = FrameworkLinker(index, resolver, collector.framework, context.attributes[DependencyKeys.DECLARED].orEmpty(), sink)
+        linker.link()
+        val endpoints = linker.emitEndpoints()
+        context.checkActive()
+
         context.progress(0.6f, "Construyendo el grafo")
         val all = drafts.values.toList()
         val internal = all.filter { it.target != null && it.confidence != RelationConfidence.BROKEN }
-        val nodes = (collector.facts.keys + internal.mapNotNull { it.target }).distinct()
+        val nodes = (collector.facts.keys + internal.flatMap { listOf(it.source, it.target!!) }).distinct()
         val graph = DependencyGraph(nodes, internal.map { it.source to it.target!! })
         val comp = graph.components()
         val compSize = HashMap<Int, Int>().also { m -> comp.forEach { m[it] = (m[it] ?: 0) + 1 } }
@@ -113,6 +141,7 @@ class RelationStage(private val collector: RelationCollector) : Stage {
 
         context.progress(0.9f, "Ficha de cada archivo en el grafo")
         val roles = context.attributes[InventoryKeys.ROLES].orEmpty()
+        val hasManifest = collector.framework.keys.any { it.endsWith("AndroidManifest.xml") }
         val order = nodes.indices.sortedByDescending { rank[it] }
         val position = IntArray(nodes.size).also { arr -> order.forEachIndexed { pos, v -> arr[v] = pos + 1 } }
         val maxRank = rank.maxOrNull() ?: 1.0
@@ -122,8 +151,8 @@ class RelationStage(private val collector: RelationCollector) : Stage {
         val incomplete = collector.withoutImports.keys.mapTo(HashSet()) { ecosystem(it) }
         for ((v, path) in nodes.withIndex()) {
             val facts = collector.facts[path]
-            val unreferenced = graph.inc[v].isEmpty() && facts != null && path !in entryPoints &&
-                ecosystem(facts.language) !in incomplete && candidateForUnused(facts, roles[path].orEmpty())
+            val unreferenced = graph.inc[v].isEmpty() && facts != null && path !in entryPoints && path !in linker.endpointFiles &&
+                ecosystem(facts.language) !in incomplete && candidateForUnused(facts, roles[path].orEmpty(), hasManifest)
             if (unreferenced) unreferencedCount++
             context.emit(
                 FileGraph(
@@ -154,8 +183,27 @@ class RelationStage(private val collector: RelationCollector) : Stage {
                 unreferencedFiles = unreferencedCount,
                 byKind = all.groupingBy { it.kind }.eachCount(),
                 byConfidence = all.groupingBy { it.confidence }.eachCount(),
+                endpoints = endpoints.count { it.kind == EndpointKind.API },
+                pages = endpoints.count { it.kind == EndpointKind.PAGE },
+                httpCalls = linker.httpCalls,
+                httpMatched = linker.httpMatched,
+                dataEntities = linker.entities.size,
+                configKeys = linker.configKeys.size,
             ),
         )
+        endpoints.sortedWith(compareBy({ it.kind }, { it.path }, { it.method })).forEach { context.emit(it) }
+        linker.entities.sortedByDescending { it.accessedBy }.forEach { context.emit(it) }
+        linker.configKeys.sortedBy { it.name }.forEach { context.emit(it) }
+        linker.notes.forEach { (reason, detail) -> context.coverage(reason, detail) }
+        if (collector.frameworkLimitReached) {
+            context.coverage(CoverageReason.LIMIT_REACHED, "Proyecto muy grande: los analizadores de framework alcanzaron su límite de memoria y no analizaron los últimos archivos")
+        }
+        if (collector.extractor.failures > 0) {
+            context.coverage(
+                CoverageReason.NOT_ANALYZED,
+                "Los analizadores de framework (${collector.extractor.failedAnalyzers.sorted().joinToString()}) no pudieron leer ${collector.extractor.failures} archivos: sus conexiones de framework pueden faltar",
+            )
+        }
         coverage(context, files, systemIncludes)
     }
 
@@ -171,23 +219,30 @@ class RelationStage(private val collector: RelationCollector) : Stage {
         else -> "Importa"
     }
 
-    private fun add(drafts: MutableMap<String, Draft>, source: String, line: Int?, r: Resolution, reference: String, kind: RelationKind, what: String) {
+    private fun add(
+        drafts: MutableMap<String, Draft>, source: String, line: Int?, r: Resolution, reference: String, kind: RelationKind, what: String,
+        extra: Pair<String, Int>? = null,
+    ): String? {
         val key = listOf(source, r.target ?: r.external ?: "rota:$reference", kind.name).joinToString("|")
         val detail = "$what: ${r.how}".take(RecordValidator.MAX_EVIDENCE_DETAIL)
+        val evidenceKind = if (kind in LANGUAGE_KINDS) EvidenceKind.IMPORT else EvidenceKind.CONTENT
         val existing = drafts[key]
         if (existing != null) {
-            r.exchanged.forEach { if (it !in existing.exchanged && existing.exchanged.size < RecordValidator.MAX_EXCHANGED) existing.exchanged += it }
+            r.exchanged.forEach { if (it.isNotEmpty() && it !in existing.exchanged && existing.exchanged.size < RecordValidator.MAX_EXCHANGED) existing.exchanged += it.take(RecordValidator.MAX_NAME_LENGTH) }
             if (existing.evidence.size < RecordValidator.MAX_EVIDENCE && existing.evidence.none { it.line == line && it.detail == detail }) {
-                existing.evidence += Evidence(EvidenceKind.IMPORT, detail, source, line)
+                existing.evidence += Evidence(evidenceKind, detail, source, line)
             }
-            return
+            return key
         }
-        if (drafts.size >= MAX_DRAFTS) return
+        if (drafts.size >= MAX_DRAFTS) return null
+        val evidence = mutableListOf(Evidence(evidenceKind, detail, source, line))
+        if (extra != null && extra.first != source) evidence += Evidence(EvidenceKind.DECLARATION, "Ruta declarada en ${extra.first}", extra.first, extra.second)
         drafts[key] = Draft(
             source, line, r.target, r.external, short(reference), kind,
-            r.exchanged.filter { it.isNotEmpty() && it.length <= RecordValidator.MAX_NAME_LENGTH }.take(RecordValidator.MAX_EXCHANGED).toMutableList(),
-            r.exchangedNote, r.confidence, mutableListOf(Evidence(EvidenceKind.IMPORT, detail, source, line)),
+            r.exchanged.filter { it.isNotEmpty() }.map { it.take(RecordValidator.MAX_NAME_LENGTH) }.take(RecordValidator.MAX_EXCHANGED).toMutableList(),
+            r.exchangedNote, r.confidence, evidence,
         )
+        return key
     }
 
     /** Herencia e implementación: el supertipo se busca entre lo importado, el mismo paquete y los nombres completos. */
@@ -283,6 +338,7 @@ class RelationStage(private val collector: RelationCollector) : Stage {
                 entryPointCount = entries.size,
             )
         }
+        val withAffected = impact.copy(affected = d.affected.take(RecordValidator.MAX_SAMPLES).toList(), affectedCount = d.affected.size)
         return Relation(
             source = d.source,
             line = d.line,
@@ -294,7 +350,7 @@ class RelationStage(private val collector: RelationCollector) : Stage {
             exchangedNote = d.exchangedNote,
             confidence = d.confidence,
             evidence = d.evidence,
-            impact = impact,
+            impact = withAffected,
         )
     }
 
@@ -303,7 +359,7 @@ class RelationStage(private val collector: RelationCollector) : Stage {
      * resuelven, que no es punto de entrada, prueba, configuración ni algo que un framework registra por su cuenta
      * (actividades, controladores, scripts de escenas…), cuyas relaciones llegan en la Fase 5B.
      */
-    private fun candidateForUnused(facts: SourceFacts, roles: Set<FileRole>): Boolean {
+    private fun candidateForUnused(facts: SourceFacts, roles: Set<FileRole>, hasManifest: Boolean): Boolean {
         if (facts.language !in UNUSED_LANGUAGES) return false
         // En C y C++ los archivos de código los usa el sistema de compilación, no otro archivo: solo cuentan las cabeceras.
         if ((facts.language == "c" || facts.language == "cpp") && PathInfo(facts.path).ext !in setOf("h", "hh", "hpp", "hxx", "inl")) return false
@@ -311,7 +367,10 @@ class RelationStage(private val collector: RelationCollector) : Stage {
         val info = PathInfo(facts.path)
         if (info.lowerDirs.any { it in TEST_DIRS } || info.stem.endsWith("test") || info.stem.startsWith("test_") || info.lower.contains(".spec.") || info.lower.contains(".test.")) return false
         if (info.lower in UNUSED_EXCLUDED_NAMES || info.lower.contains(".config.") || info.stem == "index" || info.stem == "main" || info.lowerDirs.contains("migrations")) return false
-        if (facts.declarations.any { d -> d.supertypes.any { st -> FRAMEWORK_SUFFIXES.any { st.name.substringAfterLast('.').endsWith(it) } } }) return false
+        // Lo que registra un framework solo se señala si ese registro se analiza: los componentes de Android, si el
+        // proyecto tiene su manifiesto (una actividad que no se declara en él no se puede abrir).
+        val suffixes = if (hasManifest) FRAMEWORK_SUFFIXES - ANDROID_COMPONENTS else FRAMEWORK_SUFFIXES
+        if (facts.declarations.any { d -> d.supertypes.any { st -> suffixes.any { st.name.substringAfterLast('.').endsWith(it) } } }) return false
         return true
     }
 
@@ -361,15 +420,21 @@ class RelationStage(private val collector: RelationCollector) : Stage {
         }
         context.coverage(
             CoverageReason.UNSUPPORTED,
-            "Relaciones de lenguaje (importaciones, inclusiones, herencia, uso en el mismo paquete y recursos de páginas y estilos). " +
-                "Las importaciones dinámicas, la reflexión y la inyección de dependencias no se resuelven. Las relaciones propias de cada framework " +
-                "(rutas, controladores, manifiesto de Android, escenas, llamadas HTTP entre frontend y backend) llegan en la Fase 5B, así que un archivo " +
-                "«sin referencias» puede usarse a través de ellas.",
+            "Relaciones de lenguaje (importaciones, inclusiones, herencia, uso en el mismo paquete, recursos de páginas y estilos) y de framework: " +
+                "rutas de Express, Fastify, Koa, Hono, NestJS, Next.js, Nuxt, SvelteKit, Django, Flask, FastAPI, Laravel, Spring, JAX-RS y ASP.NET Core; " +
+                "enrutadores de React, Vue, Angular y Flutter; llamadas HTTP enlazadas con esas rutas; tablas y colecciones; claves de configuración; " +
+                "inyección de dependencias; manifiesto y recursos de Android; GUID de Unity; escenas de Godot; XAML, FXML, Qt, CMake y Gradle; " +
+                "canales de Electron, socket.io, Flutter, Tauri y broadcasts de Android. No se resuelven las importaciones dinámicas con rutas " +
+                "calculadas, la reflexión, las rutas construidas al ejecutar ni el enrutado por convención de ASP.NET MVC; los backends en Go, Ruby o Rust " +
+                "no se analizan. Las conexiones de framework son, como mucho, «probables» si dependen de nombres o de la configuración al ejecutar.",
         )
     }
 
     private companion object {
         const val MAX_RELATIONS = 60_000
+        const val MAX_AFFECTED = 50
+        val LANGUAGE_KINDS = setOf(RelationKind.IMPORT, RelationKind.INHERITANCE, RelationKind.IMPLEMENTATION, RelationKind.REFERENCE)
+        val ANDROID_COMPONENTS = setOf("Activity", "Service", "Receiver", "Provider", "Application")
         const val MAX_DRAFTS = 200_000
         const val MAX_CYCLES = 200
         val UNUSED_LANGUAGES = setOf("javascript", "typescript", "tsx", "python", "java", "kotlin", "php", "dart", "css", "scss", "vue", "svelte", "c", "cpp")

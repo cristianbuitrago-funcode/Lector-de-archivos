@@ -21,6 +21,9 @@ import com.funcodestudiocb.analyzer.engine.api.PasswordRequired
 import com.funcodestudiocb.analyzer.engine.api.ProjectRoot
 import com.funcodestudiocb.analyzer.engine.api.Redaction
 import com.funcodestudiocb.analyzer.engine.api.Relation
+import com.funcodestudiocb.analyzer.engine.api.Endpoint
+import com.funcodestudiocb.analyzer.engine.api.DataEntity
+import com.funcodestudiocb.analyzer.engine.api.ConfigKey
 import com.funcodestudiocb.analyzer.engine.api.RelationsSummary
 import com.funcodestudiocb.analyzer.engine.api.RejectionReason
 import com.funcodestudiocb.analyzer.engine.api.ResultRecord
@@ -79,6 +82,10 @@ data class AnalysisReport(
     val fileGraphs: List<FileGraph> = emptyList(),
     val cycles: List<DependencyCycle> = emptyList(),
     val relationsSummary: RelationsSummary? = null,
+    /** Rutas, tablas y claves de configuración (Fase 5B). */
+    val endpoints: List<Endpoint> = emptyList(),
+    val dataEntities: List<DataEntity> = emptyList(),
+    val configKeys: List<ConfigKey> = emptyList(),
 ) {
     /** El análisis tiene la información de la Fase 4 (lenguajes y tecnologías). */
     val hasTechnologies: Boolean get() = languages.isNotEmpty() || technologies.isNotEmpty() || stages.any { it.stageId == "technologies" }
@@ -133,6 +140,9 @@ data class AnalysisReport(
                 fileGraphs = records.filterIsInstance<FileGraph>(),
                 cycles = records.filterIsInstance<DependencyCycle>(),
                 relationsSummary = records.filterIsInstance<RelationsSummary>().lastOrNull(),
+                endpoints = records.filterIsInstance<Endpoint>(),
+                dataEntities = records.filterIsInstance<DataEntity>(),
+                configKeys = records.filterIsInstance<ConfigKey>(),
             )
 
         /** Etapas que no terminaron bien (para la cobertura). */

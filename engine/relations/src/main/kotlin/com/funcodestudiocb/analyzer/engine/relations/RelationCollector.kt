@@ -12,6 +12,8 @@ import com.funcodestudiocb.analyzer.engine.inventory.parse.YamlScalar
 import com.funcodestudiocb.analyzer.engine.languages.CountMethod
 import com.funcodestudiocb.analyzer.engine.languages.Declaration
 import com.funcodestudiocb.analyzer.engine.languages.ImportRef
+import com.funcodestudiocb.analyzer.engine.relations.framework.FrameworkExtractor
+import com.funcodestudiocb.analyzer.engine.relations.framework.FrameworkFacts
 import com.google.re2j.Pattern
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -78,10 +80,27 @@ class RelationCollector : RedactedTextListener {
      */
     val withoutImports = HashMap<String, Int>()
 
+    /** Hechos de los analizadores de framework por archivo (Fase 5B). */
+    internal val framework = HashMap<String, FrameworkFacts>()
+    internal val extractor = FrameworkExtractor()
+    private var frameworkFacts = 0
+
+    /** Se alcanzó el límite de memoria de los analizadores de framework: los archivos restantes no se analizaron. */
+    var frameworkLimitReached = false
+        private set
+
     override fun onText(context: StageContext, file: RedactedText) {
         readConfig(file)
         if (file.state == ContentState.NOT_STORED_GENERATED) return
         if (facts.size >= MAX_FILES) return
+        if (frameworkFacts < MAX_FRAMEWORK_FACTS) {
+            extractor.extract(file)?.let { f ->
+                framework[file.path] = f
+                frameworkFacts += f.size()
+            }
+        } else {
+            frameworkLimitReached = true
+        }
         val lang = file.language ?: return
         val language = lang.id
         val analysis = file.analysis
@@ -257,6 +276,7 @@ class RelationCollector : RedactedTextListener {
 
     companion object {
         const val MAX_FILES = 50_000
+        private const val MAX_FRAMEWORK_FACTS = 200_000
         private const val MAX_REFS = 1_000
         private const val MAX_REFERENCE = 1_000
         private const val MAX_IDENTIFIERS_PER_FILE = 5_000

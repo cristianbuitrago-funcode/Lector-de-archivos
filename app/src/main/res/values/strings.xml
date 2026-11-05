@@ -540,7 +540,8 @@
     <string name="relation_kind_implementation">Implementación</string>
     <string name="relation_kind_reference">Uso sin importación (mismo paquete)</string>
     <string name="relation_kind_call">Llamada</string>
-    <string name="relation_kind_route">Ruta → controlador</string>
+    <string name="relation_kind_route">Ruta → controlador o página</string>
+    <string name="relation_kind_registration">Registro en el framework</string>
     <string name="relation_kind_http">Llamada HTTP</string>
     <string name="relation_kind_db">Acceso a base de datos</string>
     <string name="relation_kind_config">Lectura de configuración</string>
@@ -552,7 +553,7 @@
     <string name="relation_unverified">No verificada</string>
     <string name="relation_broken">Rota</string>
     <string name="relation_verified_meaning">Se resolvió de forma sintáctica a un archivo que existe, o a un paquete declarado o de la plataforma.</string>
-    <string name="relation_probable_meaning">Heurística con evidencia fuerte: por ejemplo, el nombre se usa en el mismo paquete sin importarlo, o un alias habitual.</string>
+    <string name="relation_probable_meaning">Heurística con evidencia fuerte: por ejemplo, una ruta HTTP idéntica en el frontend y en el backend, un nombre usado en el mismo paquete sin importarlo, una única implementación inyectable o un alias habitual.</string>
     <string name="relation_unverified_meaning">No se puede comprobar: paquete no declarado, código que se genera al compilar, inclusión condicional o coincidencia parcial.</string>
     <string name="relation_broken_meaning">El destino no existe en el comprimido: posible error (o un archivo que se genera al compilar o que no se incluyó).</string>
     <string name="symbol_class">Clase</string>
@@ -563,6 +564,7 @@
     <string name="symbol_type">Tipo</string>
     <string name="symbol_constant">Constante o variable</string>
     <string name="relation_external">Paquete externo: %1$s</string>
+    <string name="relation_external_other">Fuera del proyecto: %1$s</string>
     <string name="relation_missing">No existe en el proyecto: %1$s</string>
     <string name="file_relations">Relaciones</string>
     <string name="file_relations_uses">Usa (%1$d)</string>
@@ -582,7 +584,7 @@
     </plurals>
     <string name="file_graph_cycle">Forma parte de un ciclo de %1$d archivos que dependen unos de otros</string>
     <string name="file_graph_not_reachable">No se llega a él desde ningún punto de entrada conocido</string>
-    <string name="file_graph_unreferenced">Ningún archivo lo usa según las relaciones encontradas: puede sobrar, o usarse a través del framework (Fase 5B). Revísalo antes de borrarlo.</string>
+    <string name="file_graph_unreferenced">Ningún archivo lo usa según las relaciones encontradas (de lenguaje y de framework): puede sobrar, o usarse de una forma que no se analiza (reflexión, rutas construidas al ejecutar). Revísalo antes de borrarlo.</string>
     <string name="relation_title">Conexión</string>
     <string name="relation_origin_destination">Origen y destino</string>
     <string name="relation_origin">Origen</string>
@@ -607,6 +609,53 @@
     </plurals>
     <string name="impact_undefined">Si cambias o eliminas el destino, en el origen dejarían de estar definidos: %1$s</string>
     <string name="impact_resource">Si se mueve o elimina el recurso, el origen deja de encontrarlo</string>
+    <string name="impact_route">Si cambias la ruta (método o dirección) o eliminas su controlador, fallan las llamadas que la usan</string>
+    <string name="impact_http">Si la ruta del backend cambia o desaparece, esta petición falla</string>
+    <string name="impact_http_external">Depende de algo que no está en el proyecto: si cambia o no responde, la petición falla</string>
+    <string name="impact_db">Si cambias o eliminas la tabla o el modelo, este acceso a los datos falla</string>
+    <string name="impact_config">Si la clave desaparece o cambia de nombre, el código lee un valor vacío o falla al arrancar</string>
+    <string name="impact_config_external">La clave hay que definirla al desplegar; si falta, el código lee un valor vacío o falla</string>
+    <string name="impact_injection">Si cambias o eliminas la implementación, el framework no puede crear el origen</string>
+    <string name="impact_ipc">Si el otro extremo deja de atender el canal, el mensaje se pierde</string>
+    <string name="impact_registration">Si se elimina o se renombra el destino, el registro queda roto: la app o la compilación fallan</string>
+    <plurals name="impact_affected">
+        <item quantity="one">Lo mismo afecta a otro lugar del proyecto: %2$s</item>
+        <item quantity="many">Lo mismo afecta a otros %1$d lugares del proyecto: %2$s</item>
+        <item quantity="other">Lo mismo afecta a otros %1$d lugares del proyecto: %2$s</item>
+    </plurals>
+    <plurals name="impact_affected_route">
+        <item quantity="one">La llama %1$d lugar del proyecto: %2$s</item>
+        <item quantity="many">La llaman %1$d lugares del proyecto: %2$s</item>
+        <item quantity="other">La llaman %1$d lugares del proyecto: %2$s</item>
+    </plurals>
+    <string name="impact_route_no_callers">Ninguna llamada del proyecto usa esta ruta (puede usarse desde fuera: otra app, un navegador, un servicio)</string>
+    <string name="file_routes">Rutas que declara (%1$d)</string>
+    <string name="report_framework">Rutas, datos y configuración</string>
+    <string name="report_framework_summary">%1$d rutas del backend y %2$d páginas · %3$d llamadas HTTP, %4$d enlazadas con una ruta del proyecto</string>
+    <string name="report_framework_intro">Toca una ruta para abrir el archivo que la atiende. Las llamadas sin ruta en el backend analizado pueden ser errores o APIs que no están en el comprimido.</string>
+    <string name="report_routes">Rutas del backend</string>
+    <string name="report_pages">Páginas del frontend</string>
+    <string name="report_route_unknown_prefix">prefijo desconocido</string>
+    <plurals name="report_route_callers">
+        <item quantity="one">%1$d llamada</item>
+        <item quantity="many">%1$d llamadas</item>
+        <item quantity="other">%1$d llamadas</item>
+    </plurals>
+    <string name="report_unmatched_calls">Llamadas HTTP sin ruta en el backend analizado (%1$d)</string>
+    <string name="report_data">Tablas y colecciones (%1$d)</string>
+    <plurals name="report_data_item">
+        <item quantity="one">%1$s · la usa %2$d archivo</item>
+        <item quantity="many">%1$s · la usan %2$d archivos</item>
+        <item quantity="other">%1$s · la usan %2$d archivos</item>
+    </plurals>
+    <string name="report_data_undefined">no se define en el proyecto</string>
+    <string name="report_config">Configuración (%1$d claves leídas)</string>
+    <string name="report_config_undefined">Se configuran fuera del comprimido (%1$d)</string>
+    <plurals name="report_config_item">
+        <item quantity="one">leída en %1$d lugar</item>
+        <item quantity="many">leída en %1$d lugares</item>
+        <item quantity="other">leída en %1$d lugares</item>
+    </plurals>
     <string name="impact_source_breaks">Si se elimina el destino, el origen deja de compilar o de cargarse</string>
     <plurals name="impact_dependents">
         <item quantity="one">El destino lo usa directamente %1$d archivo y, en cadena, %2$d (radio de impacto)</item>
@@ -643,5 +692,5 @@
         <item quantity="other">%d archivos</item>
     </plurals>
     <string name="report_relations_unreferenced">Sin referencias encontradas (%1$d)</string>
-    <string name="report_relations_unreferenced_intro">Ningún otro archivo los usa según las relaciones de lenguaje. Pueden sobrar, o usarse a través del framework (Fase 5B): revísalos antes de borrar nada.</string>
+    <string name="report_relations_unreferenced_intro">Ningún otro archivo, ruta ni registro del framework los usa. Pueden sobrar, o usarse de una forma que no se analiza: revísalos antes de borrar nada.</string>
 </resources>

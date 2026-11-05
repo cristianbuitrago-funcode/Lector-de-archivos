@@ -1,6 +1,6 @@
 # Fase 5A — Relaciones entre archivos
 
-- **Estado:** terminada, pendiente de aprobación (la 5B empieza cuando la apruebes)
+- **Estado:** terminada y aprobada
 - **Criterio de aceptación de la Fase 5:** cada conexión muestra sus 5 atributos y su evidencia. La 5A lo cumple para
   las relaciones de lenguaje; la 5B añadirá las de cada framework con la misma ficha.
 
