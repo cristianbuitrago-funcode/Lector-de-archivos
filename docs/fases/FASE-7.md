@@ -70,7 +70,32 @@ minutos con npm), por eso va en un servicio en primer plano con su progreso.
 
 ### En emulador (CI de GitHub Actions)
 
-PENDIENTE_CI
+Android 8.0 (API 26), 15 (API 35) y 16 (API 36). Nuevo en esta fase:
+
+- `baseDeVulnerabilidadesPorDescriptorAlProcesoAislado`: el actualizador construye la base **en el propio dispositivo**
+  (con un descargador sin red que sirve avisos reales de OSV y fechas de Node.js) y consulta el espacio libre al
+  sistema (`StorageManager`); el análisis en el **proceso aislado** recibe el índice por descriptor y devuelve lodash
+  4.17.15 con su aviso confirmado y usada en el código, el paquete malicioso `flatmap-stream` (FC-DEP-02) y Node.js 14
+  sin soporte, con todos los registros válidos. Después se cambia un byte del índice sin cambiar su tamaño: el proceso
+  aislado lo **rechaza por la suma de comprobación**, el informe dice "no utilizable" y no inventa vulnerabilidades.
+- `zipCompletoEnElProcesoAislado`: sin base descargada, la dependencia se lista, no hay vulnerabilidades y el resumen
+  explica que no hay base.
+- **El proceso aislado sigue sin red aunque la app ya tenga el permiso de Internet**: el diagnóstico de aislamiento
+  intenta abrir una conexión desde el proceso aislado y exige que se deniegue (pruebas de aislamiento y recorrido de
+  extremo a extremo, que lo ejecuta dentro de la app).
+
+**Resultado: 14 de 14 correctas en las tres versiones** (ejecución n.º 30: 3 de aislamiento, 3 de cifrado, 3 de
+migración, 4 de análisis completo y 1 recorrido de extremo a extremo), y el trabajo de compilación, pruebas JVM y Lint
+también correcto. Antes:
+
+- La n.º 27 (solo el motor) falló porque una prueba en emulador esperaba la nota "Fase 7" pendiente, que esta fase
+  elimina; la n.º 28 se canceló sola al empezar la n.º 29.
+- La n.º 29 falló en la prueba nueva: lanzaba el segundo análisis mientras el primero aún se guardaba y el coordinador
+  respondía "ocupado". Todo lo anterior de esa prueba (base construida en el dispositivo, descriptor, vulnerabilidades,
+  paquete malicioso, fin de soporte) ya pasaba en las tres versiones.
+- En el primer intento de la n.º 30 falló en Android 15 la prueba de extremo a extremo **de la Fase 1** (la sesión no
+  se abrió en 30 s tras pulsar "Crear acceso"); pasó al repetir solo ese trabajo y había pasado en las tres versiones
+  en la n.º 29. No toca nada de esta fase: se anota como prueba intermitente a vigilar.
 
 ## Capturas
 
@@ -115,4 +140,5 @@ Explorador.
 
 ## Errores pendientes
 
-Ninguno conocido.
+Ninguno conocido en esta fase. A vigilar: la prueba de extremo a extremo de la Fase 1 falló una vez en el emulador de
+Android 15 (la sesión no se abrió en 30 s) y pasó al repetirla; si vuelve a ocurrir, se revisará su tiempo de espera.
