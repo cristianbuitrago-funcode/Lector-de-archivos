@@ -37,6 +37,15 @@ object RecordValidator {
     const val MAX_ROUTE_LENGTH = 512
     const val MAX_OPERATIONS = 8
     val HTTP_METHODS = setOf("GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS", "ANY")
+    const val MAX_FINDING_TEXT = 2_000
+    const val MAX_SNIPPET_CHARS = 2_000
+    const val MAX_SNIPPET_LINES = 12
+    const val MAX_FIXED_EXAMPLE = 3_000
+    const val MAX_REFERENCES = 8
+    const val MAX_FLOW_STEPS = 10
+    const val MAX_DYNAMIC_CHECKS = 40
+    val RULE_ID_PATTERN = Regex("^FC-[A-Z0-9-]{2,30}$")
+    val FINGERPRINT_PATTERN = Regex("^[0-9a-f]{32}$")
 
     /** Caracteres visibles que puede mostrar un secreto enmascarado: 4 al principio y 2 al final (§8.4). */
     const val MAX_VISIBLE_SECRET_CHARS = 6
@@ -220,6 +229,45 @@ object RecordValidator {
                 if (record.accessedBy < 0) errors += "Recuento negativo"
                 if (record.operations.size > MAX_OPERATIONS) errors += "Demasiadas operaciones"
                 record.operations.forEach { checkName(errors, "operation", it) }
+            }
+            is SecurityFinding -> {
+                checkPattern(errors, "ruleId", record.ruleId, RULE_ID_PATTERN)
+                if (record.ruleVersion < 1) errors += "Versión de regla inválida"
+                checkName(errors, "name", record.name)
+                if (record.cwe != null && record.cwe !in 1..2_000) errors += "CWE fuera de rango"
+                record.owasp?.let { checkName(errors, "owasp", it) }
+                record.path?.let { checkPath(errors, it) }
+                if ((record.line ?: 1) < 1) errors += "Línea inválida"
+                if (record.endLine != null && (record.line == null || record.endLine < record.line)) errors += "Línea final inválida"
+                for ((field, text) in listOf("explanation" to record.explanation, "consequences" to record.consequences, "recommendation" to record.recommendation)) {
+                    if (text.isBlank()) errors += "Campo '$field' vacío"
+                    checkText(errors, field, text, MAX_FINDING_TEXT)
+                }
+                record.snippet?.let { s ->
+                    checkText(errors, "snippet", s, MAX_SNIPPET_CHARS)
+                    if (s.count { it == '\n' } >= MAX_SNIPPET_LINES) errors += "Fragmento demasiado largo"
+                    if ((record.snippetLine ?: 0) < 1) errors += "Fragmento sin línea"
+                }
+                checkText(errors, "fixedExample", record.fixedExample, MAX_FIXED_EXAMPLE)
+                if (record.references.size > MAX_REFERENCES) errors += "Demasiadas referencias"
+                record.references.forEach { checkName(errors, "reference", it, MAX_TARGET_LENGTH) }
+                if (record.flow.size > MAX_FLOW_STEPS) errors += "Recorrido demasiado largo"
+                record.flow.forEach {
+                    if (it.line < 1) errors += "Línea del recorrido inválida"
+                    checkName(errors, "flow", it.description, MAX_EVIDENCE_DETAIL)
+                }
+                record.downgraded?.let { checkName(errors, "downgraded", it) }
+                record.masked?.let { checkMasked(errors, it) }
+                record.fingerprint?.let { checkPattern(errors, "fingerprint", it, FINGERPRINT_PATTERN) }
+            }
+            is SecuritySummary -> {
+                val values = listOf(record.findings, record.rules, record.filesExamined, record.downgraded, record.suppressions)
+                if (values.any { it < 0 } || record.bySeverity.values.any { it < 0 } || record.byCertainty.values.any { it < 0 } || record.byCategory.values.any { it < 0 }) {
+                    errors += "Totales negativos"
+                }
+                if (record.bySeverity.values.sum() != record.findings) errors += "Totales por severidad incoherentes"
+                if (record.dynamicChecks.size > MAX_DYNAMIC_CHECKS || record.notEvaluated.size > MAX_DYNAMIC_CHECKS) errors += "Demasiadas comprobaciones"
+                (record.dynamicChecks + record.notEvaluated).forEach { checkName(errors, "check", it, MAX_EVIDENCE_DETAIL) }
             }
             is ConfigKey -> {
                 checkName(errors, "name", record.name)

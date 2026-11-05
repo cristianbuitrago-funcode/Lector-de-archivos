@@ -22,6 +22,7 @@ import com.funcodestudiocb.analyzer.engine.languages.LanguageKind
 import com.funcodestudiocb.analyzer.engine.languages.Languages
 import com.funcodestudiocb.analyzer.engine.languages.treesitter.TreeSitter
 import com.funcodestudiocb.analyzer.engine.inventory.parse.SafeXmlReader
+import com.funcodestudiocb.analyzer.engine.security.DetectedSecret
 import com.funcodestudiocb.analyzer.engine.security.SecretRedactor
 import java.nio.ByteBuffer
 import java.nio.charset.Charset
@@ -49,6 +50,8 @@ class RedactedText(
     val analysis: LanguageAnalysis?,
     /** Si hay copia para el visor o por qué no (un archivo generado no es código escrito por el equipo). */
     val state: ContentState,
+    /** Posibles secretos ocultados en el texto (sin su valor): tipo, línea, máscara y huella. */
+    val secrets: List<DetectedSecret> = emptyList(),
 )
 
 /** Recibe el texto redactado de cada archivo examinado, en el mismo recorrido del comprimido. */
@@ -144,7 +147,7 @@ class ContentCollector(private val listeners: List<RedactedTextListener> = empty
         val signals = ContentSignals.scan(info, text, lineStarts)
         readManifest(info, text, lineStarts)
 
-        val redaction = SecretRedactor.redact(text, info.name)
+        val redaction = SecretRedactor.redact(text, info.name, fingerprintKey(context))
         redaction.secrets.take(MAX_REDACTIONS_PER_FILE).forEach {
             context.emit(Redaction(file.path, it.line, it.type, it.length, it.masked))
         }
@@ -183,9 +186,21 @@ class ContentCollector(private val listeners: List<RedactedTextListener> = empty
         }
         facts[file.path] = FileFacts(lineCount, state, redaction.secrets.size, signals, fileLanguage)
         if (listeners.isNotEmpty()) {
-            val redacted = RedactedText(file.path, info, redaction.text, lineStarts, language, analysis, state)
+            val redacted = RedactedText(file.path, info, redaction.text, lineStarts, language, analysis, state, redaction.secrets)
             listeners.forEach { it.onText(context, redacted) }
         }
+    }
+
+    private var keyDecoded = false
+    private var key: ByteArray? = null
+
+    /** Clave local de las huellas de los secretos (si el proceso principal la envió). */
+    private fun fingerprintKey(context: StageContext): ByteArray? {
+        if (!keyDecoded) {
+            keyDecoded = true
+            key = context.config.security.fingerprintKey?.let { runCatching { java.util.Base64.getDecoder().decode(it) }.getOrNull() }?.takeIf { it.size >= 16 }
+        }
+        return key
     }
 
     private fun analyzeLanguage(context: StageContext, path: String, language: Language, text: String, state: ContentState): LanguageAnalysis {

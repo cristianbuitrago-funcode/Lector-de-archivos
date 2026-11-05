@@ -12,6 +12,10 @@ data class DetectedSecret(
     val length: Int,
     /** Como máximo los 4 primeros y los 2 últimos caracteres (§8.4), y nunca más de 18 caracteres en total. */
     val masked: String,
+    /** HMAC-SHA256 del valor con la clave local (32 caracteres hexadecimales); `null` sin clave. */
+    val fingerprint: String? = null,
+    /** El valor parece de ejemplo o de marcador (`changeme`, `your_api_key`…): se rebaja, no se oculta (§8.6). */
+    val placeholder: Boolean = false,
 )
 
 /** Texto con los posibles secretos sustituidos por su máscara (misma longitud: las líneas y columnas no cambian). */
@@ -103,6 +107,21 @@ object SecretRedactor {
         """(?i)<add\b[^>]*?\bkey\s*=\s*["']([^"'\r\n]+)["'][^>]*?\bvalue\s*=\s*["']([^"'\r\n]+)["']""",
     )
 
+    /**
+     * Claves de firma escritas como argumento literal: `jwt.sign(datos, 'clave')`, `jwt.encode(p, "clave", …)`,
+     * `Algorithm.HMAC256("clave")`, `Keys.hmacShaKeyFor("clave".getBytes())`, `setSigningKey("clave")`,
+     * `cookieParser('clave')`, `new SymmetricSecurityKey(Encoding.UTF8.GetBytes("clave"))`.
+     */
+    private val SIGNING_TRIGGERS = listOf("jwt.", "JWT.", "jsonwebtoken.", "HMAC", "hmacShaKeyFor", "SigningKey", "signWith", "cookieParser", "SymmetricSecurityKey")
+    private val SIGNING_SECOND_ARG = Pattern.compile(
+        """\b(?:jwt|JWT|jsonwebtoken)\.(?:sign|verify|encode|decode)\s*\(\s*[^"'\s,)][^\r\n]*?,\s*[rRbB]?["']([^"'\r\n]{4,})["']\s*[,)]""",
+    )
+    private val SIGNING_FIRST_ARG = Pattern.compile(
+        """(?:\bHMAC(?:256|384|512)|\bhmacShaKeyFor|\bsetSigningKey|\bcookieParser|SymmetricSecurityKey\s*\(\s*Encoding\.[A-Za-z0-9]+\.GetBytes)\s*\(\s*[rRbB@]?["']([^"'\r\n]{4,})["']""",
+    )
+    private val SIGNING_WITH = Pattern.compile("""\bsignWith\s*\(\s*SignatureAlgorithm\.[A-Z0-9]+\s*,\s*["']([^"'\r\n]{4,})["']""")
+    private val NOT_SIGNING_VALUES = setOf("hs256", "hs384", "hs512", "rs256", "rs384", "rs512", "es256", "es384", "none", "utf-8", "utf8", "base64", "hex")
+
     private val ASSIGNMENT_TRIGGERS = listOf("pass", "pwd", "secret", "key", "token", "credential", "bearer", "auth")
 
     private val PASSWORD_WORDS = setOf("password", "passwd", "passphrase", "pwd", "pass", "pw", "contrasena", "contraseña", "clave")
@@ -121,7 +140,11 @@ object SecretRedactor {
 
     private class Hit(val start: Int, val end: Int, val type: SecretType)
 
-    fun redact(text: String, fileName: String): RedactionResult {
+    /**
+     * @param fingerprintKey clave local para la huella de cada secreto (HMAC-SHA256). El valor se usa solo aquí,
+     * dentro del proceso aislado, y no sale de esta función.
+     */
+    fun redact(text: String, fileName: String, fingerprintKey: ByteArray? = null): RedactionResult {
         if (text.isEmpty()) return RedactionResult(text, emptyList())
         val hits = mutableListOf<Hit>()
         privateKeys(text, hits)
@@ -134,6 +157,7 @@ object SecretRedactor {
             }
         }
         assignments(text, fileName.lowercase(), hits)
+        if (SIGNING_TRIGGERS.any { text.contains(it) }) signingKeys(text, hits)
         if (hits.isEmpty()) return RedactionResult(text, emptyList())
 
         val kept = resolveOverlaps(hits)
@@ -142,10 +166,38 @@ object SecretRedactor {
         val secrets = kept.map { hit ->
             val value = text.substring(hit.start, hit.end)
             out.replace(hit.start, hit.end, maskInText(value, hit.type))
-            DetectedSecret(hit.type, lineOf(lineStarts, hit.start), value.length, maskForRecord(value, hit.type))
+            DetectedSecret(
+                hit.type, lineOf(lineStarts, hit.start), value.length, maskForRecord(value, hit.type),
+                fingerprintKey?.let { fingerprint(it, value) }, isPlaceholder(value),
+            )
         }
         return RedactionResult(out.toString(), secrets)
     }
+
+    /** Huella del secreto: los primeros 16 bytes de HMAC-SHA256(clave, valor), en hexadecimal. */
+    fun fingerprint(key: ByteArray, value: String): String {
+        val mac = javax.crypto.Mac.getInstance("HmacSHA256")
+        mac.init(javax.crypto.spec.SecretKeySpec(key, "HmacSHA256"))
+        return mac.doFinal(value.toByteArray(Charsets.UTF_8)).take(16).joinToString("") { "%02x".format(it.toInt() and 0xff) }
+    }
+
+    /** Valores de ejemplo, de marcador o de prueba evidentes (no se ocultan, se rebajan). */
+    fun isPlaceholder(value: String): Boolean {
+        val v = value.lowercase()
+        if (PLACEHOLDER_WORDS.any { v.contains(it) } || v in KNOWN_PUBLIC_VALUES) return true
+        if (v.startsWith("<") && v.endsWith(">") || v.startsWith("[") && v.endsWith("]")) return true
+        // Muy pocos caracteres distintos: "xxxxxxxx", "12341234", "abcabcabc".
+        return v.length >= 6 && v.toSet().size <= 3
+    }
+
+    /** Valores públicos y conocidos: la contraseña de los almacenes de depuración de Android es "android". */
+    private val KNOWN_PUBLIC_VALUES = setOf("android")
+
+    private val PLACEHOLDER_WORDS = listOf(
+        "changeme", "change_me", "change-me", "changethis", "your_", "your-", "yourkey", "yourapi", "yoursecret", "yourpassword", "example",
+        "sample", "dummy", "placeholder", "xxxx", "****", "fake", "todo", "replace", "insert_", "password123", "secret123", "mysecret",
+        "foobar", "lorem", "redacted", "notasecret", "not_a_secret", "test_key", "testkey", "testsecret", "testpassword",
+    )
 
     /** Versión enmascarada para mostrar en informes y fichas (corta). */
     fun maskForRecord(value: String, type: SecretType): String {
@@ -204,6 +256,17 @@ object SecretRedactor {
             }
             if (nl >= text.length) break
             lineStart = nl + 1
+        }
+    }
+
+    private fun signingKeys(text: String, hits: MutableList<Hit>) {
+        for (pattern in listOf(SIGNING_SECOND_ARG, SIGNING_FIRST_ARG, SIGNING_WITH)) {
+            val m = pattern.matcher(text)
+            while (m.find()) {
+                val value = m.group(1) ?: continue
+                if (value.lowercase() in NOT_SIGNING_VALUES || !looksLikeSecretValue(value)) continue
+                hits += Hit(m.start(1), m.end(1), SecretType.SECRET)
+            }
         }
     }
 

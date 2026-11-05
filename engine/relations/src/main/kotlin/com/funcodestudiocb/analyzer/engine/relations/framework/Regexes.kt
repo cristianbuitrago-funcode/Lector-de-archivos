@@ -6,7 +6,7 @@ import com.google.re2j.Pattern
  * Patrones RE2/J de los analizadores de framework (tiempo lineal, el mismo comportamiento en el PC y en Android) y
  * funciones pequeñas sobre fragmentos de texto ya acotados. Sin repeticiones acotadas grandes.
  */
-internal object Regexes {
+object Regexes {
     val CLASS_NAME: Pattern = Pattern.compile("""\bclass\s+([A-Za-z_$][\w$]*)""")
     val CLASS_DECL: Pattern = Pattern.compile("""\b(class|interface|object)\s+([A-Za-z_]\w*)""")
     val CS_CLASS: Pattern = Pattern.compile("""\bclass\s+([A-Za-z_]\w*)""")

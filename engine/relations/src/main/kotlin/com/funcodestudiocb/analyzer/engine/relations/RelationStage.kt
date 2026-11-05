@@ -3,6 +3,7 @@ package com.funcodestudiocb.analyzer.engine.relations
 import com.funcodestudiocb.analyzer.engine.api.CoverageReason
 import com.funcodestudiocb.analyzer.engine.api.DependencyCycle
 import com.funcodestudiocb.analyzer.engine.api.Evidence
+import com.funcodestudiocb.analyzer.engine.api.Endpoint
 import com.funcodestudiocb.analyzer.engine.api.EndpointKind
 import com.funcodestudiocb.analyzer.engine.api.EvidenceKind
 import com.funcodestudiocb.analyzer.engine.api.FileEntry
@@ -17,6 +18,7 @@ import com.funcodestudiocb.analyzer.engine.api.RelationKind
 import com.funcodestudiocb.analyzer.engine.api.RelationsSummary
 import com.funcodestudiocb.analyzer.engine.api.SymbolCategory
 import com.funcodestudiocb.analyzer.engine.api.SymbolInfo
+import com.funcodestudiocb.analyzer.engine.core.AttributeKey
 import com.funcodestudiocb.analyzer.engine.core.Stage
 import com.funcodestudiocb.analyzer.engine.core.StageContext
 import com.funcodestudiocb.analyzer.engine.dependencies.DependencyKeys
@@ -27,6 +29,12 @@ import com.funcodestudiocb.analyzer.engine.languages.Languages
 import com.funcodestudiocb.analyzer.engine.languages.SymbolKind
 import com.funcodestudiocb.analyzer.engine.relations.framework.DraftSink
 import com.funcodestudiocb.analyzer.engine.relations.framework.FrameworkLinker
+
+/** Lo que la etapa de relaciones deja a las etapas siguientes (la auditoría de seguridad). */
+object RelationKeys {
+    /** Rutas del backend y páginas, con lo que las atiende. */
+    val ENDPOINTS = AttributeKey<List<Endpoint>>("relations.endpoints")
+}
 
 /** Relación antes de calcular su impacto. */
 internal class Draft(
@@ -106,6 +114,7 @@ class RelationStage(private val collector: RelationCollector) : Stage {
         val linker = FrameworkLinker(index, resolver, collector.framework, context.attributes[DependencyKeys.DECLARED].orEmpty(), sink)
         linker.link()
         val endpoints = linker.emitEndpoints()
+        context.attributes[RelationKeys.ENDPOINTS] = endpoints
         context.checkActive()
 
         context.progress(0.6f, "Construyendo el grafo")

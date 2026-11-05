@@ -4,26 +4,39 @@ import com.funcodestudiocb.analyzer.engine.inventory.PathInfo
 import com.funcodestudiocb.analyzer.engine.inventory.RedactedText
 
 /** Cadena literal leída del código: su valor, con las partes interpoladas como [DYNAMIC]. */
-internal class Literal(val value: String, val start: Int, val end: Int) {
+class Literal(val value: String, val start: Int, val end: Int) {
     val dynamic: Boolean get() = DYNAMIC in value
     val startsDynamic: Boolean get() = value.startsWith(DYNAMIC)
 }
 
 /** Marca de una parte de una cadena o URL que solo se conoce al ejecutar. */
-internal const val DYNAMIC = "\u0001"
+const val DYNAMIC = "\u0001"
 
 /**
  * Lector de código para los analizadores de framework: busca llamadas, lee sus argumentos y cadenas (con la
  * interpolación de cada lenguaje) y descarta lo que está dentro de comentarios. No usa expresiones regulares de
  * Java (en Android son de ICU y se comportan distinto): solo recorridos de caracteres acotados.
  */
-internal class Src(file: RedactedText) {
+class Src(file: RedactedText) {
     val path: String = file.path
     val text: String = file.text
     val info: PathInfo = file.info
     val language: String? = file.language?.id
     private val lineStarts = file.lineStarts
     private val analysis = file.analysis
+
+    /** Número de líneas y texto de una línea (desde 1), sin el salto final. */
+    val lineCount: Int get() = lineStarts.size
+
+    fun lineText(n: Int): String {
+        if (n < 1 || n > lineStarts.size) return ""
+        val start = lineStarts[n - 1]
+        val end = if (n < lineStarts.size) lineStarts[n] - 1 else text.length
+        return text.substring(start, maxOf(start, end)).removeSuffix("\r")
+    }
+
+    /** Posición en el texto del principio de la línea [n] (desde 1). */
+    fun lineStart(n: Int): Int = lineStarts[(n - 1).coerceIn(0, lineStarts.size - 1)]
 
     fun line(offset: Int): Int {
         val i = lineStarts.binarySearch(offset)

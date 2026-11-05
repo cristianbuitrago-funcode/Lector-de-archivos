@@ -173,4 +173,31 @@ class SecretRedactorTest {
         val time = measureTime { SecretRedactor.redact(hostile, ".env") }
         assertTrue(time.inWholeSeconds < 10, "Tardó $time")
     }
+
+    @Test
+    fun `claves de firma escritas como argumento se ocultan`() {
+        check("return jwt.sign({ id: user.id, role: 'x' }, 'super-secreto-de-firma', { expiresIn: '1h' });", "auth.js", "super-secreto-de-firma")
+        check("token = jwt.encode(payload, \"clave-de-firma-123\", algorithm=\"HS256\")", "auth.py", "clave-de-firma-123")
+        check("Algorithm alg = Algorithm.HMAC256(\"mi-clave-hmac-2024\");", "Jwt.java", "mi-clave-hmac-2024")
+        check("app.use(cookieParser('galleta-secreta-9'));", "app.js", "galleta-secreta-9")
+        // El algoritmo no es la clave, y un texto que solo describe la llamada (entre comillas) no es una llamada.
+        val text = "jwt.decode(token, options) // \"HS256\"\nval p = listOf(\"jwt.decode(\", \"verify=False\")"
+        assertTrue(SecretRedactor.redact(text, "x.kt").secrets.isEmpty())
+        assertTrue(SecretRedactor.redact("jwt.verify(token, key, { algorithms: ['HS256'] })", "a.js").secrets.isEmpty())
+    }
+
+    @Test
+    fun `huella estable con la clave local y valores conocidos marcados`() {
+        val key = ByteArray(32) { it.toByte() }
+        val a = SecretRedactor.redact("api_key = \"abcd1234efgh5678ijkl\"", "a.py", key).secrets.single()
+        val b = SecretRedactor.redact("token: 'abcd1234efgh5678ijkl'", "b.yml", key).secrets.single()
+        assertEquals(a.fingerprint, b.fingerprint)
+        assertTrue(RecordValidator.FINGERPRINT_PATTERN.matches(a.fingerprint!!))
+        val other = SecretRedactor.redact("api_key = \"abcd1234efgh5678ijkl\"", "a.py", ByteArray(32) { 7 }).secrets.single()
+        assertTrue(other.fingerprint != a.fingerprint, "Otra clave local da otra huella")
+        assertEquals(null, SecretRedactor.redact("api_key = \"abcd1234efgh5678ijkl\"", "a.py").secrets.single().fingerprint)
+        assertTrue(SecretRedactor.redact("storePassword = \"android\"", "build.gradle").secrets.single().placeholder)
+        assertTrue(SecretRedactor.redact("password = \"changeme123\"", "a.py").secrets.single().placeholder)
+        assertFalse(SecretRedactor.redact("password = \"Zx9!kLm2pQ\"", "a.py").secrets.single().placeholder)
+    }
 }

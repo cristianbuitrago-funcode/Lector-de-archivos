@@ -17,7 +17,20 @@ data class AnalysisConfig(
     /** Obligatorio en el modo [AnalysisMode.FULL]. */
     val ingest: IngestOptions? = null,
     val inventory: InventoryOptions = InventoryOptions(),
+    val security: SecurityOptions = SecurityOptions(),
 )
+
+/** Opciones de la auditoría de seguridad (Fase 6). */
+@Serializable
+data class SecurityOptions(
+    /**
+     * Clave local (Base64, 32 bytes) para la huella HMAC-SHA256 de cada secreto: permite saber, al comparar análisis,
+     * si un secreto sigue presente sin guardar nunca el secreto. `null`: sin huellas.
+     */
+    val fingerprintKey: String? = null,
+) {
+    override fun toString(): String = "SecurityOptions(fingerprintKey=${if (fingerprintKey == null) "null" else "••••"})"
+}
 
 /** Opciones del inventario y de la copia redactada del código (modo [AnalysisMode.FULL]). */
 @Serializable
@@ -108,6 +121,9 @@ object ConfigValidator {
                 val inventory = config.inventory
                 if (inventory.maxContentBytes !in 1L..InventoryOptions.MAX_CONTENT_BYTES_ALLOWED) errors += "Tamaño máximo de contenido fuera de rango"
                 if (inventory.maxStoredChars !in 0L..InventoryOptions.MAX_STORED_CHARS_ALLOWED) errors += "Tamaño máximo de la copia del código fuera de rango"
+                config.security.fingerprintKey?.let { key ->
+                    if (key.length !in 40..100 || key.any { !(it.isLetterOrDigit() || it == '+' || it == '/' || it == '=') }) errors += "Clave de huellas inválida"
+                }
             }
         }
         return errors
