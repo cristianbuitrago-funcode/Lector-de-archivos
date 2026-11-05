@@ -160,7 +160,11 @@ class FullAnalysisInstrumentedTest {
         assertTrue(secret.fingerprint?.length == 32, "Sin huella: $secret")
         assertTrue(secret.masked!!.startsWith("abcd") && secret.masked!!.count { it == RecordValidator.MASK_CHAR } > 0)
         assertFalse(finished.report.security.toString().contains("abcd1234efgh5678ijkl"), "El secreto completo no sale del proceso aislado")
-        assertTrue(summary.notEvaluated.any { it.contains("Fase 7") })
+        // Dependencias (Fase 7) sin base descargada: se listan, no se inventan vulnerabilidades y se dice por qué.
+        val deps = finished.report.dependencySummary ?: fail("Sin resumen de dependencias: $diagnosis")
+        assertEquals(1, deps.direct)
+        assertEquals(0, deps.vulnerabilities)
+        assertTrue(summary.notEvaluated.any { it.contains("no hay base de vulnerabilidades descargada") }, summary.notEvaluated.toString())
     }
 
     @Test
