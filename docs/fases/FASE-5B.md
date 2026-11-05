@@ -75,7 +75,9 @@ Android 8.0 (API 26), 15 (API 35) y 16 (API 36). Además de las de fases anterio
 comprueba en el proceso aislado que la ruta `GET /api/ping` de Express se registra con su archivo y su llamada, y que
 la petición desde el cliente se enlaza con el servidor como probable.
 
-**Resultado:** _(se completa con la ejecución del CI)_.
+**Resultado: 13 de 13 correctas en las tres versiones** (ejecución n.º 21 del CI: 3 de aislamiento, 3 de cifrado,
+3 de migración, 3 de análisis completo y 1 recorrido de extremo a extremo), y el trabajo de compilación, pruebas JVM
+y Lint también correcto. A la primera, sin incidentes en los emuladores.
 
 ### Errores encontrados y corregidos durante la fase
 
