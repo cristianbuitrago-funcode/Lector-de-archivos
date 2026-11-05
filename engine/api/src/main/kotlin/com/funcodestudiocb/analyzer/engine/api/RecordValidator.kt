@@ -44,6 +44,12 @@ object RecordValidator {
     const val MAX_REFERENCES = 8
     const val MAX_FLOW_STEPS = 10
     const val MAX_DYNAMIC_CHECKS = 40
+    const val MAX_INTRODUCED_BY = 3
+    const val MAX_VULNERABILITIES = 50
+    const val MAX_ALIASES = 8
+    const val MAX_FIXED_IN = 10
+    const val MAX_REASONS = 6
+    const val MAX_DATABASES = 16
     val RULE_ID_PATTERN = Regex("^FC-[A-Z0-9-]{2,30}$")
     val FINGERPRINT_PATTERN = Regex("^[0-9a-f]{32}$")
 
@@ -268,6 +274,50 @@ object RecordValidator {
                 if (record.bySeverity.values.sum() != record.findings) errors += "Totales por severidad incoherentes"
                 if (record.dynamicChecks.size > MAX_DYNAMIC_CHECKS || record.notEvaluated.size > MAX_DYNAMIC_CHECKS) errors += "Demasiadas comprobaciones"
                 (record.dynamicChecks + record.notEvaluated).forEach { checkName(errors, "check", it, MAX_EVIDENCE_DETAIL) }
+            }
+            is ResolvedDependency -> {
+                checkName(errors, "name", record.name, MAX_TARGET_LENGTH)
+                record.version?.let { checkName(errors, "version", it, MAX_VERSION_LENGTH) }
+                record.declared?.let { checkName(errors, "declared", it, MAX_VERSION_LENGTH) }
+                if (record.version == null && record.versionSource != VersionSource.UNKNOWN) errors += "Versión ausente"
+                record.manifest?.let { checkPath(errors, it) }
+                record.lockfile?.let { checkPath(errors, it) }
+                record.projectRoot?.let { checkDirectory(errors, it) }
+                if ((record.manifestLine ?: 1) < 1 || (record.lockfileLine ?: 1) < 1) errors += "Línea inválida"
+                if (record.introducedBy.size > MAX_INTRODUCED_BY || record.introducedByCount < record.introducedBy.size) errors += "Cadenas de introducción incoherentes"
+                record.introducedBy.forEach { checkName(errors, "introducedBy", it, MAX_REFERENCE_LENGTH) }
+                checkSamples(errors, "usedIn", record.usedIn, record.usedCount)
+                checkSamples(errors, "alsoIn", record.alsoIn, record.alsoInCount)
+                if (record.usage == UsageStatus.USED && record.usedCount == 0) errors += "Uso sin archivos"
+                if (record.criticalityReasons.size > MAX_REASONS) errors += "Demasiados motivos"
+                record.criticalityReasons.forEach { checkName(errors, "reason", it, MAX_EVIDENCE_DETAIL) }
+                if (record.vulnerabilities.size > MAX_VULNERABILITIES || record.vulnerabilityCount < record.vulnerabilities.size) errors += "Vulnerabilidades incoherentes"
+                record.vulnerabilities.forEach { v ->
+                    checkName(errors, "vulnerability", v.id, MAX_TARGET_LENGTH)
+                    if (v.aliases.size > MAX_ALIASES || v.fixedIn.size > MAX_FIXED_IN) errors += "Vulnerabilidad con demasiados datos"
+                    (v.aliases + v.fixedIn).forEach { checkName(errors, "vulnerability", it, MAX_TARGET_LENGTH) }
+                    v.summary?.let { checkText(errors, "summary", it, MAX_EVIDENCE_DETAIL) }
+                    if (v.score != null && v.score !in 0.0..10.0) errors += "Puntuación fuera de rango"
+                }
+            }
+            is EndOfLife -> {
+                checkName(errors, "product", record.product)
+                checkName(errors, "label", record.label)
+                checkName(errors, "version", record.version, MAX_VERSION_LENGTH)
+                checkName(errors, "source", record.source, MAX_EVIDENCE_DETAIL)
+                record.path?.let { checkPath(errors, it) }
+                if ((record.line ?: 1) < 1) errors += "Línea inválida"
+                listOfNotNull(record.cycle, record.eolDate, record.latestInCycle).forEach { checkName(errors, "eol", it, MAX_VERSION_LENGTH) }
+                checkSamples(errors, "alsoIn", record.alsoIn, record.alsoInCount)
+            }
+            is DependencySummary -> {
+                val values = listOf(record.direct, record.indirect, record.lockfiles, record.exactVersions, record.vulnerablePackages, record.vulnerabilities, record.malicious, record.notSeen, record.endOfLife, record.endingSoon)
+                if (values.any { it < 0 } || record.bySeverity.values.any { it < 0 }) errors += "Totales negativos"
+                if (record.bySeverity.values.sum() != record.vulnerabilities) errors += "Totales por severidad incoherentes"
+                if (record.databases.size > MAX_DATABASES) errors += "Demasiadas bases"
+                record.databases.forEach { checkName(errors, "database", it.ecosystem); if (it.advisories < 0) errors += "Totales negativos" }
+                if (record.notEvaluated.size > MAX_DYNAMIC_CHECKS) errors += "Demasiadas notas"
+                record.notEvaluated.forEach { checkName(errors, "notEvaluated", it, MAX_EVIDENCE_DETAIL) }
             }
             is ConfigKey -> {
                 checkName(errors, "name", record.name)

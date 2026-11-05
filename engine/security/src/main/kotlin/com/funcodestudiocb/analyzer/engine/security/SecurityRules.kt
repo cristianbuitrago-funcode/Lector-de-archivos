@@ -14,7 +14,9 @@ import com.funcodestudiocb.analyzer.engine.api.SecurityCategory.PATH_TRAVERSAL
 import com.funcodestudiocb.analyzer.engine.api.SecurityCategory.SENSITIVE_DATA_EXPOSURE
 import com.funcodestudiocb.analyzer.engine.api.SecurityCategory.SESSION
 import com.funcodestudiocb.analyzer.engine.api.SecurityCategory.SQL_INJECTION
+import com.funcodestudiocb.analyzer.engine.api.SecurityCategory.OUTDATED_LIBRARY
 import com.funcodestudiocb.analyzer.engine.api.SecurityCategory.SUPPRESSION
+import com.funcodestudiocb.analyzer.engine.api.SecurityCategory.VULNERABLE_DEPENDENCY
 import com.funcodestudiocb.analyzer.engine.api.SecurityCategory.WEAK_AUTHENTICATION
 import com.funcodestudiocb.analyzer.engine.api.SecurityCategory.XSS
 import com.funcodestudiocb.analyzer.engine.api.Severity
@@ -73,6 +75,7 @@ object SecurityRules {
     private const val A03 = "A03:2021 Inyección"
     private const val A04 = "A04:2021 Diseño inseguro"
     private const val A05 = "A05:2021 Configuración de seguridad incorrecta"
+    private const val A06 = "A06:2021 Componentes vulnerables y desactualizados"
     private const val A07 = "A07:2021 Fallos de identificación y autenticación"
     private const val A08 = "A08:2021 Fallos de integridad de software y datos"
     private const val A09 = "A09:2021 Fallos de registro y monitorización"
@@ -550,6 +553,37 @@ object SecurityRules {
             "Se escribe en el registro una variable con nombre de contraseña, token o secreto.",
             "Los registros se guardan y se comparten con menos cuidado que la base de datos: el secreto queda expuesto.",
             "No registres secretos; registra como mucho que existen o una versión enmascarada.",
+        ),
+
+        // ------------------------------------------------------------------ dependencias y fin de soporte (Fase 7)
+        SecurityRule(
+            "FC-DEP-01", "Dependencia con vulnerabilidades conocidas", VULNERABLE_DEPENDENCY, 1395, A06, HIGH,
+            "La versión de esta dependencia está afectada por vulnerabilidades publicadas en la base OSV (la del teléfono, con su fecha).",
+            "El código de la dependencia se ejecuta dentro de la aplicación: una vulnerabilidad suya es una vulnerabilidad del proyecto si se usa la parte afectada.",
+            "Actualiza a una versión corregida (la ficha indica cuáles) y fija la versión con un archivo de bloqueo. Si no hay corrección, valora sustituir la dependencia o aislar su uso.",
+            mapOf("config" to "# Actualiza a la versión corregida y vuelve a generar el archivo de bloqueo:\nnpm install paquete@versión-corregida   (o pip, composer, gradle…)"),
+            listOf("https://osv.dev/", CHEAT + "Vulnerable_Dependency_Management_Cheat_Sheet.html"),
+        ),
+        SecurityRule(
+            "FC-DEP-02", "Paquete malicioso", VULNERABLE_DEPENDENCY, 506, A08, CRITICAL,
+            "El paquete figura en la base OSV como malicioso (aviso MAL-): roba datos, instala puertas traseras o ejecuta código al instalarse.",
+            "Basta con instalarlo para que se ejecute su código en el equipo de desarrollo, en la integración continua o en producción.",
+            "Elimínalo del proyecto y del archivo de bloqueo, revisa los equipos donde se instaló y cambia las credenciales que pudieran estar a su alcance.",
+            extraReferences = listOf("https://github.com/ossf/malicious-packages"),
+        ),
+        SecurityRule(
+            "FC-EOL-01", "Versión sin soporte", OUTDATED_LIBRARY, 1104, A06, MEDIUM,
+            "La versión de este entorno, framework o servicio ya no recibe correcciones de seguridad según endoflife.date.",
+            "Las vulnerabilidades que se descubran a partir de ahora no se corregirán en esta versión.",
+            "Planifica la actualización a un ciclo con soporte (la ficha indica la fecha de fin y la última versión del ciclo).",
+            extraReferences = listOf("https://endoflife.date/"),
+        ),
+        SecurityRule(
+            "FC-EOL-02", "Soporte a punto de terminar", OUTDATED_LIBRARY, 1104, A06, LOW,
+            "El soporte de seguridad de esta versión termina en los próximos 6 meses según endoflife.date.",
+            "Después de esa fecha dejará de recibir correcciones de seguridad.",
+            "Programa la actualización antes de la fecha de fin de soporte.",
+            extraReferences = listOf("https://endoflife.date/"),
         ),
 
         // ------------------------------------------------------------------ supresiones (§8.5)

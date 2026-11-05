@@ -647,7 +647,8 @@ class Resolver(private val index: ProjectIndex) {
             "Illuminate\\" to "laravel/", "Symfony\\" to "symfony/", "Doctrine\\" to "doctrine/", "GuzzleHttp\\" to "guzzlehttp/",
             "Monolog\\" to "monolog/", "PHPUnit\\" to "phpunit/", "Carbon\\" to "nesbot/carbon", "Laravel\\" to "laravel/",
         )
-        private val PYTHON_ALIASES = mapOf(
+        /** Módulo que se importa → paquete que lo instala, cuando no se llaman igual. */
+        val PYTHON_ALIASES = mapOf(
             "yaml" to "pyyaml", "cv2" to "opencv-python", "sklearn" to "scikit-learn", "PIL" to "pillow", "bs4" to "beautifulsoup4",
             "dotenv" to "python-dotenv", "jwt" to "pyjwt", "dateutil" to "python-dateutil", "google" to "protobuf", "MySQLdb" to "mysqlclient",
             "psycopg2" to "psycopg2-binary", "attr" to "attrs", "magic" to "python-magic", "serial" to "pyserial", "Crypto" to "pycryptodome",

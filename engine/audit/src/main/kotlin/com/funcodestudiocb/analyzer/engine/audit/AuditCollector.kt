@@ -155,6 +155,15 @@ class AuditCollector : RedactedTextListener {
         }
     }
 
+    /** Hallazgo que no sale de un patrón de código (dependencias): sin el tope por regla y archivo. */
+    internal fun addDirect(f: Finding) {
+        if (findings.size >= MAX_FINDINGS) {
+            limitReached = true
+            return
+        }
+        findings += f
+    }
+
     internal fun add(f: Finding) {
         if (findings.size >= MAX_FINDINGS) {
             limitReached = true

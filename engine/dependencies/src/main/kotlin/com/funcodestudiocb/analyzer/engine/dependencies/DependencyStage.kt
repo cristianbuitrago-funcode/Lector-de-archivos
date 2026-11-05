@@ -15,26 +15,31 @@ import com.funcodestudiocb.analyzer.engine.inventory.rootOf
 object DependencyKeys {
     /** Dependencias directas declaradas (ya con subproyecto), para el motor de tecnologías. */
     val DECLARED = AttributeKey<List<DeclaredDependency>>("dependencies.declared")
+
+    /** Archivos de bloqueo leídos (Fase 7): versiones exactas de las dependencias directas e indirectas. */
+    val LOCKFILES = AttributeKey<List<ParsedLockfile>>("dependencies.lockfiles")
 }
 
-/** Reúne los manifiestos durante el recorrido del comprimido (sobre el texto ya redactado). */
+/** Reúne los manifiestos y los archivos de bloqueo durante el recorrido del comprimido (sobre el texto ya redactado). */
 class DependencyCollector : RedactedTextListener {
     val manifests = mutableListOf<ParsedManifest>()
+    val lockfiles = mutableListOf<ParsedLockfile>()
 
     override fun onText(context: StageContext, file: RedactedText) {
-        if (manifests.size >= MAX_MANIFESTS) return
-        ManifestParsers.parse(file.info, file.text)?.let { manifests += it }
+        if (manifests.size < MAX_MANIFESTS) ManifestParsers.parse(file.info, file.text)?.let { manifests += it }
+        if (lockfiles.size < MAX_LOCKFILES) Lockfiles.parse(file.info, file.text)?.let { lockfiles += it }
     }
 
     companion object {
         const val MAX_MANIFESTS = 5_000
+        const val MAX_LOCKFILES = 500
     }
 }
 
 /**
- * Dependencias directas declaradas en los manifiestos (Fase 4: son evidencia para el motor de tecnologías).
- * Resuelve las referencias a catálogos de versiones de Gradle con el catálogo más cercano. Los archivos de bloqueo
- * (versiones exactas y dependencias transitivas) y las vulnerabilidades llegan en la Fase 7.
+ * Dependencias directas declaradas en los manifiestos (Fase 4: son evidencia para el motor de tecnologías) y archivos
+ * de bloqueo leídos (Fase 7). Resuelve las referencias a catálogos de versiones de Gradle con el catálogo más cercano.
+ * La comparación con las vulnerabilidades conocidas se hace en la auditoría de dependencias.
  */
 class DependencyStage(private val collector: DependencyCollector) : Stage {
     override val id = "dependencies"
@@ -70,6 +75,15 @@ class DependencyStage(private val collector: DependencyCollector) : Stage {
         }
         out.forEach(context::emit)
         context.attributes[DependencyKeys.DECLARED] = out
+        context.attributes[DependencyKeys.LOCKFILES] = collector.lockfiles.toList()
+        collector.lockfiles.filter { !it.readable }.let { bad ->
+            if (bad.isNotEmpty()) {
+                context.coverage(CoverageReason.NOT_ANALYZED, "${bad.size} archivos de bloqueo no se pudieron interpretar (formato inválido o no reconocido)", bad.first().path)
+            }
+        }
+        collector.lockfiles.filter { it.truncated }.forEach {
+            context.coverage(CoverageReason.LIMIT_REACHED, "El archivo de bloqueo tiene más de ${Lockfiles.MAX_PACKAGES} paquetes: solo se leyeron los primeros", it.path)
+        }
 
         if (out.size >= MAX_DEPENDENCIES) {
             context.coverage(CoverageReason.LIMIT_REACHED, "Se registran como máximo $MAX_DEPENDENCIES dependencias declaradas")
@@ -91,11 +105,6 @@ class DependencyStage(private val collector: DependencyCollector) : Stage {
         if (collector.manifests.size >= DependencyCollector.MAX_MANIFESTS) {
             context.coverage(CoverageReason.LIMIT_REACHED, "Se leyeron como máximo ${DependencyCollector.MAX_MANIFESTS} manifiestos de dependencias")
         }
-        context.coverage(
-            CoverageReason.UNSUPPORTED,
-            "Solo se leen las dependencias directas declaradas en los manifiestos. Las versiones exactas de los archivos de bloqueo, " +
-                "las dependencias transitivas y sus vulnerabilidades se analizarán en la Fase 7.",
-        )
     }
 
     /** Catálogo con ese nombre cuya carpeta base (la que contiene `gradle/`) es la más cercana al archivo. */

@@ -34,6 +34,15 @@ import com.funcodestudiocb.analyzer.engine.relations.framework.FrameworkLinker
 object RelationKeys {
     /** Rutas del backend y páginas, con lo que las atiende. */
     val ENDPOINTS = AttributeKey<List<Endpoint>>("relations.endpoints")
+
+    /**
+     * Paquetes externos importados y dónde ("archivo:línea"), con el nombre que da cada lenguaje: el paquete npm, el
+     * módulo de Python, el grupo Java (`com.squareup`), el espacio de nombres de PHP o .NET, el paquete de Dart.
+     */
+    val EXTERNAL_USES = AttributeKey<Map<String, List<String>>>("relations.externalUses")
+
+    /** Archivos de código cuyas importaciones se pudieron leer, por lenguaje (para saber si "sin uso" es fiable). */
+    val IMPORT_LANGUAGES = AttributeKey<Set<String>>("relations.importLanguages")
 }
 
 /** Relación antes de calcular su impacto. */
@@ -115,6 +124,16 @@ class RelationStage(private val collector: RelationCollector) : Stage {
         linker.link()
         val endpoints = linker.emitEndpoints()
         context.attributes[RelationKeys.ENDPOINTS] = endpoints
+        val uses = LinkedHashMap<String, MutableList<String>>()
+        for (d in drafts.values) {
+            val ext = d.external ?: continue
+            if (d.kind != RelationKind.IMPORT) continue
+            val list = uses.getOrPut(ext) { mutableListOf() }
+            if (list.size < MAX_USES_PER_PACKAGE) list += d.source + (d.line?.let { ":$it" } ?: "")
+        }
+        context.attributes[RelationKeys.EXTERNAL_USES] = uses
+        context.attributes[RelationKeys.IMPORT_LANGUAGES] =
+            collector.facts.values.filter { it.imports.isNotEmpty() }.mapTo(HashSet()) { it.language } - collector.withoutImports.keys
         context.checkActive()
 
         context.progress(0.6f, "Construyendo el grafo")
@@ -440,6 +459,7 @@ class RelationStage(private val collector: RelationCollector) : Stage {
     }
 
     private companion object {
+        const val MAX_USES_PER_PACKAGE = 50
         const val MAX_RELATIONS = 60_000
         const val MAX_AFFECTED = 50
         val LANGUAGE_KINDS = setOf(RelationKind.IMPORT, RelationKind.INHERITANCE, RelationKind.IMPLEMENTATION, RelationKind.REFERENCE)

@@ -26,7 +26,10 @@ class SecurityStage(private val collector: AuditCollector) : Stage {
     override val id = "security"
     override val title = "Auditoría de seguridad"
 
-    /** Se ejecuta tras las relaciones (orden de registro) pero no depende de que terminen bien: sin rutas, se dice. */
+    /**
+     * Se ejecuta tras las relaciones y la auditoría de dependencias (orden de registro) pero no depende de que terminen
+     * bien: sin rutas o sin dependencias, se dice.
+     */
     override val dependsOn = setOf("dependencies")
 
     override suspend fun run(context: StageContext) {
@@ -37,6 +40,8 @@ class SecurityStage(private val collector: AuditCollector) : Stage {
         context.checkActive()
         context.progress(0.4f, "Configuración del proyecto")
         projectFindings(context, c)
+        // Dependencias vulnerables y versiones sin soporte (Fase 7), de la auditoría de dependencias.
+        context.attributes[com.funcodestudiocb.analyzer.engine.audit.deps.AuditKeys.DEPENDENCY_FINDINGS]?.forEach(c::addDirect)
         context.progress(0.6f, "Control de acceso de las rutas")
         val endpoints = context.attributes[RelationKeys.ENDPOINTS]
         if (endpoints == null) {
@@ -67,6 +72,7 @@ class SecurityStage(private val collector: AuditCollector) : Stage {
             emitted += f
         }
         coverage(context, c, invalid)
+        dependencyNotes = context.attributes[com.funcodestudiocb.analyzer.engine.audit.deps.AuditKeys.DEPENDENCY_NOTES]
         context.emit(summary(emitted, c))
     }
 
@@ -127,6 +133,7 @@ class SecurityStage(private val collector: AuditCollector) : Stage {
     }
 
     private var extra: Map<String, Int> = emptyMap()
+    private var dependencyNotes: List<String>? = null
 
     // ------------------------------------------------------------------ señales del proyecto
 
@@ -211,7 +218,8 @@ class SecurityStage(private val collector: AuditCollector) : Stage {
         val dynamic = DYNAMIC_CHECKS.toMutableList()
         val dynamicAccess = findings.count { it.certainty == Certainty.DYNAMIC }
         if (dynamicAccess > 0) dynamic += "Protección real de $dynamicAccess rutas de administración que dependen de la configuración global de autenticación."
-        val notEvaluated = NOT_EVALUATED.toMutableList()
+        val notEvaluated = (dependencyNotes ?: listOf("Dependencias vulnerables y versiones sin soporte: la auditoría de dependencias no se ejecutó."))
+            .toMutableList().also { it += NOT_EVALUATED }
         if (c.withoutCodeRules.isNotEmpty()) {
             notEvaluated += "Inyecciones y flujo de datos en ${c.withoutCodeRules.entries.sortedByDescending { it.value }.joinToString { "${it.key} (${it.value})" }.take(300)}: " +
                 "solo se buscan secretos, configuración y supresiones."
@@ -274,8 +282,7 @@ class SecurityStage(private val collector: AuditCollector) : Stage {
             "Comportamiento de la app en el dispositivo (almacenamiento, intents recibidos, WebView con contenido real).",
         )
         val NOT_EVALUATED = listOf(
-            "Dependencias con vulnerabilidades conocidas: se evaluarán en la Fase 7 con la base de datos OSV.",
-            "Librerías desactualizadas: se evaluarán en la Fase 7.",
+            "Librerías desactualizadas sin fecha de fin de soporte publicada: solo se evalúan los entornos y frameworks de endoflife.date.",
             "Binarios y archivos compilados: no se analizan por dentro.",
         )
     }

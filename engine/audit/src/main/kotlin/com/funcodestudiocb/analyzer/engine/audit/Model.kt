@@ -25,6 +25,9 @@ internal class Finding(
     val language: String? = null,
     var secret: DetectedSecret? = null,
     var downgraded: String? = null,
+    /** Ejemplo corregido propio del caso (sustituye al de la regla) y referencias propias, que van primero. */
+    val example: String? = null,
+    val extraReferences: List<String> = emptyList(),
 ) {
     val cwe: Int? get() = rule.cwe
 
@@ -44,8 +47,8 @@ internal class Finding(
         snippet = snippet,
         snippetLine = snippetLine.takeIf { snippet != null },
         recommendation = rule.recommendation.take(RecordValidator.MAX_FINDING_TEXT),
-        fixedExample = rule.example(language)?.take(RecordValidator.MAX_FIXED_EXAMPLE),
-        references = rule.references.take(RecordValidator.MAX_REFERENCES),
+        fixedExample = (example ?: rule.example(language))?.take(RecordValidator.MAX_FIXED_EXAMPLE),
+        references = (extraReferences + rule.references).distinct().take(RecordValidator.MAX_REFERENCES),
         flow = flow.take(RecordValidator.MAX_FLOW_STEPS).map { FlowStep(it.line, it.description.take(RecordValidator.MAX_EVIDENCE_DETAIL)) },
         downgraded = downgraded,
         secretType = secret?.type,

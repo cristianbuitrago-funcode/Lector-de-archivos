@@ -74,7 +74,14 @@ internal const val TEST_KEY = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
  * Audita un proyecto de prueba (un ZIP en memoria) con el pipeline real (ingesta, inventario, dependencias,
  * relaciones y seguridad), valida cada registro como lo hace el proceso principal y devuelve el resultado.
  */
-internal fun audit(dir: File, entries: Map<String, String>, binary: Map<String, ByteArray> = emptyMap(), key: String? = TEST_KEY): Audit {
+internal fun audit(
+    dir: File,
+    entries: Map<String, String>,
+    binary: Map<String, ByteArray> = emptyMap(),
+    key: String? = TEST_KEY,
+    database: File? = null,
+    today: java.time.LocalDate = java.time.LocalDate.of(2026, 11, 5),
+): Audit {
     val file = File.createTempFile("proyecto", ".zip", dir)
     ZipOutputStream(file.outputStream()).use { out ->
         entries.forEach { (name, text) ->
@@ -91,15 +98,26 @@ internal fun audit(dir: File, entries: Map<String, String>, binary: Map<String, 
     val dependencies = DependencyCollector()
     val relations = RelationCollector()
     val audit = AuditCollector()
-    val stages = InventoryPipeline.registry(ContentCollector(listOf(dependencies, relations, audit)))
+    val runtimes = com.funcodestudiocb.analyzer.engine.audit.deps.RuntimeCollector()
+    val stages = InventoryPipeline.registry(ContentCollector(listOf(dependencies, relations, audit, runtimes)))
         .register(DependencyStage(dependencies))
         .register(RelationStage(relations))
+        .register(com.funcodestudiocb.analyzer.engine.audit.deps.DependencyAuditStage(runtimes))
         .register(SecurityStage(audit))
         .plan()
     FileInputStream(file).use { stream ->
         val attributes = Attributes()
         attributes[IngestKeys.SOURCE] = ArchiveSource(stream.channel, file.absolutePath)
         attributes[IngestKeys.PASSWORD] = attributes.closeLater(PasswordHolder(null))
+        attributes[com.funcodestudiocb.analyzer.engine.audit.deps.AuditKeys.TODAY] = today
+        if (database != null) {
+            try {
+                attributes[com.funcodestudiocb.analyzer.engine.audit.deps.AuditKeys.DATABASE] =
+                    attributes.closeLater(com.funcodestudiocb.analyzer.engine.vulndb.VulnDatabase.open(FileInputStream(database).channel))
+            } catch (e: com.funcodestudiocb.analyzer.engine.vulndb.InvalidIndexException) {
+                attributes[com.funcodestudiocb.analyzer.engine.audit.deps.AuditKeys.DATABASE_PROBLEM] = e.message.orEmpty()
+            }
+        }
         val bytes = ByteArrayOutputStream()
         val writer = FrameWriter(bytes)
         val config = AnalysisConfig("prueba", AnalysisMode.FULL, ingest = IngestOptions(file.name), security = SecurityOptions(key))
@@ -123,7 +141,8 @@ internal fun assertCompleteCards(a: Audit) {
             assertTrue(f.cwe != null && f.references.isNotEmpty(), "Sin CWE o referencias: $f")
         }
         // Las rutas se conocen al final (sin el texto): su ficha lleva la ruta y la línea, y el código se abre en el visor.
-        if (f.line != null) assertTrue(f.snippet != null || f.ruleId.startsWith("FC-ACCESS"), "Sin fragmento: $f")
+        // Las rutas y las dependencias se deciden al final (sin el texto): su ficha lleva archivo y línea para el visor.
+        if (f.line != null) assertTrue(f.snippet != null || f.ruleId.startsWith("FC-ACCESS") || f.ruleId.startsWith("FC-DEP") || f.ruleId.startsWith("FC-EOL"), "Sin fragmento: $f")
         if (f.certainty == Certainty.PROBABLE && f.category in FLOW_CATEGORIES) assertTrue(f.flow.isNotEmpty(), "Probable sin recorrido: $f")
         f.downgraded?.let { assertTrue(it.isNotBlank()) }
     }

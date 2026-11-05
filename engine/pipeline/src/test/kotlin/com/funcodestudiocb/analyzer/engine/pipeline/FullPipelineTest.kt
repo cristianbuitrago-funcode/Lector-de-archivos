@@ -246,7 +246,9 @@ class FullPipelineTest {
         val run = run(mapOf("notas/lista.csv" to "a,b\n1,2\n"))
         assertTrue(run.all<Technology>().isEmpty())
         assertTrue(run.all<CoverageNote>().any { it.detail.contains("catálogo v1") })
-        assertTrue(run.all<CoverageNote>().any { it.detail.contains("Fase 7") })
+        // Sin dependencias no hay nada que comparar: el resumen de dependencias está vacío y no inventa vulnerabilidades.
+        val deps = run.all<com.funcodestudiocb.analyzer.engine.api.DependencySummary>().single()
+        assertEquals(0, deps.direct + deps.indirect + deps.vulnerabilities)
     }
 
     @Test

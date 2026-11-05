@@ -18,6 +18,7 @@ java {
 dependencies {
     api(project(":engine:relations"))
     api(project(":engine:security"))
+    api(project(":engine:vulndb"))
 
     testImplementation(kotlin("test"))
     testImplementation(platform(libs.junit5.bom))
