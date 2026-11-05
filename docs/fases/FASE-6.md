@@ -70,7 +70,15 @@ texto en lugar de línea a línea (incidente 3).
 
 ### En emulador (CI de GitHub Actions)
 
-_Pendiente del resultado de la ejecución n.º 24._
+Android 8.0 (API 26), 15 (API 35) y 16 (API 36). Además de las de fases anteriores, `FullAnalysisInstrumentedTest`
+comprueba en el proceso aislado que la auditoría se ejecuta: el resumen de seguridad llega con sus totales, la clave
+escrita en `src/Config.kt` llega como hallazgo en su línea, enmascarada y con la huella de la clave local de la app, y
+ningún registro contiene el secreto completo.
+
+**Resultado: 13 de 13 correctas en las tres versiones** (ejecución n.º 25 del CI: 3 de aislamiento, 3 de cifrado,
+3 de migración, 3 de análisis completo y 1 recorrido de extremo a extremo), y el trabajo de compilación, pruebas JVM
+y Lint también correcto. La ejecución n.º 23 (solo el motor) también fue correcta; la n.º 24 se canceló sola al
+empezar la n.º 25, que contiene el mismo código más este informe.
 
 ## Capturas
 
