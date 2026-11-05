@@ -1,6 +1,6 @@
 # Fase 6 — Auditoría de seguridad
 
-- **Estado:** terminada, pendiente de aprobación
+- **Estado:** terminada y aprobada
 - **Criterio de aceptación:** fichas completas con certeza y severidad; ningún secreto completo en la salida.
 
 ## Objetivo

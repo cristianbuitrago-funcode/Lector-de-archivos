@@ -17,8 +17,9 @@ auditoría de seguridad, exportable en PDF, HTML y JSON.
 | 4. Lenguajes y tecnologías | ✅ Terminada y aprobada ([informe](docs/fases/FASE-4.md)) |
 | 5A. Relaciones entre archivos | ✅ Terminada y aprobada ([informe](docs/fases/FASE-5A.md)) |
 | 5B. Relaciones de framework | ✅ Terminada y aprobada ([informe](docs/fases/FASE-5B.md)) |
-| 6. Auditoría de seguridad | ✅ Terminada, pendiente de aprobación ([informe](docs/fases/FASE-6.md)) |
-| 7–10 | Pendientes |
+| 6. Auditoría de seguridad | ✅ Terminada y aprobada ([informe](docs/fases/FASE-6.md)) |
+| 7. Dependencias | ✅ Terminada, pendiente de aprobación ([informe](docs/fases/FASE-7.md)) |
+| 8–10 | Pendientes |
 
 - Arquitectura: [`docs/ARQUITECTURA.md`](docs/ARQUITECTURA.md)
 - Decisiones técnicas: [`docs/adr/`](docs/adr/)
@@ -36,9 +37,11 @@ engine/ingest/      identificación, comprobación y lectura de ZIP y RAR sin ex
 engine/inventory/   funciones de los archivos, subproyectos, puntos de entrada, posibles innecesarios y copia redactada
 engine/security/    ocultación de secretos con huella local y catálogo de reglas de seguridad (fichas completas)
 engine/audit/       auditoría de seguridad estática: secretos, inyecciones con flujo de datos, configuración,
-                    sesiones, plataformas, control de acceso de las rutas y supresiones
+                    sesiones, plataformas, control de acceso de las rutas y supresiones; dependencias vulnerables,
+                    uso real, criticidad y fin de soporte
 engine/languages/   detección de lenguajes, líneas de código/comentario/en blanco, importaciones, símbolos y resaltado (tree-sitter)
-engine/dependencies/ dependencias directas declaradas en los manifiestos
+engine/dependencies/ dependencias declaradas en los manifiestos y archivos de bloqueo (versiones reales e indirectas)
+engine/vulndb/      índice local de vulnerabilidades (OSV) y fin de soporte (endoflife.date), comparadores de versión
 engine/technologies/ motor de reglas declarativas (catálogo YAML) de frameworks, bases de datos y servicios externos
 engine/relations/   relaciones entre archivos: resolución por ecosistema, analizadores de framework (rutas, HTTP, datos,
                     configuración, inyección, Android, Unity, Godot, canales), grafo, ciclos, importancia e impacto

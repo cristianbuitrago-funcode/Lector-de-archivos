@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Solo HTTPS y solo con las autoridades de certificación del sistema (no las que añada el usuario).
+    Los servidores admitidos se limitan además en el código (HttpsDownloader.ALLOWED_HOSTS).
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

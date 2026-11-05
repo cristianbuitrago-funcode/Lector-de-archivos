@@ -57,6 +57,7 @@ class FullAnalysisInstrumentedTest {
     fun tearDown() {
         coordinator.reset()
         container.vault.wipe()
+        container.vulnDbStore.delete()
     }
 
     private fun <T : AnalysisState> await(type: Class<T>, timeoutMs: Long = 120_000): T = runBlocking {
@@ -186,4 +187,76 @@ class FullAnalysisInstrumentedTest {
 
     @Suppress("unused")
     private fun unlock() = (container.vault.unlockWithPassword("Funcode-2026".toCharArray()) as UnlockResult.Success).databaseKey
+
+    /** Descargador sin red para la prueba: sirve un volcado de npm con avisos reales (resumidos) y fechas de Node.js. */
+    private class OfflineDownloader : com.funcodestudiocb.analyzer.vulndb.Downloader {
+        override fun download(url: String, target: File, maxBytes: Long, onProgress: (Long, Long?) -> Unit, cancelled: () -> Boolean): com.funcodestudiocb.analyzer.vulndb.Downloaded {
+            ZipOutputStream(target.outputStream()).use { out ->
+                if (url.contains("/npm/")) {
+                    mapOf(
+                        "MAL.json" to """{"id":"MAL-2025-20690","summary":"Malicious code in flatmap-stream (npm)","affected":[{"package":{"ecosystem":"npm","name":"flatmap-stream"},"ranges":[{"type":"SEMVER","events":[{"introduced":"0"}]}]}]}""",
+                        "lodash.json" to """{"id":"GHSA-p6mc-m468-83gw","aliases":["CVE-2020-8203"],"summary":"Prototype Pollution in lodash","database_specific":{"severity":"HIGH"},"affected":[{"package":{"ecosystem":"npm","name":"lodash"},"ranges":[{"type":"SEMVER","events":[{"introduced":"3.7.0"},{"fixed":"4.17.19"}]}]}]}""",
+                    ).forEach { (n, text) ->
+                        out.putNextEntry(ZipEntry(n))
+                        out.write(text.toByteArray())
+                        out.closeEntry()
+                    }
+                }
+            }
+            return com.funcodestudiocb.analyzer.vulndb.Downloaded(target.length(), null)
+        }
+
+        override fun text(url: String, maxBytes: Int): String =
+            if (url.endsWith("/nodejs.json")) """[{"cycle":"24","eol":"2028-04-30"},{"cycle":"14","eol":"2023-04-30","latest":"14.21.3"}]""" else throw java.io.IOException("sin datos")
+    }
+
+    @Test
+    fun baseDeVulnerabilidadesPorDescriptorAlProcesoAislado() {
+        // El espacio disponible se consulta al sistema (StorageManager), contando la caché que puede liberar.
+        assertTrue(container.allocatableBytes(context.noBackupFilesDir) > 0)
+        // La base se construye en el propio dispositivo (sin red) y se instala donde la busca la app.
+        val updater = com.funcodestudiocb.analyzer.vulndb.VulnDbUpdater(
+            container.vulnDbStore, OfflineDownloader(), freeSpace = container::allocatableBytes,
+        )
+        assertTrue(updater.start(com.funcodestudiocb.analyzer.vulndb.VulnDbPreferences(setOf("npm"), endOfLife = true)))
+        val installed = runBlocking { withTimeoutOrNull(60_000) { updater.state.first { it !is com.funcodestudiocb.analyzer.vulndb.UpdateState.Running } } }
+        assertTrue(installed is com.funcodestudiocb.analyzer.vulndb.UpdateState.Done, "Base: $installed")
+
+        val file = File(context.cacheDir, "deps.zip")
+        ZipOutputStream(file.outputStream()).use { out ->
+            mapOf(
+                "tienda/package.json" to """{ "dependencies": { "lodash": "^4.17.15", "flatmap-stream": "0.1.1" } }""",
+                "tienda/package-lock.json" to """{ "lockfileVersion": 3, "packages": { "": { "dependencies": { "lodash": "^4.17.15", "flatmap-stream": "0.1.1" } }, "node_modules/lodash": { "version": "4.17.15" }, "node_modules/flatmap-stream": { "version": "0.1.1" } } }""",
+                "tienda/index.js" to "const _ = require('lodash');\n",
+                "tienda/.nvmrc" to "14\n",
+            ).forEach { (name, text) ->
+                out.putNextEntry(ZipEntry(name))
+                out.write(text.toByteArray())
+                out.closeEntry()
+            }
+        }
+        val finished = analyze(Uri.fromFile(file)) as? AnalysisState.Finished ?: fail("Estado inesperado: ${coordinator.state.value}")
+        val report = finished.report
+        val diagnosis = "problema=${report.engineProblem}; etapas=${report.stages}; resumen=${report.dependencySummary}"
+        val lodash = report.resolvedDependencies.firstOrNull { it.name == "lodash" } ?: fail(diagnosis)
+        assertEquals("GHSA-p6mc-m468-83gw", lodash.vulnerabilities.single().id, diagnosis)
+        assertEquals(com.funcodestudiocb.analyzer.engine.api.UsageStatus.USED, lodash.usage)
+        assertEquals(1, report.dependencySummary!!.malicious)
+        assertTrue(report.security.any { it.ruleId == "FC-DEP-02" })
+        assertEquals(com.funcodestudiocb.analyzer.engine.api.EolStatus.UNSUPPORTED, report.endOfLife.single { it.product == "nodejs" }.status)
+        report.resolvedDependencies.forEach { assertTrue(RecordValidator.validate(it).isEmpty()) }
+        coordinator.reset()
+
+        // Base dañada con el mismo tamaño: el proceso aislado la verifica, la rechaza y el informe lo dice.
+        java.io.RandomAccessFile(container.vulnDbStore.index, "rw").use { raf ->
+            raf.seek(raf.length() / 2)
+            val b = raf.read()
+            raf.seek(raf.length() / 2)
+            raf.write(b xor 0xff)
+        }
+        val damaged = analyze(Uri.fromFile(file)) as? AnalysisState.Finished ?: fail("Estado inesperado: ${coordinator.state.value}")
+        val notes = damaged.report.dependencySummary!!.notEvaluated
+        assertTrue(notes.any { it.contains("no utilizable") }, notes.toString())
+        assertTrue(damaged.report.resolvedDependencies.all { it.vulnerabilities.isEmpty() }, "Con la base dañada no se inventan vulnerabilidades")
+    }
 }

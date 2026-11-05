@@ -84,6 +84,7 @@ fun NewAnalysisScreen(
     onOpenAnalysis: (String) -> Unit,
     onOpenExplorer: (String) -> Unit = {},
     onOpenFile: (String, String) -> Unit = { _, _ -> },
+    onOpenDependencies: (String) -> Unit = {},
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val exclusions by viewModel.exclusions.collectAsStateWithLifecycle()
@@ -142,6 +143,7 @@ fun NewAnalysisScreen(
                     s.archiveName, s.report, s.outcome,
                     onOpenExplorer = if (s.saved) ({ onOpenExplorer(s.analysisId) }) else null,
                     onOpenFile = if (s.saved) ({ path -> onOpenFile(s.analysisId, path) }) else null,
+                    onOpenDependencies = if (s.saved) ({ onOpenDependencies(s.analysisId) }) else null,
                 )
                 Button(onClick = viewModel::reset, modifier = Modifier.testTag("analysis_new")) {
                     Icon(Icons.Filled.Refresh, contentDescription = null)
@@ -383,6 +385,7 @@ fun AnalysisDetailScreen(
     onDeleted: () -> Unit,
     onOpenExplorer: (String) -> Unit = {},
     onOpenFile: (String, String) -> Unit = { _, _ -> },
+    onOpenDependencies: (String) -> Unit = {},
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     var confirmDelete by remember { mutableStateOf(false) }
@@ -404,6 +407,7 @@ fun AnalysisDetailScreen(
                     s.entity.archiveName, s.report, outcome,
                     onOpenExplorer = { onOpenExplorer(s.entity.id) },
                     onOpenFile = { path -> onOpenFile(s.entity.id, path) },
+                    onOpenDependencies = { onOpenDependencies(s.entity.id) },
                 )
                 OutlinedButton(onClick = { confirmDelete = true }) { Text(stringResource(R.string.analysis_delete)) }
             }

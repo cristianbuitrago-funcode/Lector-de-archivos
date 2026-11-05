@@ -4,6 +4,9 @@ import com.funcodestudiocb.analyzer.engine.api.ArchiveRejected
 import com.funcodestudiocb.analyzer.engine.api.ArchiveSummary
 import com.funcodestudiocb.analyzer.engine.api.CoverageNote
 import com.funcodestudiocb.analyzer.engine.api.DeclaredDependency
+import com.funcodestudiocb.analyzer.engine.api.DependencySummary
+import com.funcodestudiocb.analyzer.engine.api.EndOfLife
+import com.funcodestudiocb.analyzer.engine.api.ResolvedDependency
 import com.funcodestudiocb.analyzer.engine.api.DependencyCycle
 import com.funcodestudiocb.analyzer.engine.api.DuplicateGroup
 import com.funcodestudiocb.analyzer.engine.api.EntryPoint
@@ -91,7 +94,14 @@ data class AnalysisReport(
     /** Auditoría de seguridad (Fase 6): fichas de los hallazgos y resumen. */
     val security: List<SecurityFinding> = emptyList(),
     val securitySummary: SecuritySummary? = null,
+    /** Dependencias directas e indirectas con su uso, vulnerabilidades y fin de soporte (Fase 7). */
+    val resolvedDependencies: List<ResolvedDependency> = emptyList(),
+    val endOfLife: List<EndOfLife> = emptyList(),
+    val dependencySummary: DependencySummary? = null,
 ) {
+    /** El análisis pasó por la auditoría de dependencias (aunque no hubiera ninguna). */
+    val hasDependencyAudit: Boolean get() = dependencySummary != null || stages.any { it.stageId == "dependency-audit" }
+
     /** El análisis pasó por la auditoría de seguridad (aunque no encontrara nada). */
     val hasSecurity: Boolean get() = securitySummary != null || stages.any { it.stageId == "security" }
 
@@ -153,6 +163,9 @@ data class AnalysisReport(
                 configKeys = records.filterIsInstance<ConfigKey>(),
                 security = records.filterIsInstance<SecurityFinding>(),
                 securitySummary = records.filterIsInstance<SecuritySummary>().lastOrNull(),
+                resolvedDependencies = records.filterIsInstance<ResolvedDependency>(),
+                endOfLife = records.filterIsInstance<EndOfLife>(),
+                dependencySummary = records.filterIsInstance<DependencySummary>().lastOrNull(),
             )
 
         /** Etapas que no terminaron bien (para la cobertura). */

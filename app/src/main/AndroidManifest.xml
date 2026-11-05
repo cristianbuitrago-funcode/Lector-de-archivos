@@ -3,12 +3,12 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <!--
-        Sin permiso de Internet en esta fase: la app no se conecta a nada.
-        (El actualizador de bases públicas de la Fase 7 lo añadirá solo para descargas.)
-        Las compilaciones de prueba lo declaran en src/debug para demostrar, en el diagnóstico,
-        que el proceso aislado no puede usar la red aunque la app tenga el permiso.
+        Internet solo para el actualizador de la base de vulnerabilidades (Fase 7), en el proceso principal y cuando
+        el usuario lo pide en Ajustes: descarga datos públicos de OSV y endoflife.date (únicos servidores admitidos,
+        solo HTTPS) y no envía nada del código analizado. El proceso de análisis aislado no tiene red aunque la app
+        tenga el permiso: el diagnóstico de aislamiento lo comprueba.
     -->
-
+    <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.USE_BIOMETRIC" />
     <!-- Servicio en primer plano mientras dura un análisis, con notificación de progreso. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
@@ -23,6 +23,7 @@
         android:fullBackupContent="false"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
+        android:networkSecurityConfig="@xml/network_security_config"
         android:roundIcon="@mipmap/ic_launcher"
         android:supportsRtl="true"
         android:theme="@style/Theme.Funcode"
@@ -63,6 +64,12 @@
 
         <service
             android:name=".analysis.AnalysisForegroundService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
+        <!-- Descarga de la base de vulnerabilidades, solo mientras el usuario la actualiza. -->
+        <service
+            android:name=".vulndb.VulnDbUpdateService"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
 

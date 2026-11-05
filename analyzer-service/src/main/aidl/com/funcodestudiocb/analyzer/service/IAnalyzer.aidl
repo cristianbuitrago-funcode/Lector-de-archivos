@@ -14,11 +14,12 @@ interface IAnalyzer {
      * config: AnalysisConfig serializada en JSON (el servicio la vuelve a validar).
      * archive: el comprimido a analizar, de solo lectura (null en el modo diagnóstico).
      * password: contraseña del comprimido o null. Solo vive en memoria y se borra al terminar.
+     * vulnDb: índice de vulnerabilidades y fin de soporte (.fcv), de solo lectura, o null si no hay base descargada.
      * results: extremo de escritura de una tubería; el servicio escribe en ella las tramas de resultados.
      * callback: progreso y finalización.
      */
     void start(in byte[] config, in ParcelFileDescriptor archive, in char[] password,
-               in ParcelFileDescriptor results, IAnalysisCallback callback);
+               in ParcelFileDescriptor vulnDb, in ParcelFileDescriptor results, IAnalysisCallback callback);
 
     /** Solicita la cancelación cooperativa del análisis en curso. */
     void cancel();

@@ -21,7 +21,10 @@ import com.funcodestudiocb.analyzer.engine.core.ProgressUpdate
 import com.funcodestudiocb.analyzer.engine.ingest.ArchiveSource
 import com.funcodestudiocb.analyzer.engine.ingest.IngestKeys
 import com.funcodestudiocb.analyzer.engine.ingest.PasswordHolder
+import com.funcodestudiocb.analyzer.engine.audit.deps.AuditKeys
 import com.funcodestudiocb.analyzer.engine.pipeline.FullPipeline
+import com.funcodestudiocb.analyzer.engine.vulndb.InvalidIndexException
+import com.funcodestudiocb.analyzer.engine.vulndb.VulnDatabase
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.File
@@ -48,6 +51,7 @@ class InProcessAnalysisEngine : AnalysisEngine {
         config: AnalysisConfig,
         archive: File,
         password: CharArray?,
+        vulnDb: File?,
         onProgress: (ProgressUpdate) -> Unit,
         onRecord: (ResultRecord) -> Unit,
     ): EngineRun {
@@ -57,6 +61,14 @@ class InProcessAnalysisEngine : AnalysisEngine {
             val attributes = Attributes()
             attributes[IngestKeys.SOURCE] = ArchiveSource(stream.channel, archive.absolutePath)
             attributes[IngestKeys.PASSWORD] = PasswordHolder(password?.copyOf())
+            // Igual que el servicio aislado: base verificada o problema anotado.
+            if (vulnDb != null) {
+                try {
+                    attributes[AuditKeys.DATABASE] = attributes.closeLater(VulnDatabase.open(FileInputStream(vulnDb).channel))
+                } catch (e: InvalidIndexException) {
+                    attributes[AuditKeys.DATABASE_PROBLEM] = e.message.orEmpty()
+                }
+            }
             PipelineRunner("prueba").run(config, FullPipeline.stages(), writer::write, attributes) { onProgress(it) }
         }
         writer.close()
@@ -66,7 +78,11 @@ class InProcessAnalysisEngine : AnalysisEngine {
 }
 
 /** Contenedor de pruebas: Keystore simulado, Argon2 rápido, BD en memoria, motor en el mismo proceso. */
-fun testContainer(context: Context, engine: AnalysisEngine = InProcessAnalysisEngine()): AppContainer = AppContainer(
+fun testContainer(
+    context: Context,
+    engine: AnalysisEngine = InProcessAnalysisEngine(),
+    downloader: com.funcodestudiocb.analyzer.vulndb.Downloader = FakeDownloader(),
+): AppContainer = AppContainer(
     appContext = context,
     deviceProtector = FakeDeviceProtector(),
     biometricKeys = null,
@@ -78,4 +94,8 @@ fun testContainer(context: Context, engine: AnalysisEngine = InProcessAnalysisEn
     diagnosticsFactory = null,
     engine = engine,
     foreground = ForegroundController.NONE,
+    downloader = downloader,
+    updateForeground = ForegroundController.NONE,
+    // StorageManager no responde en Robolectric; en el emulador se prueba el del sistema.
+    freeSpace = { 0L },
 )

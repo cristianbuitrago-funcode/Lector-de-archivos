@@ -194,7 +194,7 @@ ADR 0007 sobre las relaciones y ADR 0008 sobre los analizadores de framework).
 | Grafos | Algoritmos propios: Tarjan (ciclos), PageRank (importancia), alcanzabilidad (impacto), disposición por capas tipo Sugiyama | Pequeños, auditables y comunes a pantalla, PDF y SVG |
 | Complejidad | Cálculo propio sobre el árbol de tree-sitter | lizard (Python) no existe en Android |
 | SAST | **Motor de reglas propio de Funcode**: consultas tree-sitter + RE2/J + chequeos de configuración, con análisis de flujo intraprocedural | Semgrep no puede ejecutarse en Android. Al ser una herramienta interna (D2), las reglas comunitarias de Semgrep pueden servir de referencia técnica, porque su licencia permite el uso interno |
-| Vulnerabilidades | **Base de datos OSV** (volcados públicos oficiales por ecosistema) indexada en SQLite en el dispositivo | Cubre npm, PyPI, Maven, Packagist, NuGet, Pub, Go, crates.io y RubyGems. OWASP Dependency-Check no puede ejecutarse en Android |
+| Vulnerabilidades | **Base de datos OSV** (volcados públicos oficiales por ecosistema) convertida en el dispositivo a un índice binario propio verificado con SHA-256 (`engine:vulndb`, ADR 0010; el plan inicial preveía SQLite) | Cubre npm, PyPI, Maven, Packagist, NuGet, Pub, Go, crates.io y RubyGems. OWASP Dependency-Check no puede ejecutarse en Android |
 | Fin de soporte | Datos públicos de **endoflife.date** (Android SDK, Node.js, PHP, Python, Django, Laravel, Spring Boot, Angular, .NET…) | Permite detectar versiones obsoletas sin consultar nada del proyecto en línea |
 | Serialización | **kotlinx.serialization** | Esquema de resultados versionado |
 | HTML del informe | **kotlinx.html** | Escapa el texto por defecto: el contenido del proyecto nunca se convierte en HTML |
@@ -238,7 +238,9 @@ en un PC, y en el teléfono se ejecuta dentro del proceso aislado.
 | `engine:pipeline` | Composición del pipeline completo (lo usan el servicio aislado y la CLI) | 4 |
 | `engine:relations` | Recolector y resolutores por ecosistema, grafo (ciclos, importancia, dependientes, alcance) e impacto (5A); analizadores de framework y enlazador: rutas, llamadas HTTP, datos, configuración, inyección, Android, Unity, Godot, escritorio, compilación y canales (5B, ADR 0008). Los extractores de símbolos están en `engine:languages` (ADR 0007) | 5A, 5B |
 | `engine:security` | Reglas, secretos, redacción, auditores de configuración | 3 (redactor) → 6 |
-| `engine:dependencies` | Parsers de manifiestos (4); archivos de bloqueo, índice OSV, fin de soporte, uso real, criticidad (7) | 4 → 7 |
+| `engine:dependencies` | Parsers de manifiestos (4); archivos de bloqueo y grafo de dependencias (7) | 4 → 7 |
+| `engine:vulndb` | Índice `.fcv` de OSV y endoflife.date (escritura y lectura verificada), comparadores de versión por ecosistema, rangos de OSV, CVSS 3.x (ADR 0010) | 7 |
+| `engine:audit` (`deps`) | Etapa `dependency-audit`: versiones reales, cadenas, uso real, criticidad, vulnerabilidades, fin de soporte y sus hallazgos (ADR 0010) | 6 → 7 |
 | `engine:layout` | Disposición de grafos (pantalla, PDF, SVG) | 8 |
 | `engine:metrics` | Complejidad, duplicación, índice de mantenimiento | 9 |
 | `engine:report` | JSON, HTML, comparación entre análisis | 9 |
@@ -341,8 +343,11 @@ máximo por archivo. Cada etapa registra en la cobertura qué analizó, qué omi
 ### 5.4 Actualizador
 
 Descarga los volcados públicos de OSV de los ecosistemas que elijas y los datos de fin de soporte, los valida, los
-indexa en una BD local de solo lectura y la pasa al proceso aislado como descriptor de solo lectura en cada análisis.
-Se ejecuta a petición o periódicamente (WorkManager, solo con Wi-Fi si así se configura).
+indexa en un índice local de solo lectura y lo pasa al proceso aislado como descriptor de solo lectura en cada
+análisis. **Solo se ejecuta cuando lo pides** en Ajustes, tras un diálogo que dice qué servidores se contactan y cuánto
+se descarga; no hay actualizaciones automáticas (se avisa cuando la base tiene 7 días o más). Solo HTTPS, solo a
+`osv-vulnerabilities.storage.googleapis.com` y `endoflife.date`, con sustitución atómica: si falla, la base anterior
+queda intacta (Fase 7, ADR 0010).
 
 ---
 

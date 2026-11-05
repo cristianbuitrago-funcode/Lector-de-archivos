@@ -117,6 +117,8 @@ class AnalysisCoordinator(
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
     private val limits: IngestLimits = IngestLimits(),
     private val clock: () -> Long = System::currentTimeMillis,
+    /** Índice de vulnerabilidades instalado en el momento de empezar, o `null` si no hay. */
+    private val vulnDb: () -> File? = { null },
 ) {
     private val _state = MutableStateFlow<AnalysisState>(AnalysisState.Idle)
     val state: StateFlow<AnalysisState> = _state.asStateFlow()
@@ -200,7 +202,7 @@ class AnalysisCoordinator(
                 val copy = ContentSpool.create(spoolDirectory).also { spool = it }
                 val records = ArrayList<ResultRecord>()
                 var copyProblem: String? = null
-                val run = engine.analyze(config, archive.file, password, { onProgress(archive, it) }) { record ->
+                val run = engine.analyze(config, archive.file, password, vulnDb(), { onProgress(archive, it) }) { record ->
                     if (record !is ContentChunk) {
                         records += record
                     } else if (copyProblem == null) {

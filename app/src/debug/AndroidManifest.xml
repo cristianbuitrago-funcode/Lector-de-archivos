@@ -2,9 +2,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- Solo en compilaciones de prueba: ver el comentario del manifiesto principal. -->
-    <uses-permission android:name="android.permission.INTERNET" />
-
     <application>
         <!-- La actividad auxiliar de las pruebas de Compose no debe poder abrirla ninguna otra app. -->
         <activity

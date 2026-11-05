@@ -38,6 +38,9 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.serialization.SerializationException
+import com.funcodestudiocb.analyzer.engine.audit.deps.AuditKeys
+import com.funcodestudiocb.analyzer.engine.vulndb.InvalidIndexException
+import com.funcodestudiocb.analyzer.engine.vulndb.VulnDatabase
 import java.io.IOException
 import java.util.concurrent.atomic.AtomicReference
 
@@ -61,6 +64,7 @@ class AnalyzerService : Service() {
             config: ByteArray,
             archive: ParcelFileDescriptor?,
             password: CharArray?,
+            vulnDb: ParcelFileDescriptor?,
             results: ParcelFileDescriptor,
             callback: IAnalysisCallback,
         ) {
@@ -76,14 +80,16 @@ class AnalyzerService : Service() {
             } catch (e: RuntimeException) {
                 secret.close()
                 archive?.close()
+                vulnDb?.close()
                 output.close()
                 throw e
             }
-            val job = scope.launch(start = CoroutineStart.LAZY) { runAnalysis(parsed, archive, secret, output, callback) }
+            val job = scope.launch(start = CoroutineStart.LAZY) { runAnalysis(parsed, archive, secret, vulnDb, output, callback) }
             if (!running.compareAndSet(null, job)) {
                 job.cancel()
                 secret.close()
                 archive?.close()
+                vulnDb?.close()
                 output.close()
                 throw IllegalStateException("Ya hay un análisis en curso")
             }
@@ -131,6 +137,7 @@ class AnalyzerService : Service() {
         config: AnalysisConfig,
         archive: ParcelFileDescriptor?,
         password: PasswordHolder,
+        vulnDb: ParcelFileDescriptor?,
         output: ParcelFileDescriptor.AutoCloseOutputStream,
         callback: IAnalysisCallback,
     ) {
@@ -146,6 +153,7 @@ class AnalyzerService : Service() {
                 attributes[IngestKeys.SOURCE] = ArchiveSource(stream.channel, "funcode-fd:${archive.fd}")
                 attributes[IngestKeys.PASSWORD] = password
             }
+            if (vulnDb != null) openVulnDatabase(vulnDb, attributes)
             val result = PipelineRunner(ENGINE_VERSION).run(config, stagesFor(config), FlushingSink(writer), attributes, progress)
             writer.flush()
             progress.finished(result.outcome.ordinal, null)
@@ -155,6 +163,21 @@ class AnalyzerService : Service() {
         } finally {
             attributes.closeAll()
             runCatching { writer.close() }
+        }
+    }
+
+    /**
+     * Abre el índice de vulnerabilidades que entrega el proceso principal. Se verifica entero (suma SHA-256) antes de
+     * usarlo: una base dañada o ajena no se usa y el informe lo dice, en lugar de dar por buenas las dependencias.
+     */
+    private fun openVulnDatabase(descriptor: ParcelFileDescriptor, attributes: Attributes) {
+        val stream = attributes.closeLater(ParcelFileDescriptor.AutoCloseInputStream(descriptor))
+        try {
+            attributes[AuditKeys.DATABASE] = attributes.closeLater(VulnDatabase.open(stream.channel))
+        } catch (e: InvalidIndexException) {
+            attributes[AuditKeys.DATABASE_PROBLEM] = e.message ?: "La base de vulnerabilidades no supera la verificación"
+        } catch (e: IOException) {
+            attributes[AuditKeys.DATABASE_PROBLEM] = "No se pudo leer la base de vulnerabilidades"
         }
     }
 
@@ -230,7 +253,7 @@ class AnalyzerService : Service() {
     }
 
     companion object {
-        const val PROTOCOL_VERSION = 3
+        const val PROTOCOL_VERSION = 4
         const val ENGINE_VERSION = "0.3.0"
         private const val MAX_CONFIG_BYTES = 64 * 1024
     }

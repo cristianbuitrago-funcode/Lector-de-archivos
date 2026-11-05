@@ -209,11 +209,12 @@ class AnalysisCoordinatorTest {
                 config: com.funcodestudiocb.analyzer.engine.api.AnalysisConfig,
                 archive: File,
                 password: CharArray?,
+                vulnDb: File?,
                 onProgress: (com.funcodestudiocb.analyzer.engine.core.ProgressUpdate) -> Unit,
                 onRecord: (com.funcodestudiocb.analyzer.engine.api.ResultRecord) -> Unit,
             ): com.funcodestudiocb.analyzer.analysis.EngineRun {
                 val real = InProcessAnalysisEngine()
-                return real.analyze(config, archive, password, onProgress) { record ->
+                return real.analyze(config, archive, password, vulnDb, onProgress) { record ->
                     onRecord(record)
                     if (record is com.funcodestudiocb.analyzer.engine.api.ContentChunk) onRecord(record)
                 }

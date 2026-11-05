@@ -149,16 +149,22 @@ class DependencyAuditStage(private val runtimes: RuntimeCollector) : Stage {
         if (unsupported.isNotEmpty()) notes += "Vulnerabilidades de ${unsupported.joinToString()}: OSV no tiene base para este ecosistema."
         if (unknownMatches > 0) context.coverage(CoverageReason.NOT_ANALYZED, "En $unknownMatches casos no se pudo comparar la versión con los rangos de un aviso (formato de versión no reconocido): no se marcaron como vulnerables.")
         val ranges = deps.count { it.source == VersionSource.RANGE_IN_MANIFEST }
-        if (ranges > 0) notes += "$ranges dependencias sin archivo de bloqueo se evaluaron con la versión mínima que permite su rango: la instalada puede ser otra."
+        if (ranges > 0) notes += (if (ranges == 1) "1 dependencia sin archivo de bloqueo se evaluó" else "$ranges dependencias sin archivo de bloqueo se evaluaron") +
+            " con la versión mínima que permite su rango: la instalada puede ser otra."
         val noVersion = deps.count { it.source == VersionSource.UNKNOWN }
-        if (noVersion > 0) notes += "$noVersion dependencias sin versión conocida (catálogo, BOM o variable): no se pudieron comparar."
+        if (noVersion > 0) {
+            notes += if (noVersion == 1) "1 dependencia sin versión conocida (catálogo, BOM o variable): no se pudo comparar."
+            else "$noVersion dependencias sin versión conocida (catálogo, BOM o variable): no se pudieron comparar."
+        }
 
         deps.forEach(::criticality)
 
         context.progress(0.7f, "Fin de soporte")
         val eolProducts = db?.eol.orEmpty().associateBy { it.name }
-        val eol = endOfLife(deps, eolProducts, today)
+        val eolMissing = sortedSetOf<String>()
+        val eol = endOfLife(deps, eolProducts, today, eolMissing)
         if (eolProducts.isEmpty() && (runtimes.hints.isNotEmpty() || deps.isNotEmpty())) notes += "Fin de soporte: no hay datos de endoflife.date descargados."
+        if (eolMissing.isNotEmpty()) notes += "Fin de soporte de ${eolMissing.joinToString()}: la base descargada no tiene sus datos."
 
         // ---------------------------------------------------------------- registros
         val ordered = deps.sortedWith(
@@ -479,7 +485,9 @@ class DependencyAuditStage(private val runtimes: RuntimeCollector) : Stage {
             points += 1
             reasons += "Es el framework sobre el que se construye la aplicación"
         }
-        if (!d.direct && d.chainCount > 0) reasons += "Llega a través de ${d.chainCount} dependencias directas"
+        if (!d.direct && d.chainCount > 0) {
+            reasons += if (d.chainCount == 1) "Llega a través de 1 dependencia directa" else "Llega a través de ${d.chainCount} dependencias directas"
+        }
         d.criticality = when {
             points >= 5 -> Criticality.HIGH
             points >= 3 -> Criticality.MEDIUM
@@ -537,7 +545,7 @@ class DependencyAuditStage(private val runtimes: RuntimeCollector) : Stage {
             else -> "versión mínima ${d.version} del rango «${d.declared}» (sin archivo de bloqueo: la instalada puede ser otra)"
         }
         val how = if (d.direct) "dependencia directa" else "dependencia indirecta" + (d.chains.firstOrNull()?.let { ", llega por $it" } ?: "")
-        val detail = "«${d.name}» ${versionText}, $how. ${d.vulns.size} avisos: $list.$more" +
+        val detail = "«${d.name}» ${versionText}, $how. ${d.vulns.size} ${if (d.vulns.size == 1) "aviso" else "avisos"}: $list.$more" +
             (fix?.let { " Primera versión que los corrige todos: $it." } ?: if (d.vulns.any { it.fixedIn.isEmpty() }) " Alguno no tiene corrección publicada." else "")
         val flow = listOfNotNull(
             d.manifestLine?.let { FlowStep(it, "Se declara «${d.name}»" + (d.declared?.let { " ($it)" } ?: "")) }.takeIf { d.direct && path == d.manifest },
@@ -593,7 +601,7 @@ class DependencyAuditStage(private val runtimes: RuntimeCollector) : Stage {
 
     // ------------------------------------------------------------------ fin de soporte
 
-    private fun endOfLife(deps: List<Dep>, products: Map<String, EolProduct>, today: LocalDate): List<EndOfLife> {
+    private fun endOfLife(deps: List<Dep>, products: Map<String, EolProduct>, today: LocalDate, missing: MutableSet<String>): List<EndOfLife> {
         val hints = runtimes.hints.toMutableList()
         for (d in deps) {
             if (!d.direct || d.version == null) continue
@@ -615,7 +623,11 @@ class DependencyAuditStage(private val runtimes: RuntimeCollector) : Stage {
             }
             val product = products[h.product]
             val label = product?.label ?: com.funcodestudiocb.analyzer.engine.vulndb.EolData.PRODUCTS[h.product] ?: h.product
-            if (product == null) continue
+            if (product == null) {
+                // Sin datos de ese producto en la base: se dice, en lugar de darlo por soportado.
+                if (products.isNotEmpty()) missing += label
+                continue
+            }
             val cycle = product.cycles.filter { c -> matches(c.cycle, h.version) }.maxByOrNull { it.cycle.split('.').size }
             val status: EolStatus
             var eolDate: String? = null

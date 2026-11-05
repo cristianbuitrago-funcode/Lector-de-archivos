@@ -11,6 +11,8 @@
 | SQLCipher for Android | Base de datos cifrada | BSD |
 | Bouncy Castle | Argon2id | MIT |
 | AndroidX, Jetpack Compose, Room, Kotlin, kotlinx | App y motor | Apache 2.0 |
+| Volcados de OSV.dev (`osv-vulnerabilities.storage.googleapis.com`) | Base local de vulnerabilidades. **No va dentro del APK**: el usuario la descarga desde Ajustes y la app muestra la fuente. Cada aviso conserva su identificador de origen. | Cada fuente con su licencia: GitHub Advisory Database, PyPA Advisory Database y Go Vulnerability Database con CC-BY 4.0; RustSec con CC0 1.0; OpenSSF Malicious Packages con Apache 2.0; el resto, según su fuente en OSV.dev |
+| Datos de endoflife.date | Fechas de fin de soporte. Se descargan desde Ajustes; no van dentro del APK. | MIT |
 | libarchive (solo archivos de prueba) | Corpus RAR de las pruebas automáticas; no se incluye en la app | BSD de 2 cláusulas |
 | zip4j (solo pruebas) | Generar ZIP cifrados de referencia; no se incluye en la app | Apache 2.0 |
 

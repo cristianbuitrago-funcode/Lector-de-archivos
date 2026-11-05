@@ -175,6 +175,7 @@ fun ReportView(
     outcome: AnalysisOutcome,
     onOpenExplorer: (() -> Unit)? = null,
     onOpenFile: ((String) -> Unit)? = null,
+    onOpenDependencies: (() -> Unit)? = null,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         val (label, color) = outcomeLabel(outcome)
@@ -231,6 +232,7 @@ fun ReportView(
             RelationsReportPanel(report, onOpenFile)
             FrameworkReportPanel(report, onOpenFile)
             com.funcodestudiocb.analyzer.ui.security.SecurityReportPanel(report, onOpenFile)
+            com.funcodestudiocb.analyzer.ui.dependencies.DependencyReportPanel(report, onOpenDependencies)
             LanguagesPanel(report)
         }
 

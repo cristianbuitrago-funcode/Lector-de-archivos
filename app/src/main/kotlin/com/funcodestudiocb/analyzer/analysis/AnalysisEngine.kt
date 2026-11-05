@@ -22,17 +22,19 @@ interface AnalysisEngine {
     /**
      * Analiza [archive]. Cada registro ya validado llega por [onRecord] en orden y a medida que se produce
      * (no se acumulan aquí: la copia del código puede ocupar decenas de MB).
+     * [vulnDb] es el índice de vulnerabilidades descargado, o `null` si no hay ninguno.
      */
     suspend fun analyze(
         config: AnalysisConfig,
         archive: File,
         password: CharArray?,
+        vulnDb: File?,
         onProgress: (ProgressUpdate) -> Unit,
         onRecord: (ResultRecord) -> Unit,
     ): EngineRun
 }
 
-/** Motor en el proceso aislado: el comprimido viaja como descriptor de solo lectura. */
+/** Motor en el proceso aislado: el comprimido y la base de vulnerabilidades viajan como descriptores de solo lectura. */
 class IsolatedAnalysisEngine(context: Context) : AnalysisEngine {
     private val client = AnalyzerClient(context)
 
@@ -40,11 +42,14 @@ class IsolatedAnalysisEngine(context: Context) : AnalysisEngine {
         config: AnalysisConfig,
         archive: File,
         password: CharArray?,
+        vulnDb: File?,
         onProgress: (ProgressUpdate) -> Unit,
         onRecord: (ResultRecord) -> Unit,
     ): EngineRun {
         val descriptor = ParcelFileDescriptor.open(archive, ParcelFileDescriptor.MODE_READ_ONLY)
-        val run = client.run(config, descriptor, password, onProgress, bufferRecords = false, onRecord = onRecord)
+        // Si la base desapareció entre medias (se borró), el análisis sigue y el informe dice que no hubo base.
+        val database = vulnDb?.let { runCatching { ParcelFileDescriptor.open(it, ParcelFileDescriptor.MODE_READ_ONLY) }.getOrNull() }
+        val run = client.run(config, descriptor, password, database, onProgress, bufferRecords = false, onRecord = onRecord)
         val problem = when (run.status) {
             RunStatus.COMPLETED -> null
             RunStatus.INCOMPLETE -> "El proceso de análisis terminó de forma inesperada (posible falta de memoria). Los resultados son parciales."

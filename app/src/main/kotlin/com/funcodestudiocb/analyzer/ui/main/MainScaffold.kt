@@ -65,6 +65,8 @@ import com.funcodestudiocb.analyzer.ui.analysis.AnalysisDetailScreen
 import com.funcodestudiocb.analyzer.ui.analysis.AnalysisDetailViewModel
 import com.funcodestudiocb.analyzer.ui.analysis.NewAnalysisScreen
 import com.funcodestudiocb.analyzer.ui.analysis.NewAnalysisViewModel
+import com.funcodestudiocb.analyzer.ui.dependencies.DependenciesScreen
+import com.funcodestudiocb.analyzer.ui.dependencies.DependenciesViewModel
 import com.funcodestudiocb.analyzer.ui.diagnostics.DiagnosticsScreen
 import com.funcodestudiocb.analyzer.ui.diagnostics.DiagnosticsViewModel
 import com.funcodestudiocb.analyzer.ui.explorer.ExplorerScreen
@@ -73,6 +75,7 @@ import com.funcodestudiocb.analyzer.ui.security.SecurityScreen
 import com.funcodestudiocb.analyzer.ui.security.SecurityViewModel
 import com.funcodestudiocb.analyzer.ui.settings.SettingsScreen
 import com.funcodestudiocb.analyzer.ui.settings.SettingsViewModel
+import com.funcodestudiocb.analyzer.ui.settings.VulnDbSettingsViewModel
 import com.funcodestudiocb.analyzer.ui.containerViewModel
 import kotlinx.coroutines.launch
 
@@ -96,6 +99,11 @@ enum class Destination(
 const val ROUTE_DIAGNOSTICS = "ajustes/diagnostico"
 const val ROUTE_ANALYSIS_DETAIL = "analisis/{id}"
 const val ROUTE_EXPLORER_ANALYSIS = "explorador/{id}?archivo={archivo}"
+const val ROUTE_DEPENDENCIES = "dependencias/{id}?archivo={archivo}"
+
+/** Ruta de las dependencias de un análisis, opcionalmente solo las de un manifiesto o archivo de bloqueo. */
+fun dependenciesRoute(id: String, file: String? = null): String =
+    "dependencias/${android.net.Uri.encode(id)}" + (file?.let { "?archivo=${android.net.Uri.encode(it)}" } ?: "")
 
 /** Ruta del Explorador de un análisis, abriendo opcionalmente la ficha de un archivo. */
 fun explorerRoute(id: String, path: String? = null): String =
@@ -112,9 +120,14 @@ fun MainScaffold(container: AppContainer, widthDp: Int) {
         ROUTE_DIAGNOSTICS -> Destination.Settings
         ROUTE_ANALYSIS_DETAIL -> Destination.NewAnalysis
         ROUTE_EXPLORER_ANALYSIS -> Destination.Explorer
+        ROUTE_DEPENDENCIES -> Destination.Security
         else -> Destination.Dashboard
     }
-    val titleOverride = if (currentRoute == ROUTE_ANALYSIS_DETAIL) R.string.analysis_detail_title else null
+    val titleOverride = when (currentRoute) {
+        ROUTE_ANALYSIS_DETAIL -> R.string.analysis_detail_title
+        ROUTE_DEPENDENCIES -> R.string.dep_title
+        else -> null
+    }
 
     // Otra app abrió o compartió un comprimido con Funcode: se va a "Nuevo análisis".
     val openRequested by container.coordinator.openRequested.collectAsStateWithLifecycle()
@@ -249,7 +262,8 @@ private fun MainNavHost(navController: NavHostController, container: AppContaine
                 when (destination) {
                     Destination.Settings -> {
                         val vm = containerViewModel { SettingsViewModel(container) }
-                        SettingsScreen(vm, onOpenDiagnostics = { navController.navigate(ROUTE_DIAGNOSTICS) })
+                        val vulnDb = containerViewModel("bases-vulnerabilidades") { VulnDbSettingsViewModel(container) }
+                        SettingsScreen(vm, vulnDb, onOpenDiagnostics = { navController.navigate(ROUTE_DIAGNOSTICS) })
                     }
                     Destination.Dashboard -> Box { DashboardScreen(container) }
                     Destination.NewAnalysis -> {
@@ -259,12 +273,17 @@ private fun MainNavHost(navController: NavHostController, container: AppContaine
                             onOpenAnalysis = { id -> navController.navigate("analisis/$id") },
                             onOpenExplorer = { id -> navController.navigate(explorerRoute(id)) },
                             onOpenFile = { id, path -> navController.navigate(explorerRoute(id, path)) },
+                            onOpenDependencies = { id -> navController.navigate(dependenciesRoute(id)) },
                         )
                     }
-                    Destination.Explorer -> ExplorerScreen(containerViewModel("explorador") { ExplorerViewModel(container, null) })
+                    Destination.Explorer -> ExplorerScreen(
+                        containerViewModel("explorador") { ExplorerViewModel(container, null) },
+                        onOpenDependencies = { id, file -> navController.navigate(dependenciesRoute(id, file)) },
+                    )
                     Destination.Security -> SecurityScreen(
                         containerViewModel("seguridad") { SecurityViewModel(container) },
                         onOpenFile = { id, path -> navController.navigate(explorerRoute(id, path)) },
+                        onOpenDependencies = { id -> navController.navigate(dependenciesRoute(id)) },
                     )
                     else -> PlaceholderScreen(destination)
                 }
@@ -278,6 +297,24 @@ private fun MainNavHost(navController: NavHostController, container: AppContaine
                 onDeleted = { navController.popBackStack() },
                 onOpenExplorer = { navController.navigate(explorerRoute(it)) },
                 onOpenFile = { id, path -> navController.navigate(explorerRoute(id, path)) },
+                onOpenDependencies = { id -> navController.navigate(dependenciesRoute(id)) },
+            )
+        }
+        composable(
+            ROUTE_DEPENDENCIES,
+            arguments = listOf(
+                androidx.navigation.navArgument("archivo") {
+                    type = androidx.navigation.NavType.StringType
+                    nullable = true
+                    defaultValue = null
+                },
+            ),
+        ) { entry ->
+            val id = entry.arguments?.getString("id").orEmpty()
+            val file = entry.arguments?.getString("archivo")
+            DependenciesScreen(
+                containerViewModel(key = "dependencias-$id-${file.orEmpty()}") { DependenciesViewModel(container, id, file) },
+                onOpenFile = { analysisId, path -> navController.navigate(explorerRoute(analysisId, path)) },
             )
         }
         composable(
@@ -292,7 +329,10 @@ private fun MainNavHost(navController: NavHostController, container: AppContaine
         ) { entry ->
             val id = entry.arguments?.getString("id").orEmpty()
             val path = entry.arguments?.getString("archivo")
-            ExplorerScreen(containerViewModel(key = "explorador-$id-${path.orEmpty()}") { ExplorerViewModel(container, id, path) })
+            ExplorerScreen(
+                containerViewModel(key = "explorador-$id-${path.orEmpty()}") { ExplorerViewModel(container, id, path) },
+                onOpenDependencies = { analysisId, file -> navController.navigate(dependenciesRoute(analysisId, file)) },
+            )
         }
         composable(ROUTE_DIAGNOSTICS) {
             val vm = containerViewModel { DiagnosticsViewModel(container) }

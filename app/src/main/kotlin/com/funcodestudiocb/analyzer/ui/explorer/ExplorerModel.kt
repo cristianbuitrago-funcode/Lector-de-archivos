@@ -168,6 +168,22 @@ class ExplorerModel(val report: AnalysisReport) {
     val hasRelations: Boolean = report.relationsSummary != null
 
     /** Hallazgos de seguridad de cada archivo, del más grave al menos (Fase 6). */
+    /** Dependencias declaradas o fijadas en cada manifiesto y archivo de bloqueo (Fase 7). */
+    private val dependenciesByFile: Map<String, List<com.funcodestudiocb.analyzer.engine.api.ResolvedDependency>> by lazy {
+        val map = HashMap<String, MutableList<com.funcodestudiocb.analyzer.engine.api.ResolvedDependency>>()
+        for (d in report.resolvedDependencies) {
+            val files = buildSet {
+                d.manifest?.let(::add)
+                d.lockfile?.let(::add)
+                d.alsoIn.forEach { add(com.funcodestudiocb.analyzer.ui.dependencies.pathOf(it)) }
+            }
+            files.forEach { map.getOrPut(it) { mutableListOf() } += d }
+        }
+        map
+    }
+
+    fun dependenciesIn(path: String): List<com.funcodestudiocb.analyzer.engine.api.ResolvedDependency> = dependenciesByFile[path].orEmpty()
+
     val findingsByFile: Map<String, List<com.funcodestudiocb.analyzer.engine.api.SecurityFinding>> =
         report.security.filter { it.path != null }.groupBy { it.path!! }
             .mapValues { (_, list) -> list.sortedWith(compareBy({ it.severity.ordinal }, { it.certainty.ordinal }, { it.line ?: 0 })) }

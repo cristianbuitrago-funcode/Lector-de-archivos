@@ -59,7 +59,11 @@ import com.funcodestudiocb.analyzer.ui.theme.FuncodeColors
  * versión no evalúa.
  */
 @Composable
-fun SecurityScreen(viewModel: SecurityViewModel, onOpenFile: (analysisId: String, path: String) -> Unit) {
+fun SecurityScreen(
+    viewModel: SecurityViewModel,
+    onOpenFile: (analysisId: String, path: String) -> Unit,
+    onOpenDependencies: (analysisId: String) -> Unit = {},
+) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val analyses by viewModel.analyses.collectAsStateWithLifecycle()
     val loaded = state as? SecurityUiState.Loaded
@@ -77,7 +81,7 @@ fun SecurityScreen(viewModel: SecurityViewModel, onOpenFile: (analysisId: String
             val selected = s.selected?.let { s.report.security.getOrNull(it) }
             if (maxWidth >= 840.dp) {
                 Row(Modifier.fillMaxSize()) {
-                    Box(Modifier.weight(0.45f).fillMaxHeight()) { FindingList(s, analyses, viewModel) }
+                    Box(Modifier.weight(0.45f).fillMaxHeight()) { FindingList(s, analyses, viewModel, onOpenDependencies) }
                     Box(Modifier.weight(0.55f).fillMaxHeight()) {
                         if (selected != null) DetailPane(selected, onBack = null, onOpenFile = open)
                     }
@@ -85,7 +89,7 @@ fun SecurityScreen(viewModel: SecurityViewModel, onOpenFile: (analysisId: String
             } else if (selected != null) {
                 DetailPane(selected, onBack = { viewModel.select(null) }, onOpenFile = open)
             } else {
-                FindingList(s, analyses, viewModel)
+                FindingList(s, analyses, viewModel, onOpenDependencies)
             }
         }
     }
@@ -149,7 +153,7 @@ private fun AnalysisPicker(current: AnalysisEntity, analyses: List<AnalysisEntit
 }
 
 @Composable
-private fun FindingList(s: SecurityUiState.Loaded, analyses: List<AnalysisEntity>, viewModel: SecurityViewModel) {
+private fun FindingList(s: SecurityUiState.Loaded, analyses: List<AnalysisEntity>, viewModel: SecurityViewModel, onOpenDependencies: (String) -> Unit) {
     val report = s.report
     val summary = report.securitySummary
     LazyColumn(Modifier.fillMaxSize().testTag("security_list"), contentPadding = PaddingValues(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -169,6 +173,15 @@ private fun FindingList(s: SecurityUiState.Loaded, analyses: List<AnalysisEntity
                     Text(stringResource(R.string.security_totals, summary.findings, summary.rules, summary.filesExamined), fontWeight = FontWeight.Medium, modifier = Modifier.testTag("security_totals"))
                     if (summary.downgraded > 0) Text(stringResource(R.string.security_downgraded_count, summary.downgraded), style = MaterialTheme.typography.bodySmall)
                     if (summary.suppressions > 0) Text(stringResource(R.string.security_suppressions_count, summary.suppressions), style = MaterialTheme.typography.bodySmall)
+                }
+            }
+        }
+        // Enlace a las dependencias solo si las hay (o hay versiones con fin de soporte).
+        report.dependencySummary?.takeIf { it.direct + it.indirect > 0 || report.endOfLife.isNotEmpty() }?.let { deps ->
+            item {
+                FuncodePanel(accent = FuncodeColors.Electric, modifier = Modifier.testTag("security_dependencies")) {
+                    Text(stringResource(R.string.security_dependencies_link, deps.direct, deps.indirect, deps.vulnerablePackages), style = MaterialTheme.typography.bodySmall)
+                    TextButton(onClick = { onOpenDependencies(s.analysis.id) }, modifier = Modifier.testTag("security_open_dependencies")) { Text(stringResource(R.string.dep_open)) }
                 }
             }
         }

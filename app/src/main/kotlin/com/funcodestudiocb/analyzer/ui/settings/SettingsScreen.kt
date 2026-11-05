@@ -51,7 +51,7 @@ import com.funcodestudiocb.analyzer.ui.theme.FuncodeColors
 import kotlinx.coroutines.launch
 
 @Composable
-fun SettingsScreen(viewModel: SettingsViewModel, onOpenDiagnostics: () -> Unit) {
+fun SettingsScreen(viewModel: SettingsViewModel, vulnDb: VulnDbSettingsViewModel, onOpenDiagnostics: () -> Unit) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
     val activity = LocalActivity.current as? FragmentActivity
@@ -157,6 +157,8 @@ fun SettingsScreen(viewModel: SettingsViewModel, onOpenDiagnostics: () -> Unit) 
                 )
             }
 
+            VulnDbSection(vulnDb)
+
             FuncodePanel(accent = FuncodeColors.Electric) {
                 SectionTitle(stringResource(R.string.settings_section_isolation))
                 SettingRow(
@@ -200,12 +202,12 @@ fun SettingsScreen(viewModel: SettingsViewModel, onOpenDiagnostics: () -> Unit) 
 }
 
 @Composable
-private fun SectionTitle(text: String) {
+internal fun SectionTitle(text: String) {
     Text(text.uppercase(), style = MaterialTheme.typography.labelSmall, color = FuncodeColors.Gold)
 }
 
 @Composable
-private fun SettingRow(
+internal fun SettingRow(
     title: String,
     modifier: Modifier = Modifier,
     subtitle: String? = null,

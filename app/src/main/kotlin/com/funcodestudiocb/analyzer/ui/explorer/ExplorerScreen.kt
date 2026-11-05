@@ -76,7 +76,7 @@ import com.funcodestudiocb.analyzer.ui.components.revealControlCharacters
 import com.funcodestudiocb.analyzer.ui.theme.FuncodeColors
 
 @Composable
-fun ExplorerScreen(viewModel: ExplorerViewModel) {
+fun ExplorerScreen(viewModel: ExplorerViewModel, onOpenDependencies: (analysisId: String, file: String) -> Unit = { _, _ -> }) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val analyses by viewModel.analyses.collectAsStateWithLifecycle()
     val loaded = state as? ExplorerUiState.Loaded
@@ -99,7 +99,7 @@ fun ExplorerScreen(viewModel: ExplorerViewModel) {
                             s.finding != null -> FindingPane(s.finding, viewModel)
                             s.relation != null -> RelationDetail(s.relation, viewModel::closeRelation, onOpenFile = viewModel::select)
                             s.code != null -> CodeViewer(s.code, viewModel::closeCode)
-                            s.selected != null -> FileDetail(s, s.selected, viewModel, onClose = null)
+                            s.selected != null -> FileDetail(s, s.selected, viewModel, onClose = null, onOpenDependencies)
                         }
                     }
                 }
@@ -108,7 +108,7 @@ fun ExplorerScreen(viewModel: ExplorerViewModel) {
                     s.finding != null -> FindingPane(s.finding, viewModel)
                     s.relation != null -> RelationDetail(s.relation, viewModel::closeRelation, onOpenFile = viewModel::select)
                     s.code != null -> CodeViewer(s.code, viewModel::closeCode)
-                    s.selected != null -> FileDetail(s, s.selected, viewModel, onClose = { viewModel.select(null) })
+                    s.selected != null -> FileDetail(s, s.selected, viewModel, onClose = { viewModel.select(null) }, onOpenDependencies)
                     else -> TreePane(s, analyses, viewModel)
                 }
             }
@@ -370,7 +370,13 @@ private fun EvidenceLine(evidence: Evidence, onOpen: (String) -> Unit) {
 }
 
 @Composable
-private fun FileDetail(s: ExplorerUiState.Loaded, path: String, viewModel: ExplorerViewModel, onClose: (() -> Unit)?) {
+private fun FileDetail(
+    s: ExplorerUiState.Loaded,
+    path: String,
+    viewModel: ExplorerViewModel,
+    onClose: (() -> Unit)?,
+    onOpenDependencies: (analysisId: String, file: String) -> Unit,
+) {
     val file = s.model.files[path] ?: return
     val profile = file.profile
     Column(
@@ -473,6 +479,25 @@ private fun FileDetail(s: ExplorerUiState.Loaded, path: String, viewModel: Explo
             }
             if (!s.model.hasRelations) {
                 Text(stringResource(R.string.file_related_phase5), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+
+        val dependencies = s.model.dependenciesIn(path)
+        val eol = s.model.report.endOfLife.filter { it.path == path }
+        if (dependencies.isNotEmpty() || eol.isNotEmpty()) {
+            val vulnerable = dependencies.filter { it.vulnerabilities.isNotEmpty() }
+            FuncodePanel(
+                accent = vulnerable.minOfOrNull { d -> d.vulnerabilities.minOf { it.severity.ordinal } }
+                    ?.let { com.funcodestudiocb.analyzer.ui.analysis.severityColor(com.funcodestudiocb.analyzer.engine.api.Severity.entries[it]) } ?: FuncodeColors.Electric,
+                modifier = Modifier.testTag("file_dependencies"),
+            ) {
+                SectionTitle(stringResource(R.string.file_dependencies))
+                if (dependencies.isNotEmpty()) Text(stringResource(R.string.file_dependencies_count, dependencies.size, vulnerable.size), fontWeight = FontWeight.Medium)
+                vulnerable.take(MAX_FINDINGS_LISTED).forEach { d ->
+                    com.funcodestudiocb.analyzer.ui.dependencies.DependencyRow(d, onClick = { onOpenDependencies(s.analysis.id, path) })
+                }
+                eol.forEach { com.funcodestudiocb.analyzer.ui.dependencies.EndOfLifeItem(it, onOpenFile = null) }
+                Button(onClick = { onOpenDependencies(s.analysis.id, path) }, modifier = Modifier.testTag("file_open_dependencies")) { Text(stringResource(R.string.dep_open)) }
             }
         }
 

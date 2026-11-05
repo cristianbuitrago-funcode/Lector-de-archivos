@@ -20,6 +20,11 @@ import com.funcodestudiocb.analyzer.data.vault.Vault
 import com.funcodestudiocb.analyzer.data.vault.VaultStorage
 import com.funcodestudiocb.analyzer.data.vault.WipeReason
 import com.funcodestudiocb.analyzer.service.client.IsolationDiagnostics
+import com.funcodestudiocb.analyzer.vulndb.Downloader
+import com.funcodestudiocb.analyzer.vulndb.HttpsDownloader
+import com.funcodestudiocb.analyzer.vulndb.VulnDbStore
+import com.funcodestudiocb.analyzer.vulndb.VulnDbUpdateService
+import com.funcodestudiocb.analyzer.vulndb.VulnDbUpdater
 import java.io.File
 
 /**
@@ -35,6 +40,10 @@ class AppContainer(
     diagnosticsFactory: ((Context) -> IsolationDiagnostics)? = { IsolationDiagnostics(it) },
     engine: AnalysisEngine = IsolatedAnalysisEngine(appContext),
     foreground: ForegroundController = AnalysisForegroundService.controller(appContext),
+    downloader: Downloader = HttpsDownloader(),
+    updateForeground: ForegroundController = VulnDbUpdateService.controller(appContext),
+    /** Espacio libre para el actualizador; `null` = el del sistema ([allocatableBytes]). */
+    freeSpace: ((File) -> Long)? = null,
 ) {
     private val wiper = DataWiper(appContext)
     private val wipeNoticeFile = File(appContext.noBackupFilesDir, "aviso_borrado")
@@ -46,6 +55,7 @@ class AppContainer(
         kdfProfile = kdfProfile,
         onWipe = { reason ->
             coordinator.forgetEverything()
+            vulnDbUpdater.cancel()
             session.lock()
             wiper.wipeAppData()
             if (reason == WipeReason.FAILED_ATTEMPTS) runCatching { wipeNoticeFile.writeText("1") }
@@ -63,6 +73,20 @@ class AppContainer(
 
     val repository = AnalysisRepository(session)
 
+    /** Base de vulnerabilidades (datos públicos) y su actualizador, que solo se ejecuta cuando el usuario lo pide. */
+    val vulnDbStore = VulnDbStore(File(appContext.noBackupFilesDir, "vulnerabilidades"))
+    val vulnDbUpdater = VulnDbUpdater(vulnDbStore, downloader, updateForeground, freeSpace = freeSpace ?: ::allocatableBytes)
+
+    /** Espacio que se puede ocupar, contando la caché que el sistema puede liberar. */
+    internal fun allocatableBytes(dir: File): Long {
+        val storage = appContext.getSystemService(android.os.storage.StorageManager::class.java) ?: return dir.usableSpace
+        return try {
+            storage.getAllocatableBytes(storage.getUuidForPath(dir))
+        } catch (e: java.io.IOException) {
+            dir.usableSpace
+        }
+    }
+
     val coordinator: AnalysisCoordinator = AnalysisCoordinator(
         importer = ArchiveImporter(appContext.contentResolver, File(appContext.noBackupFilesDir, "import")),
         engine = engine,
@@ -70,6 +94,7 @@ class AppContainer(
         session = session,
         spoolDirectory = File(appContext.noBackupFilesDir, "copia-codigo"),
         foreground = foreground,
+        vulnDb = { vulnDbStore.indexOrNull() },
     )
 
     /** Se borraron los datos por intentos fallidos: la configuración inicial lo explica una vez. */

@@ -235,6 +235,9 @@ class DependencyAuditTest {
         assertEquals(setOf("Maven", "PyPI", "npm"), s.databases.map { it.ecosystem }.toSet())
         assertTrue(s.databases.all { it.date != null })
         assertTrue(s.notEvaluated.any { it.contains("versión mínima") })
+        // React se detecta, pero la base de prueba no tiene sus fechas: se dice en lugar de darlo por soportado.
+        assertTrue(s.notEvaluated.any { it.startsWith("Fin de soporte de ") && "React" in it && "Log4j" in it && it.endsWith("no tiene sus datos.") }, s.notEvaluated.toString())
+        assertTrue(a.records.filterIsInstance<EndOfLife>().none { it.product == "react" })
         assertTrue(a.summary.byCategory[SecurityCategory.VULNERABLE_DEPENDENCY]!! >= 6)
         assertTrue(a.summary.byCategory[SecurityCategory.OUTDATED_LIBRARY]!! >= 4)
     }

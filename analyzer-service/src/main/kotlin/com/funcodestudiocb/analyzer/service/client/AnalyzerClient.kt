@@ -78,20 +78,23 @@ class AnalyzerClient(
     /**
      * @param archive comprimido de solo lectura (se cierra al terminar); `null` en el modo diagnóstico.
      * @param password contraseña del comprimido; se envía al proceso aislado y quien llama debe borrarla después.
+     * @param vulnDb índice de vulnerabilidades de solo lectura (se cierra al terminar) o `null` si no hay base.
      */
     suspend fun run(
         config: AnalysisConfig,
         archive: ParcelFileDescriptor? = null,
         password: CharArray? = null,
+        vulnDb: ParcelFileDescriptor? = null,
         onProgress: (ProgressUpdate) -> Unit = {},
         /** Si es `false`, los registros solo llegan por [onRecord] (evita duplicarlos en memoria). */
         bufferRecords: Boolean = true,
         onRecord: (ResultRecord) -> Unit = {},
     ): AnalyzerRun = withContext(Dispatchers.IO) {
         try {
-            runConnected(config, archive, password, onProgress, if (bufferRecords) MAX_BUFFERED else 0, onRecord)
+            runConnected(config, archive, password, vulnDb, onProgress, if (bufferRecords) MAX_BUFFERED else 0, onRecord)
         } finally {
             runCatching { archive?.close() }
+            runCatching { vulnDb?.close() }
         }
     }
 
@@ -99,6 +102,7 @@ class AnalyzerClient(
         config: AnalysisConfig,
         archive: ParcelFileDescriptor?,
         password: CharArray?,
+        vulnDb: ParcelFileDescriptor?,
         onProgress: (ProgressUpdate) -> Unit,
         maxBuffered: Int,
         onRecord: (ResultRecord) -> Unit,
@@ -122,7 +126,7 @@ class AnalyzerClient(
             }
             val (readEnd, writeEnd) = ParcelFileDescriptor.createPipe()
             try {
-                analyzer.start(configBytes, archive, password, writeEnd, ProgressBridge(onProgress))
+                analyzer.start(configBytes, archive, password, vulnDb, writeEnd, ProgressBridge(onProgress))
             } catch (e: RemoteException) {
                 readEnd.close()
                 return@withContext AnalyzerRun(RunStatus.REJECTED, null, connection.died.get(), "El servicio no respondió")
