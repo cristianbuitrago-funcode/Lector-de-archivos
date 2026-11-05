@@ -1,5 +1,7 @@
 package com.funcodestudiocb.analyzer.engine.pipeline
 
+import com.funcodestudiocb.analyzer.engine.architecture.ArchitectureCollector
+import com.funcodestudiocb.analyzer.engine.architecture.ArchitectureStage
 import com.funcodestudiocb.analyzer.engine.audit.AuditCollector
 import com.funcodestudiocb.analyzer.engine.audit.SecurityStage
 import com.funcodestudiocb.analyzer.engine.audit.deps.DependencyAuditStage
@@ -17,7 +19,8 @@ import com.funcodestudiocb.analyzer.engine.technologies.TechnologyStage
 
 /**
  * Pipeline completo del análisis hasta la fase actual: ingesta, inventario, lenguajes, dependencias declaradas,
- * tecnologías, relaciones entre archivos, dependencias con sus vulnerabilidades y auditoría de seguridad. Todo el contenido se examina en un único recorrido del comprimido.
+ * tecnologías, relaciones entre archivos, dependencias con sus vulnerabilidades, auditoría de seguridad y arquitectura
+ * (capas, diagramas y flujos de información). Todo el contenido se examina en un único recorrido del comprimido.
  */
 object FullPipeline {
     fun stages(): List<Stage> {
@@ -27,13 +30,15 @@ object FullPipeline {
         val relations = RelationCollector()
         val audit = AuditCollector()
         val runtimes = RuntimeCollector()
-        val collector = ContentCollector(listOfNotNull(dependencies, technologies, relations, audit, runtimes))
+        val architecture = ArchitectureCollector()
+        val collector = ContentCollector(listOfNotNull(dependencies, technologies, relations, audit, runtimes, architecture))
         return InventoryPipeline.registry(collector)
             .register(DependencyStage(dependencies))
             .register(TechnologyStage(technologies))
             .register(RelationStage(relations))
             .register(DependencyAuditStage(runtimes))
             .register(SecurityStage(audit))
+            .register(ArchitectureStage(architecture))
             .plan()
     }
 }

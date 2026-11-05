@@ -50,6 +50,15 @@ object RecordValidator {
     const val MAX_FIXED_IN = 10
     const val MAX_REASONS = 6
     const val MAX_DATABASES = 16
+
+    // Fase 8: diagramas y flujos.
+    const val MAX_DIAGRAM_NODES = 120
+    const val MAX_DIAGRAM_EDGES = 300
+    const val MAX_EDGE_POINTS = 48
+    const val MAX_EDGE_SAMPLES = 3
+    const val MAX_DIAGRAM_SIZE = 100_000f
+    const val MAX_FLOW_STEPS_ARCH = 10
+    const val MAX_ARCH_NOTES = 20
     val RULE_ID_PATTERN = Regex("^FC-[A-Z0-9-]{2,30}$")
     val FINGERPRINT_PATTERN = Regex("^[0-9a-f]{32}$")
 
@@ -318,6 +327,63 @@ object RecordValidator {
                 record.databases.forEach { checkName(errors, "database", it.ecosystem); if (it.advisories < 0) errors += "Totales negativos" }
                 if (record.notEvaluated.size > MAX_DYNAMIC_CHECKS) errors += "Demasiadas notas"
                 record.notEvaluated.forEach { checkName(errors, "notEvaluated", it, MAX_EVIDENCE_DETAIL) }
+            }
+            is FileLayer -> {
+                checkPath(errors, record.path)
+                checkName(errors, "reason", record.reason, MAX_EVIDENCE_DETAIL)
+            }
+            is Diagram -> {
+                checkName(errors, "title", record.title)
+                record.note?.let { checkName(errors, "note", it, MAX_EVIDENCE_DETAIL) }
+                if (!record.width.isFinite() || !record.height.isFinite() || record.width <= 0f || record.height <= 0f ||
+                    record.width > MAX_DIAGRAM_SIZE || record.height > MAX_DIAGRAM_SIZE
+                ) errors += "Tamaño del diagrama inválido"
+                if (record.nodes.size > MAX_DIAGRAM_NODES || record.edges.size > MAX_DIAGRAM_EDGES) errors += "Diagrama demasiado grande"
+                val ids = HashSet<String>()
+                record.nodes.forEach { n ->
+                    checkName(errors, "nodeId", n.id, MAX_PATH_LENGTH)
+                    checkName(errors, "nodeLabel", n.label, MAX_TARGET_LENGTH)
+                    n.detail?.let { checkName(errors, "nodeDetail", it, MAX_EVIDENCE_DETAIL) }
+                    n.path?.let { checkName(errors, "nodePath", it, MAX_PATH_LENGTH) }
+                    if (!ids.add(n.id)) errors += "Nodo repetido"
+                    if (n.files < 0) errors += "Totales negativos"
+                    val box = listOf(n.x, n.y, n.width, n.height)
+                    if (box.any { !it.isFinite() } || n.x < 0f || n.y < 0f || n.width <= 0f || n.height <= 0f ||
+                        n.x + n.width > record.width + 1f || n.y + n.height > record.height + 1f
+                    ) errors += "Nodo fuera del diagrama"
+                }
+                record.edges.forEach { e ->
+                    if (e.from !in ids || e.to !in ids) errors += "Arista con un nodo desconocido"
+                    if (e.count < 1) errors += "Arista sin relaciones"
+                    if (e.points.size < 4 || e.points.size % 2 != 0 || e.points.size > MAX_EDGE_POINTS) errors += "Trazado de arista inválido"
+                    if (e.points.any { !it.isFinite() || it < -1f || it > maxOf(record.width, record.height) + 1f }) errors += "Arista fuera del diagrama"
+                    if (e.kinds.size > RelationKind.entries.size || e.samples.size > MAX_EDGE_SAMPLES) errors += "Arista con demasiados datos"
+                    e.samples.forEach { checkName(errors, "sample", it, MAX_REFERENCE_LENGTH) }
+                }
+            }
+            is InformationFlow -> {
+                if (record.index < 0 || record.alternatives < 0) errors += "Flujo inválido"
+                checkName(errors, "method", record.method, 16)
+                checkName(errors, "path", record.path, MAX_ROUTE_LENGTH)
+                checkName(errors, "framework", record.framework)
+                if (record.steps.size < 2 || record.steps.size > MAX_FLOW_STEPS_ARCH) errors += "Flujo con pasos inválidos"
+                record.steps.forEachIndexed { i, step ->
+                    checkName(errors, "step", step.label, MAX_REFERENCE_LENGTH)
+                    step.path?.let { checkPath(errors, it) }
+                    if ((step.line ?: 1) < 1) errors += "Línea inválida"
+                    if (i > 0 && (step.via == null || step.confidence == null)) errors += "Paso sin conexión"
+                }
+                if (record.reachesDatabase != (record.steps.lastOrNull()?.layer == ArchLayer.DATABASE)) errors += "Flujo incoherente"
+            }
+            is ArchitectureSummary -> {
+                val values = listOf(record.classified, record.files, record.inverted, record.flows, record.completeFlows, record.modules)
+                if (values.any { it < 0 } || record.byLayer.values.any { it < 0 }) errors += "Totales negativos"
+                if (record.byLayer.values.sum() != record.files || record.classified > record.files || record.completeFlows > record.flows) errors += "Totales incoherentes"
+                if (record.invertedSamples.size > MAX_SAMPLES || record.inverted < record.invertedSamples.size) errors += "Ejemplos incoherentes"
+                record.invertedSamples.forEach { checkName(errors, "inverted", it, MAX_REFERENCE_LENGTH) }
+                record.pattern?.let { checkName(errors, "pattern", it) }
+                if (record.notes.size > MAX_ARCH_NOTES) errors += "Demasiadas notas"
+                record.notes.forEach { checkName(errors, "note", it, MAX_EVIDENCE_DETAIL) }
             }
             is ConfigKey -> {
                 checkName(errors, "name", record.name)

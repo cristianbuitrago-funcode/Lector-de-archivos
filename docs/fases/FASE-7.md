@@ -1,6 +1,6 @@
 # Fase 7 — Dependencias
 
-- **Estado:** terminada, pendiente de aprobación
+- **Estado:** terminada y aprobada
 - **Criterio de aceptación:** dependencias directas e indirectas con vulnerabilidades y uso.
 
 ## Objetivo

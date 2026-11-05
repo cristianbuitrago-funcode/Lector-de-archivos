@@ -1,6 +1,10 @@
 package com.funcodestudiocb.analyzer.analysis
 
 import com.funcodestudiocb.analyzer.engine.api.ArchiveRejected
+import com.funcodestudiocb.analyzer.engine.api.ArchitectureSummary
+import com.funcodestudiocb.analyzer.engine.api.Diagram
+import com.funcodestudiocb.analyzer.engine.api.FileLayer
+import com.funcodestudiocb.analyzer.engine.api.InformationFlow
 import com.funcodestudiocb.analyzer.engine.api.ArchiveSummary
 import com.funcodestudiocb.analyzer.engine.api.CoverageNote
 import com.funcodestudiocb.analyzer.engine.api.DeclaredDependency
@@ -98,7 +102,15 @@ data class AnalysisReport(
     val resolvedDependencies: List<ResolvedDependency> = emptyList(),
     val endOfLife: List<EndOfLife> = emptyList(),
     val dependencySummary: DependencySummary? = null,
+    /** Arquitectura (Fase 8): capa de cada archivo, diagramas ya dispuestos, flujos de información y resumen. */
+    val fileLayers: List<FileLayer> = emptyList(),
+    val diagrams: List<Diagram> = emptyList(),
+    val flows: List<InformationFlow> = emptyList(),
+    val architecture: ArchitectureSummary? = null,
 ) {
+    /** El análisis pasó por la etapa de arquitectura. */
+    val hasArchitecture: Boolean get() = architecture != null || stages.any { it.stageId == "architecture" }
+
     /** El análisis pasó por la auditoría de dependencias (aunque no hubiera ninguna). */
     val hasDependencyAudit: Boolean get() = dependencySummary != null || stages.any { it.stageId == "dependency-audit" }
 
@@ -166,6 +178,10 @@ data class AnalysisReport(
                 resolvedDependencies = records.filterIsInstance<ResolvedDependency>(),
                 endOfLife = records.filterIsInstance<EndOfLife>(),
                 dependencySummary = records.filterIsInstance<DependencySummary>().lastOrNull(),
+                fileLayers = records.filterIsInstance<FileLayer>(),
+                diagrams = records.filterIsInstance<Diagram>(),
+                flows = records.filterIsInstance<InformationFlow>(),
+                architecture = records.filterIsInstance<ArchitectureSummary>().lastOrNull(),
             )
 
         /** Etapas que no terminaron bien (para la cobertura). */

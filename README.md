@@ -18,7 +18,7 @@ auditoría de seguridad, exportable en PDF, HTML y JSON.
 | 5A. Relaciones entre archivos | ✅ Terminada y aprobada ([informe](docs/fases/FASE-5A.md)) |
 | 5B. Relaciones de framework | ✅ Terminada y aprobada ([informe](docs/fases/FASE-5B.md)) |
 | 6. Auditoría de seguridad | ✅ Terminada y aprobada ([informe](docs/fases/FASE-6.md)) |
-| 7. Dependencias | ✅ Terminada, pendiente de aprobación ([informe](docs/fases/FASE-7.md)) |
+| 7. Dependencias | ✅ Terminada y aprobada ([informe](docs/fases/FASE-7.md)) |
 | 8–10 | Pendientes |
 
 - Arquitectura: [`docs/ARQUITECTURA.md`](docs/ARQUITECTURA.md)

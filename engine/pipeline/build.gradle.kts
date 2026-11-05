@@ -19,6 +19,7 @@ dependencies {
     api(project(":engine:technologies"))
     api(project(":engine:relations"))
     api(project(":engine:audit"))
+    api(project(":engine:architecture"))
 
     testImplementation(kotlin("test"))
     testImplementation(platform(libs.junit5.bom))

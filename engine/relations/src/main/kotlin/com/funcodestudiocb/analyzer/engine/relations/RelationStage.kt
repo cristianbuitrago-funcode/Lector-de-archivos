@@ -3,6 +3,7 @@ package com.funcodestudiocb.analyzer.engine.relations
 import com.funcodestudiocb.analyzer.engine.api.CoverageReason
 import com.funcodestudiocb.analyzer.engine.api.DependencyCycle
 import com.funcodestudiocb.analyzer.engine.api.Evidence
+import com.funcodestudiocb.analyzer.engine.api.DataEntity
 import com.funcodestudiocb.analyzer.engine.api.Endpoint
 import com.funcodestudiocb.analyzer.engine.api.EndpointKind
 import com.funcodestudiocb.analyzer.engine.api.EvidenceKind
@@ -43,7 +44,25 @@ object RelationKeys {
 
     /** Archivos de código cuyas importaciones se pudieron leer, por lenguaje (para saber si "sin uso" es fiable). */
     val IMPORT_LANGUAGES = AttributeKey<Set<String>>("relations.importLanguages")
+
+    /** Todas las conexiones encontradas (también las que no caben en los registros), para los diagramas. */
+    val LINKS = AttributeKey<List<Link>>("relations.links")
+
+    /** Tablas y colecciones de datos, con el archivo que las define. */
+    val DATA_ENTITIES = AttributeKey<List<DataEntity>>("relations.dataEntities")
 }
+
+/** Conexión entre archivos (o con algo externo) tal como la necesitan los diagramas: sin evidencias ni impacto. */
+class Link(
+    val source: String,
+    val line: Int?,
+    val target: String?,
+    val external: String?,
+    val kind: RelationKind,
+    val confidence: RelationConfidence,
+    /** Qué se intercambia (primer elemento): la tabla y la operación, la ruta… */
+    val label: String?,
+)
 
 /** Relación antes de calcular su impacto. */
 internal class Draft(
@@ -134,6 +153,8 @@ class RelationStage(private val collector: RelationCollector) : Stage {
         context.attributes[RelationKeys.EXTERNAL_USES] = uses
         context.attributes[RelationKeys.IMPORT_LANGUAGES] =
             collector.facts.values.filter { it.imports.isNotEmpty() }.mapTo(HashSet()) { it.language } - collector.withoutImports.keys
+        context.attributes[RelationKeys.LINKS] = drafts.values.map { Link(it.source, it.line, it.target, it.external, it.kind, it.confidence, it.exchanged.firstOrNull()) }
+        context.attributes[RelationKeys.DATA_ENTITIES] = linker.entities.toList()
         context.checkActive()
 
         context.progress(0.6f, "Construyendo el grafo")

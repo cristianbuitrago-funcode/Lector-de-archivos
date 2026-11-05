@@ -56,6 +56,9 @@ object AuditKeys {
 
     /** Lo que no se pudo evaluar de las dependencias, para el resumen de seguridad. */
     val DEPENDENCY_NOTES = AttributeKey<List<String>>("audit.dependencyNotes")
+
+    /** Dependencias resueltas con sus vulnerabilidades (para el diagrama de proyectos de la Fase 8). */
+    val RESOLVED = AttributeKey<List<ResolvedDependency>>("audit.resolved")
 }
 
 /**
@@ -170,7 +173,9 @@ class DependencyAuditStage(private val runtimes: RuntimeCollector) : Stage {
         val ordered = deps.sortedWith(
             compareBy<Dep>({ d -> d.vulns.minOfOrNull { it.severity.ordinal } ?: Int.MAX_VALUE }, { !it.direct }, { it.root ?: "" }, { it.name.lowercase() }),
         )
-        ordered.take(MAX_RECORDS).forEach { context.emit(record(it)) }
+        val resolved = ordered.take(MAX_RECORDS).map { record(it) }
+        resolved.forEach { context.emit(it) }
+        context.attributes[AuditKeys.RESOLVED] = resolved
         if (ordered.size > MAX_RECORDS) context.coverage(CoverageReason.LIMIT_REACHED, "Se registran como máximo $MAX_RECORDS dependencias (hay ${ordered.size}).")
         eol.forEach { context.emit(it) }
 
