@@ -249,6 +249,12 @@ class FullAnalysisInstrumentedTest {
         assertTrue(report.security.any { it.ruleId == "FC-DEP-02" })
         assertEquals(com.funcodestudiocb.analyzer.engine.api.EolStatus.UNSUPPORTED, report.endOfLife.single { it.product == "nodejs" }.status)
         report.resolvedDependencies.forEach { assertTrue(RecordValidator.validate(it).isEmpty()) }
+        // El resultado se sigue guardando tras llegar a "terminado": hasta entonces el coordinador está ocupado.
+        val deadline = System.currentTimeMillis() + 60_000
+        while (coordinator.busy) {
+            check(System.currentTimeMillis() < deadline) { "El guardado no terminó: ${coordinator.state.value}" }
+            Thread.sleep(50)
+        }
         coordinator.reset()
 
         // Base dañada con el mismo tamaño: el proceso aislado la verifica, la rechaza y el informe lo dice.
