@@ -167,6 +167,15 @@ class ExplorerModel(val report: AnalysisReport) {
     /** El análisis tiene relaciones (Fase 5A o posterior). */
     val hasRelations: Boolean = report.relationsSummary != null
 
+    /** Hallazgos de seguridad de cada archivo, del más grave al menos (Fase 6). */
+    val findingsByFile: Map<String, List<com.funcodestudiocb.analyzer.engine.api.SecurityFinding>> =
+        report.security.filter { it.path != null }.groupBy { it.path!! }
+            .mapValues { (_, list) -> list.sortedWith(compareBy({ it.severity.ordinal }, { it.certainty.ordinal }, { it.line ?: 0 })) }
+
+    /** Severidad más grave de cada línea con hallazgos, para el visor. */
+    fun findingLines(path: String): Map<Int, com.funcodestudiocb.analyzer.engine.api.Severity> =
+        findingsByFile[path].orEmpty().filter { it.line != null }.groupBy { it.line!! }.mapValues { (_, l) -> l.minBy { it.severity.ordinal }.severity }
+
     /** Rutas que declara cada archivo (Fase 5B). */
     val endpointsByFile: Map<String, List<com.funcodestudiocb.analyzer.engine.api.Endpoint>> = report.endpoints.groupBy { it.file }
 

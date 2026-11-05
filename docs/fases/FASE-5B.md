@@ -1,6 +1,6 @@
 # Fase 5B — Relaciones de framework
 
-- **Estado:** terminada, pendiente de aprobación
+- **Estado:** terminada y aprobada
 - **Criterio de aceptación de la Fase 5:** cada conexión muestra sus 5 atributos y su evidencia. Con la 5B se cumple
   también para las conexiones propias de cada framework.
 

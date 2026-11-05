@@ -80,7 +80,7 @@ fun ExplorerScreen(viewModel: ExplorerViewModel) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val analyses by viewModel.analyses.collectAsStateWithLifecycle()
     val loaded = state as? ExplorerUiState.Loaded
-    BackHandler(enabled = loaded != null && (loaded.relation != null || loaded.code != null || loaded.selected != null)) { viewModel.back() }
+    BackHandler(enabled = loaded != null && (loaded.finding != null || loaded.relation != null || loaded.code != null || loaded.selected != null)) { viewModel.back() }
 
     when (val s = state) {
         ExplorerUiState.Loading -> Centered {
@@ -96,6 +96,7 @@ fun ExplorerScreen(viewModel: ExplorerViewModel) {
                     Box(Modifier.weight(0.45f).fillMaxHeight()) { TreePane(s, analyses, viewModel) }
                     Box(Modifier.weight(0.55f).fillMaxHeight()) {
                         when {
+                            s.finding != null -> FindingPane(s.finding, viewModel)
                             s.relation != null -> RelationDetail(s.relation, viewModel::closeRelation, onOpenFile = viewModel::select)
                             s.code != null -> CodeViewer(s.code, viewModel::closeCode)
                             s.selected != null -> FileDetail(s, s.selected, viewModel, onClose = null)
@@ -104,6 +105,7 @@ fun ExplorerScreen(viewModel: ExplorerViewModel) {
                 }
             } else {
                 when {
+                    s.finding != null -> FindingPane(s.finding, viewModel)
                     s.relation != null -> RelationDetail(s.relation, viewModel::closeRelation, onOpenFile = viewModel::select)
                     s.code != null -> CodeViewer(s.code, viewModel::closeCode)
                     s.selected != null -> FileDetail(s, s.selected, viewModel, onClose = { viewModel.select(null) })
@@ -111,6 +113,18 @@ fun ExplorerScreen(viewModel: ExplorerViewModel) {
                 }
             }
         }
+    }
+}
+
+/** Ficha de un hallazgo abierta desde la ficha del archivo. */
+@Composable
+private fun FindingPane(finding: com.funcodestudiocb.analyzer.engine.api.SecurityFinding, viewModel: ExplorerViewModel) {
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(12.dp)) {
+        IconButton(onClick = viewModel::closeFinding, modifier = Modifier.testTag("finding_back")) {
+            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.explorer_back))
+        }
+        // El archivo ya está abierto: la ficha no ofrece abrirlo otra vez.
+        com.funcodestudiocb.analyzer.ui.security.FindingDetail(finding, onOpenFile = null)
     }
 }
 
@@ -197,7 +211,7 @@ private fun TreePane(s: ExplorerUiState.Loaded, analyses: List<com.funcodestudio
             }
         }
         items(s.rows, key = { (if (it.node is DirNode) "d:" else "f:") + it.node.path }) { row ->
-            TreeRowView(row, selected = row.node.path == s.selected, onClick = {
+            TreeRowView(row, selected = row.node.path == s.selected, findings = model.findingsByFile, onClick = {
                 when (val node = row.node) {
                     is DirNode -> if (node.excluded == null) viewModel.toggle(node.path)
                     is FileNode -> viewModel.select(node.path)
@@ -276,7 +290,7 @@ private fun EntryPointRow(ep: EntryPoint, onOpen: (String) -> Unit) {
 }
 
 @Composable
-private fun TreeRowView(row: TreeRow, selected: Boolean, onClick: () -> Unit) {
+private fun TreeRowView(row: TreeRow, selected: Boolean, findings: Map<String, List<com.funcodestudiocb.analyzer.engine.api.SecurityFinding>>, onClick: () -> Unit) {
     val indent = (minOf(row.depth, MAX_INDENT_LEVELS) * 14).dp
     Row(
         Modifier
@@ -322,6 +336,9 @@ private fun TreeRowView(row: TreeRow, selected: Boolean, onClick: () -> Unit) {
                     )
                 }
                 if (file.entryPoints.isNotEmpty()) Icon(Icons.Filled.Star, contentDescription = stringResource(R.string.role_entry_point), tint = FuncodeColors.Gold, modifier = Modifier.size(16.dp))
+                findings[file.path]?.firstOrNull()?.let { worst ->
+                    Icon(Icons.Filled.Warning, contentDescription = stringResource(R.string.file_security), tint = com.funcodestudiocb.analyzer.ui.analysis.severityColor(worst.severity), modifier = Modifier.size(16.dp).testTag("tree_finding"))
+                }
                 if (file.redactions.isNotEmpty()) Icon(Icons.Filled.Lock, contentDescription = stringResource(R.string.file_secrets), tint = FuncodeColors.High, modifier = Modifier.size(16.dp))
                 if (FileRole.POSSIBLY_UNNECESSARY in file.roles) Icon(Icons.Filled.Warning, contentDescription = stringResource(R.string.role_possibly_unnecessary), tint = FuncodeColors.Medium, modifier = Modifier.size(16.dp))
             }
@@ -459,6 +476,19 @@ private fun FileDetail(s: ExplorerUiState.Loaded, path: String, viewModel: Explo
             }
         }
 
+        val findings = s.model.findingsByFile[path].orEmpty()
+        if (findings.isNotEmpty()) {
+            FuncodePanel(accent = com.funcodestudiocb.analyzer.ui.analysis.severityColor(findings.first().severity), modifier = Modifier.testTag("file_security")) {
+                SectionTitle(stringResource(R.string.file_security))
+                findings.take(MAX_FINDINGS_LISTED).forEach { f ->
+                    com.funcodestudiocb.analyzer.ui.security.FindingRow(f, onClick = { viewModel.openFinding(f) })
+                }
+                if (findings.size > MAX_FINDINGS_LISTED) {
+                    Text(stringResource(R.string.file_security_more, findings.size - MAX_FINDINGS_LISTED), style = MaterialTheme.typography.labelSmall)
+                }
+            }
+        }
+
         if (file.redactions.isNotEmpty()) {
             FuncodePanel(accent = FuncodeColors.High) {
                 SectionTitle(stringResource(R.string.file_secrets))
@@ -492,6 +522,14 @@ private fun CodeViewer(code: CodeView, onClose: () -> Unit) {
             IconButton(onClick = onClose) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.explorer_back)) }
             Text(name.revealControlCharacters(), style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
+        if (code.findingLines.isNotEmpty()) {
+            Text(
+                stringResource(R.string.code_findings_banner),
+                style = MaterialTheme.typography.bodySmall,
+                color = FuncodeColors.Critical,
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+            )
+        }
         if (code.redactedLines.isNotEmpty()) {
             Text(
                 stringResource(R.string.code_secrets_banner),
@@ -518,9 +556,28 @@ private fun CodeViewer(code: CodeView, onClose: () -> Unit) {
                             Row(
                                 Modifier
                                     .fillMaxWidth()
-                                    .background(if (number in code.redactedLines) FuncodeColors.Gold.copy(alpha = 0.12f) else androidx.compose.ui.graphics.Color.Transparent)
+                                    .background(
+                                        when {
+                                            number in code.findingLines -> FuncodeColors.Critical.copy(alpha = 0.14f)
+                                            number in code.redactedLines -> FuncodeColors.Gold.copy(alpha = 0.12f)
+                                            else -> androidx.compose.ui.graphics.Color.Transparent
+                                        },
+                                    )
                                     .testTag("code_line_$number"),
                             ) {
+                                // Margen fijo para la marca de hallazgo: los números de línea no se mueven.
+                                if (code.findingLines.isNotEmpty()) {
+                                    val severity = code.findingLines[number]
+                                    Box(Modifier.padding(top = 5.dp, end = 3.dp).size(6.dp)) {
+                                        if (severity != null) {
+                                            Box(
+                                                Modifier.size(6.dp)
+                                                    .background(com.funcodestudiocb.analyzer.ui.analysis.severityColor(severity), CircleShape)
+                                                    .testTag("code_finding_$number"),
+                                            )
+                                        }
+                                    }
+                                }
                                 Text(
                                     number.toString().padStart(gutter),
                                     fontFamily = FontFamily.Monospace,
@@ -553,5 +610,6 @@ internal fun displayCodeLine(raw: String, maxChars: Int = MAX_LINE_CHARS): Pair<
     highlightedCodeLine(raw, null, maxChars).let { (text, original) -> text.text to original }
 
 private const val MAX_LISTED = 200
+private const val MAX_FINDINGS_LISTED = 30
 private const val MAX_INDENT_LEVELS = 12
 private const val MAX_LINE_CHARS = 2_000

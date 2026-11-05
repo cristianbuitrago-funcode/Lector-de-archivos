@@ -69,6 +69,8 @@ import com.funcodestudiocb.analyzer.ui.diagnostics.DiagnosticsScreen
 import com.funcodestudiocb.analyzer.ui.diagnostics.DiagnosticsViewModel
 import com.funcodestudiocb.analyzer.ui.explorer.ExplorerScreen
 import com.funcodestudiocb.analyzer.ui.explorer.ExplorerViewModel
+import com.funcodestudiocb.analyzer.ui.security.SecurityScreen
+import com.funcodestudiocb.analyzer.ui.security.SecurityViewModel
 import com.funcodestudiocb.analyzer.ui.settings.SettingsScreen
 import com.funcodestudiocb.analyzer.ui.settings.SettingsViewModel
 import com.funcodestudiocb.analyzer.ui.containerViewModel
@@ -260,6 +262,10 @@ private fun MainNavHost(navController: NavHostController, container: AppContaine
                         )
                     }
                     Destination.Explorer -> ExplorerScreen(containerViewModel("explorador") { ExplorerViewModel(container, null) })
+                    Destination.Security -> SecurityScreen(
+                        containerViewModel("seguridad") { SecurityViewModel(container) },
+                        onOpenFile = { id, path -> navController.navigate(explorerRoute(id, path)) },
+                    )
                     else -> PlaceholderScreen(destination)
                 }
             }

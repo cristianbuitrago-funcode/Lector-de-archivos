@@ -420,8 +420,8 @@ después se enlazan entre sí.
 
 ### 8.1 Fuentes de hallazgos
 
-1. **Reglas propias de Funcode**: consultas tree-sitter con análisis de flujo intraprocedural, patrones RE2/J y chequeos de configuración estructurada (Manifest, `settings.py`, `.env`, `application.properties`, reglas de Firebase…).
-2. **Secretos**: patrones por proveedor + entropía + contexto.
+1. **Reglas propias de Funcode**: lector de código léxico guiado (el de la Fase 5B) con flujo de datos intraprocedural aproximado, patrones RE2/J y chequeos de configuración estructurada (Manifest, `settings.py`, `.env`, `application.properties`, reglas de Firebase…). Implementado en la Fase 6 en `engine:audit` (ADR 0009); el plan inicial preveía consultas tree-sitter.
+2. **Secretos**: patrones por proveedor + nombres sensibles + contexto (sin medida de entropía: un valor aleatorio sin nombre ni formato conocido no se detecta).
 3. **OSV** (offline) para dependencias, y datos de fin de soporte.
 
 Todos los hallazgos se normalizan a un único formato y se deduplican (archivo + línea + CWE).

@@ -230,6 +230,7 @@ fun ReportView(
             TechnologiesPanel(report, onOpenFile)
             RelationsReportPanel(report, onOpenFile)
             FrameworkReportPanel(report, onOpenFile)
+            com.funcodestudiocb.analyzer.ui.security.SecurityReportPanel(report, onOpenFile)
             LanguagesPanel(report)
         }
 

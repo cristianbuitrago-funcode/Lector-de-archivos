@@ -16,8 +16,9 @@ auditoría de seguridad, exportable en PDF, HTML y JSON.
 | 3. Explorador y estructura | ✅ Terminada y aprobada ([informe](docs/fases/FASE-3.md)) |
 | 4. Lenguajes y tecnologías | ✅ Terminada y aprobada ([informe](docs/fases/FASE-4.md)) |
 | 5A. Relaciones entre archivos | ✅ Terminada y aprobada ([informe](docs/fases/FASE-5A.md)) |
-| 5B. Relaciones de framework | ✅ Terminada, pendiente de aprobación ([informe](docs/fases/FASE-5B.md)) |
-| 6–10 | Pendientes |
+| 5B. Relaciones de framework | ✅ Terminada y aprobada ([informe](docs/fases/FASE-5B.md)) |
+| 6. Auditoría de seguridad | ✅ Terminada, pendiente de aprobación ([informe](docs/fases/FASE-6.md)) |
+| 7–10 | Pendientes |
 
 - Arquitectura: [`docs/ARQUITECTURA.md`](docs/ARQUITECTURA.md)
 - Decisiones técnicas: [`docs/adr/`](docs/adr/)
@@ -33,7 +34,9 @@ engine/api/         protocolo de resultados entre procesos y validación
 engine/core/        orquestador del pipeline de análisis
 engine/ingest/      identificación, comprobación y lectura de ZIP y RAR sin extraer a disco
 engine/inventory/   funciones de los archivos, subproyectos, puntos de entrada, posibles innecesarios y copia redactada
-engine/security/    ocultación de secretos (la auditoría de seguridad completa llega en la Fase 6)
+engine/security/    ocultación de secretos con huella local y catálogo de reglas de seguridad (fichas completas)
+engine/audit/       auditoría de seguridad estática: secretos, inyecciones con flujo de datos, configuración,
+                    sesiones, plataformas, control de acceso de las rutas y supresiones
 engine/languages/   detección de lenguajes, líneas de código/comentario/en blanco, importaciones, símbolos y resaltado (tree-sitter)
 engine/dependencies/ dependencias directas declaradas en los manifiestos
 engine/technologies/ motor de reglas declarativas (catálogo YAML) de frameworks, bases de datos y servicios externos

@@ -48,6 +48,21 @@ class AnalysisRepository(private val session: SessionManager) {
     }
 
     /** Guardar una copia del código con los secretos ocultados (decisión D4). Activado por defecto. */
+    /**
+     * Clave local de las huellas de los secretos (HMAC-SHA256), en Base64. Se crea una vez con el generador
+     * criptográfico del sistema y se guarda solo en la base de datos cifrada: así el mismo secreto tiene la misma
+     * huella en todos los análisis de este teléfono y ninguna huella sirve fuera de él. `null` si la bóveda está cerrada.
+     */
+    suspend fun fingerprintKey(): String? {
+        val settings = session.databaseOrNull()?.settings() ?: return null
+        settings.get(KEY_FINGERPRINT)?.let { return it }
+        val bytes = ByteArray(32).also { java.security.SecureRandom().nextBytes(it) }
+        val key = java.util.Base64.getEncoder().encodeToString(bytes)
+        bytes.fill(0)
+        settings.put(SettingEntity(KEY_FINGERPRINT, key))
+        return key
+    }
+
     suspend fun loadKeepCodeCopy(): Boolean = session.databaseOrNull()?.settings()?.get(KEY_KEEP_COPY)?.toBooleanStrictOrNull() ?: true
 
     suspend fun saveKeepCodeCopy(keep: Boolean) {
@@ -150,6 +165,7 @@ class AnalysisRepository(private val session: SessionManager) {
     private companion object {
         const val KEY_EXCLUSIONS = "analysis.exclusions"
         const val KEY_KEEP_COPY = "analysis.keepCodeCopy"
+        const val KEY_FINGERPRINT = "security.fingerprintKey"
     }
 }
 

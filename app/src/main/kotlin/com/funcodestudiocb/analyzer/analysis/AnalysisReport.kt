@@ -27,6 +27,8 @@ import com.funcodestudiocb.analyzer.engine.api.ConfigKey
 import com.funcodestudiocb.analyzer.engine.api.RelationsSummary
 import com.funcodestudiocb.analyzer.engine.api.RejectionReason
 import com.funcodestudiocb.analyzer.engine.api.ResultRecord
+import com.funcodestudiocb.analyzer.engine.api.SecurityFinding
+import com.funcodestudiocb.analyzer.engine.api.SecuritySummary
 import com.funcodestudiocb.analyzer.engine.api.SessionOutcome
 import com.funcodestudiocb.analyzer.engine.api.Severity
 import com.funcodestudiocb.analyzer.engine.api.StageEvent
@@ -86,7 +88,13 @@ data class AnalysisReport(
     val endpoints: List<Endpoint> = emptyList(),
     val dataEntities: List<DataEntity> = emptyList(),
     val configKeys: List<ConfigKey> = emptyList(),
+    /** Auditoría de seguridad (Fase 6): fichas de los hallazgos y resumen. */
+    val security: List<SecurityFinding> = emptyList(),
+    val securitySummary: SecuritySummary? = null,
 ) {
+    /** El análisis pasó por la auditoría de seguridad (aunque no encontrara nada). */
+    val hasSecurity: Boolean get() = securitySummary != null || stages.any { it.stageId == "security" }
+
     /** El análisis tiene la información de la Fase 4 (lenguajes y tecnologías). */
     val hasTechnologies: Boolean get() = languages.isNotEmpty() || technologies.isNotEmpty() || stages.any { it.stageId == "technologies" }
 
@@ -143,6 +151,8 @@ data class AnalysisReport(
                 endpoints = records.filterIsInstance<Endpoint>(),
                 dataEntities = records.filterIsInstance<DataEntity>(),
                 configKeys = records.filterIsInstance<ConfigKey>(),
+                security = records.filterIsInstance<SecurityFinding>(),
+                securitySummary = records.filterIsInstance<SecuritySummary>().lastOrNull(),
             )
 
         /** Etapas que no terminaron bien (para la cobertura). */

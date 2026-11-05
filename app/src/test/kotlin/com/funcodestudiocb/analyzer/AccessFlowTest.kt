@@ -81,10 +81,17 @@ class AccessFlowTest {
         compose.onNodeWithText("Estado de la instalación").assertIsDisplayed()
 
         compose.onNodeWithTag("open_menu").performClick()
+        compose.onNodeWithTag("nav_arquitectura").performScrollTo().performClick()
+        compose.waitForIdle()
+        compose.onNode(hasTestTag("screen_title") and hasText("Arquitectura")).assertIsDisplayed()
+        compose.onNodeWithText("En construcción · Fase 8").assertIsDisplayed()
+
+        // Seguridad ya está construida (Fase 6): sin análisis, lo dice.
+        compose.onNodeWithTag("open_menu").performClick()
         compose.onNodeWithTag("nav_seguridad").performScrollTo().performClick()
         compose.waitForIdle()
         compose.onNode(hasTestTag("screen_title") and hasText("Seguridad")).assertIsDisplayed()
-        compose.onNodeWithText("En construcción · Fase 6").assertIsDisplayed()
+        compose.onNodeWithText("Todavía no hay ningún análisis", substring = true).assertIsDisplayed()
     }
 
     @Test

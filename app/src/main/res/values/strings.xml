@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools" tools:locale="es">
     <string name="app_name">Funcode Code Analyzer</string>
     <string name="brand_studio">Funcode Studio CB</string>
 
@@ -571,7 +571,7 @@
     <string name="file_relations_used_by">Lo usan (%1$d)</string>
     <string name="file_relations_none">Ninguna</string>
     <string name="file_symbols">Declara</string>
-    <string name="file_graph_rank">Importancia: puesto %1$d de %2$d archivos</string>
+    <string name="file_graph_rank" tools:ignore="PluralsCandidate">Importancia: puesto %1$d de %2$d archivos</string>
     <plurals name="file_graph_dependents">
         <item quantity="one">Lo usa directamente %1$d archivo; en cadena, %2$d</item>
         <item quantity="many">Lo usan directamente %1$d archivos; en cadena, %2$d</item>
@@ -582,7 +582,7 @@
         <item quantity="many">Lo usan directamente %1$d archivos; en cadena, %2$d o más</item>
         <item quantity="other">Lo usan directamente %1$d archivos; en cadena, %2$d o más</item>
     </plurals>
-    <string name="file_graph_cycle">Forma parte de un ciclo de %1$d archivos que dependen unos de otros</string>
+    <string name="file_graph_cycle" tools:ignore="PluralsCandidate">Forma parte de un ciclo de %1$d archivos que dependen unos de otros</string>
     <string name="file_graph_not_reachable">No se llega a él desde ningún punto de entrada conocido</string>
     <string name="file_graph_unreferenced">Ningún archivo lo usa según las relaciones encontradas (de lenguaje y de framework): puede sobrar, o usarse de una forma que no se analiza (reflexión, rutas construidas al ejecutar). Revísalo antes de borrarlo.</string>
     <string name="relation_title">Conexión</string>
@@ -631,7 +631,7 @@
     <string name="impact_route_no_callers">Ninguna llamada del proyecto usa esta ruta (puede usarse desde fuera: otra app, un navegador, un servicio)</string>
     <string name="file_routes">Rutas que declara (%1$d)</string>
     <string name="report_framework">Rutas, datos y configuración</string>
-    <string name="report_framework_summary">%1$d rutas del backend y %2$d páginas · %3$d llamadas HTTP, %4$d enlazadas con una ruta del proyecto</string>
+    <string name="report_framework_summary" tools:ignore="PluralsCandidate">%1$d rutas del backend y %2$d páginas · %3$d llamadas HTTP, %4$d enlazadas con una ruta del proyecto</string>
     <string name="report_framework_intro">Toca una ruta para abrir el archivo que la atiende. Las llamadas sin ruta en el backend analizado pueden ser errores o APIs que no están en el comprimido.</string>
     <string name="report_routes">Rutas del backend</string>
     <string name="report_pages">Páginas del frontend</string>
@@ -649,7 +649,7 @@
         <item quantity="other">%1$s · la usan %2$d archivos</item>
     </plurals>
     <string name="report_data_undefined">no se define en el proyecto</string>
-    <string name="report_config">Configuración (%1$d claves leídas)</string>
+    <string name="report_config" tools:ignore="PluralsCandidate">Configuración (%1$d claves leídas)</string>
     <string name="report_config_undefined">Se configuran fuera del comprimido (%1$d)</string>
     <plurals name="report_config_item">
         <item quantity="one">leída en %1$d lugar</item>
@@ -675,7 +675,7 @@
         <item quantity="other">El origen se alcanza desde: %1$s y %2$d puntos de entrada más</item>
     </plurals>
     <string name="report_relations">Relaciones entre archivos</string>
-    <string name="report_relations_summary">%1$d conexiones entre archivos del proyecto y %2$d con paquetes externos</string>
+    <string name="report_relations_summary" tools:ignore="PluralsCandidate">%1$d conexiones entre archivos del proyecto y %2$d con paquetes externos</string>
     <string name="report_relations_intro">Toca un archivo para abrir su ficha: allí cada conexión muestra su origen y destino, tipo, información intercambiada, impacto y confianza con su evidencia.</string>
     <string name="report_relations_broken">Posibles errores (%1$d)</string>
     <string name="report_relations_broken_intro">Referencias a archivos que no están en el comprimido.</string>

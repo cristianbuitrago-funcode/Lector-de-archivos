@@ -28,6 +28,8 @@ data class CodeView(
     val missing: Boolean = false,
     /** Resaltado de cada línea (tríos relativos a la línea); vacío si no hay. */
     val highlight: List<IntArray> = emptyList(),
+    /** Líneas con hallazgos de seguridad y su severidad más grave. */
+    val findingLines: Map<Int, com.funcodestudiocb.analyzer.engine.api.Severity> = emptyMap(),
 )
 
 sealed interface ExplorerUiState {
@@ -48,6 +50,8 @@ sealed interface ExplorerUiState {
         val code: CodeView? = null,
         /** Conexión abierta con sus cinco atributos. */
         val relation: com.funcodestudiocb.analyzer.engine.api.Relation? = null,
+        /** Hallazgo de seguridad abierto con su ficha. */
+        val finding: com.funcodestudiocb.analyzer.engine.api.SecurityFinding? = null,
     ) : ExplorerUiState
 }
 
@@ -124,8 +128,12 @@ class ExplorerViewModel(private val container: AppContainer, initialId: String?,
 
     fun select(path: String?) {
         codeJob?.cancel()
-        updateLoaded { it.copy(selected = path, code = null, relation = null) }
+        updateLoaded { it.copy(selected = path, code = null, relation = null, finding = null) }
     }
+
+    fun openFinding(finding: com.funcodestudiocb.analyzer.engine.api.SecurityFinding) = updateLoaded { it.copy(finding = finding) }
+
+    fun closeFinding() = updateLoaded { it.copy(finding = null) }
 
     fun openRelation(relation: com.funcodestudiocb.analyzer.engine.api.Relation) = updateLoaded { it.copy(relation = relation) }
 
@@ -135,7 +143,8 @@ class ExplorerViewModel(private val container: AppContainer, initialId: String?,
         val s = _state.value as? ExplorerUiState.Loaded ?: return
         val path = s.selected ?: return
         val redacted = s.model.files[path]?.redactions?.map { it.line }?.toSet().orEmpty()
-        updateLoaded { it.copy(code = CodeView(path, null, redacted)) }
+        val findings = s.model.findingLines(path)
+        updateLoaded { it.copy(code = CodeView(path, null, redacted, findingLines = findings)) }
         codeJob?.cancel()
         codeJob = viewModelScope.launch {
             val copy = repository.code(s.analysis.id, path)
@@ -147,7 +156,7 @@ class ExplorerViewModel(private val container: AppContainer, initialId: String?,
             }
             updateLoaded { cur ->
                 if (cur.code?.path != path) return@updateLoaded cur
-                cur.copy(code = CodeView(path, prepared?.first.orEmpty(), redacted, missing = prepared == null, highlight = prepared?.second.orEmpty()))
+                cur.copy(code = CodeView(path, prepared?.first.orEmpty(), redacted, missing = prepared == null, highlight = prepared?.second.orEmpty(), findingLines = findings))
             }
         }
     }
@@ -157,10 +166,14 @@ class ExplorerViewModel(private val container: AppContainer, initialId: String?,
         updateLoaded { it.copy(code = null) }
     }
 
-    /** Atrás dentro del Explorador: conexión → visor → ficha → árbol. Devuelve `false` si no había nada que cerrar. */
+    /** Atrás dentro del Explorador: hallazgo o conexión → visor → ficha → árbol. Devuelve `false` si no había nada que cerrar. */
     fun back(): Boolean {
         val s = _state.value as? ExplorerUiState.Loaded ?: return false
         return when {
+            s.finding != null -> {
+                closeFinding()
+                true
+            }
             s.relation != null -> {
                 closeRelation()
                 true

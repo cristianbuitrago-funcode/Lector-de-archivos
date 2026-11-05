@@ -28,6 +28,7 @@ import org.junit.runner.RunWith
 import java.io.File
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
+import com.funcodestudiocb.analyzer.engine.api.RecordValidator
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
@@ -148,6 +149,17 @@ class FullAnalysisInstrumentedTest {
         val call = finished.report.relations.single { it.source == "web/util.js" && it.kind == RelationKind.HTTP }
         assertEquals("web/server.js", call.target)
         assertEquals(RelationConfidence.PROBABLE, call.confidence)
+
+        // Auditoría de seguridad (Fase 6) en el proceso aislado: el secreto llega enmascarado y con la huella de la
+        // clave local; ningún registro lo contiene completo.
+        val summary = finished.report.securitySummary ?: fail("Sin resumen de seguridad: $diagnosis")
+        assertEquals(finished.report.security.size, summary.findings)
+        val secret = finished.report.security.single { it.path == "src/Config.kt" && it.ruleId == "FC-SECRET-05" }
+        assertEquals(1, secret.line)
+        assertTrue(secret.fingerprint?.length == 32, "Sin huella: $secret")
+        assertTrue(secret.masked!!.startsWith("abcd") && secret.masked!!.count { it == RecordValidator.MASK_CHAR } > 0)
+        assertFalse(finished.report.security.toString().contains("abcd1234efgh5678ijkl"), "El secreto completo no sale del proceso aislado")
+        assertTrue(summary.notEvaluated.any { it.contains("Fase 7") })
     }
 
     @Test

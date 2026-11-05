@@ -11,6 +11,7 @@ import com.funcodestudiocb.analyzer.engine.api.CoverageReason
 import com.funcodestudiocb.analyzer.engine.api.ExclusionOptions
 import com.funcodestudiocb.analyzer.engine.api.IngestLimits
 import com.funcodestudiocb.analyzer.engine.api.IngestOptions
+import com.funcodestudiocb.analyzer.engine.api.SecurityOptions
 import com.funcodestudiocb.analyzer.engine.api.InventoryOptions
 import com.funcodestudiocb.analyzer.engine.api.ResultRecord
 import com.funcodestudiocb.analyzer.engine.api.RejectionReason
@@ -194,6 +195,7 @@ class AnalysisCoordinator(
                     mode = AnalysisMode.FULL,
                     ingest = IngestOptions(archive.displayName, limits, exclusions),
                     inventory = inventory,
+                    security = SecurityOptions(fingerprintKey = repository.fingerprintKey()),
                 )
                 val copy = ContentSpool.create(spoolDirectory).also { spool = it }
                 val records = ArrayList<ResultRecord>()
