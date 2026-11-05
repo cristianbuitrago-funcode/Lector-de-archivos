@@ -165,6 +165,15 @@ class FullAnalysisInstrumentedTest {
         assertEquals(1, deps.direct)
         assertEquals(0, deps.vulnerabilities)
         assertTrue(summary.notEvaluated.any { it.contains("no hay base de vulnerabilidades descargada") }, summary.notEvaluated.toString())
+
+        // Arquitectura (Fase 8) en el proceso aislado: capas, diagramas dispuestos y el flujo de la ruta.
+        val arch = finished.report.architecture ?: fail("Sin arquitectura: $diagnosis")
+        assertEquals(finished.report.fileLayers.size, arch.files)
+        assertEquals(com.funcodestudiocb.analyzer.engine.api.ArchLayer.API, finished.report.fileLayers.single { it.path == "web/server.js" }.layer)
+        assertEquals(3, finished.report.diagrams.size)
+        finished.report.diagrams.forEach { assertTrue(RecordValidator.validate(it).isEmpty(), "Diagrama inválido: ${RecordValidator.validate(it)}") }
+        val pingFlow = finished.report.flows.single { it.path == "/api/ping" }
+        assertEquals(listOf("web/util.js", "web/server.js"), pingFlow.steps.map { it.path }, pingFlow.steps.toString())
     }
 
     @Test

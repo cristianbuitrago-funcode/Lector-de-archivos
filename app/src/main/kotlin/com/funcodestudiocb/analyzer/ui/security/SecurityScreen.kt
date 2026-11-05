@@ -122,7 +122,7 @@ private fun DetailPane(finding: com.funcodestudiocb.analyzer.engine.api.Security
 }
 
 @Composable
-private fun AnalysisPicker(current: AnalysisEntity, analyses: List<AnalysisEntity>, onPick: (String) -> Unit) {
+internal fun AnalysisPicker(current: AnalysisEntity, analyses: List<AnalysisEntity>, onPick: (String) -> Unit) {
     var open by rememberSaveable { mutableStateOf(false) }
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text(

@@ -65,6 +65,8 @@ import com.funcodestudiocb.analyzer.ui.analysis.AnalysisDetailScreen
 import com.funcodestudiocb.analyzer.ui.analysis.AnalysisDetailViewModel
 import com.funcodestudiocb.analyzer.ui.analysis.NewAnalysisScreen
 import com.funcodestudiocb.analyzer.ui.analysis.NewAnalysisViewModel
+import com.funcodestudiocb.analyzer.ui.architecture.ArchitectureScreen
+import com.funcodestudiocb.analyzer.ui.architecture.ArchitectureViewModel
 import com.funcodestudiocb.analyzer.ui.dependencies.DependenciesScreen
 import com.funcodestudiocb.analyzer.ui.dependencies.DependenciesViewModel
 import com.funcodestudiocb.analyzer.ui.diagnostics.DiagnosticsScreen
@@ -100,6 +102,11 @@ const val ROUTE_DIAGNOSTICS = "ajustes/diagnostico"
 const val ROUTE_ANALYSIS_DETAIL = "analisis/{id}"
 const val ROUTE_EXPLORER_ANALYSIS = "explorador/{id}?archivo={archivo}"
 const val ROUTE_DEPENDENCIES = "dependencias/{id}?archivo={archivo}"
+const val ROUTE_ARCHITECTURE = "arquitectura/{id}?archivo={archivo}"
+
+/** Ruta de la arquitectura de un análisis, opcionalmente con el foco en un archivo. */
+fun architectureRoute(id: String, file: String? = null): String =
+    "arquitectura/${android.net.Uri.encode(id)}" + (file?.let { "?archivo=${android.net.Uri.encode(it)}" } ?: "")
 
 /** Ruta de las dependencias de un análisis, opcionalmente solo las de un manifiesto o archivo de bloqueo. */
 fun dependenciesRoute(id: String, file: String? = null): String =
@@ -121,6 +128,7 @@ fun MainScaffold(container: AppContainer, widthDp: Int) {
         ROUTE_ANALYSIS_DETAIL -> Destination.NewAnalysis
         ROUTE_EXPLORER_ANALYSIS -> Destination.Explorer
         ROUTE_DEPENDENCIES -> Destination.Security
+        ROUTE_ARCHITECTURE -> Destination.Architecture
         else -> Destination.Dashboard
     }
     val titleOverride = when (currentRoute) {
@@ -274,11 +282,18 @@ private fun MainNavHost(navController: NavHostController, container: AppContaine
                             onOpenExplorer = { id -> navController.navigate(explorerRoute(id)) },
                             onOpenFile = { id, path -> navController.navigate(explorerRoute(id, path)) },
                             onOpenDependencies = { id -> navController.navigate(dependenciesRoute(id)) },
+                            onOpenArchitecture = { id -> navController.navigate(architectureRoute(id)) },
                         )
                     }
                     Destination.Explorer -> ExplorerScreen(
                         containerViewModel("explorador") { ExplorerViewModel(container, null) },
                         onOpenDependencies = { id, file -> navController.navigate(dependenciesRoute(id, file)) },
+                        onOpenArchitecture = { id, file -> navController.navigate(architectureRoute(id, file)) },
+                    )
+                    Destination.Architecture -> ArchitectureScreen(
+                        containerViewModel("arquitectura") { ArchitectureViewModel(container) },
+                        onOpenFile = { id, path -> navController.navigate(explorerRoute(id, path)) },
+                        onOpenDependencies = { id -> navController.navigate(dependenciesRoute(id)) },
                     )
                     Destination.Security -> SecurityScreen(
                         containerViewModel("seguridad") { SecurityViewModel(container) },
@@ -298,6 +313,7 @@ private fun MainNavHost(navController: NavHostController, container: AppContaine
                 onOpenExplorer = { navController.navigate(explorerRoute(it)) },
                 onOpenFile = { id, path -> navController.navigate(explorerRoute(id, path)) },
                 onOpenDependencies = { id -> navController.navigate(dependenciesRoute(id)) },
+                onOpenArchitecture = { id -> navController.navigate(architectureRoute(id)) },
             )
         }
         composable(
@@ -332,6 +348,25 @@ private fun MainNavHost(navController: NavHostController, container: AppContaine
             ExplorerScreen(
                 containerViewModel(key = "explorador-$id-${path.orEmpty()}") { ExplorerViewModel(container, id, path) },
                 onOpenDependencies = { analysisId, file -> navController.navigate(dependenciesRoute(analysisId, file)) },
+                onOpenArchitecture = { analysisId, file -> navController.navigate(architectureRoute(analysisId, file)) },
+            )
+        }
+        composable(
+            ROUTE_ARCHITECTURE,
+            arguments = listOf(
+                androidx.navigation.navArgument("archivo") {
+                    type = androidx.navigation.NavType.StringType
+                    nullable = true
+                    defaultValue = null
+                },
+            ),
+        ) { entry ->
+            val id = entry.arguments?.getString("id").orEmpty()
+            val file = entry.arguments?.getString("archivo")
+            ArchitectureScreen(
+                containerViewModel(key = "arquitectura-$id-${file.orEmpty()}") { ArchitectureViewModel(container, id, file) },
+                onOpenFile = { analysisId, path -> navController.navigate(explorerRoute(analysisId, path)) },
+                onOpenDependencies = { analysisId -> navController.navigate(dependenciesRoute(analysisId)) },
             )
         }
         composable(ROUTE_DIAGNOSTICS) {

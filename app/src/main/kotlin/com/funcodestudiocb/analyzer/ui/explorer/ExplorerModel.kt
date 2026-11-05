@@ -168,6 +168,11 @@ class ExplorerModel(val report: AnalysisReport) {
     val hasRelations: Boolean = report.relationsSummary != null
 
     /** Hallazgos de seguridad de cada archivo, del más grave al menos (Fase 6). */
+    /** Capa de arquitectura de cada archivo (Fase 8). */
+    private val layers: Map<String, com.funcodestudiocb.analyzer.engine.api.FileLayer> by lazy { report.fileLayers.associateBy { it.path } }
+
+    fun layerOf(path: String): com.funcodestudiocb.analyzer.engine.api.FileLayer? = layers[path]
+
     /** Dependencias declaradas o fijadas en cada manifiesto y archivo de bloqueo (Fase 7). */
     private val dependenciesByFile: Map<String, List<com.funcodestudiocb.analyzer.engine.api.ResolvedDependency>> by lazy {
         val map = HashMap<String, MutableList<com.funcodestudiocb.analyzer.engine.api.ResolvedDependency>>()

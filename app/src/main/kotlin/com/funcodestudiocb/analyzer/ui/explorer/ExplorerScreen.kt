@@ -41,6 +41,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -76,7 +77,11 @@ import com.funcodestudiocb.analyzer.ui.components.revealControlCharacters
 import com.funcodestudiocb.analyzer.ui.theme.FuncodeColors
 
 @Composable
-fun ExplorerScreen(viewModel: ExplorerViewModel, onOpenDependencies: (analysisId: String, file: String) -> Unit = { _, _ -> }) {
+fun ExplorerScreen(
+    viewModel: ExplorerViewModel,
+    onOpenDependencies: (analysisId: String, file: String) -> Unit = { _, _ -> },
+    onOpenArchitecture: (analysisId: String, file: String) -> Unit = { _, _ -> },
+) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val analyses by viewModel.analyses.collectAsStateWithLifecycle()
     val loaded = state as? ExplorerUiState.Loaded
@@ -99,7 +104,7 @@ fun ExplorerScreen(viewModel: ExplorerViewModel, onOpenDependencies: (analysisId
                             s.finding != null -> FindingPane(s.finding, viewModel)
                             s.relation != null -> RelationDetail(s.relation, viewModel::closeRelation, onOpenFile = viewModel::select)
                             s.code != null -> CodeViewer(s.code, viewModel::closeCode)
-                            s.selected != null -> FileDetail(s, s.selected, viewModel, onClose = null, onOpenDependencies)
+                            s.selected != null -> FileDetail(s, s.selected, viewModel, onClose = null, onOpenDependencies, onOpenArchitecture)
                         }
                     }
                 }
@@ -108,7 +113,7 @@ fun ExplorerScreen(viewModel: ExplorerViewModel, onOpenDependencies: (analysisId
                     s.finding != null -> FindingPane(s.finding, viewModel)
                     s.relation != null -> RelationDetail(s.relation, viewModel::closeRelation, onOpenFile = viewModel::select)
                     s.code != null -> CodeViewer(s.code, viewModel::closeCode)
-                    s.selected != null -> FileDetail(s, s.selected, viewModel, onClose = { viewModel.select(null) }, onOpenDependencies)
+                    s.selected != null -> FileDetail(s, s.selected, viewModel, onClose = { viewModel.select(null) }, onOpenDependencies, onOpenArchitecture)
                     else -> TreePane(s, analyses, viewModel)
                 }
             }
@@ -376,6 +381,7 @@ private fun FileDetail(
     viewModel: ExplorerViewModel,
     onClose: (() -> Unit)?,
     onOpenDependencies: (analysisId: String, file: String) -> Unit,
+    onOpenArchitecture: (analysisId: String, file: String) -> Unit,
 ) {
     val file = s.model.files[path] ?: return
     val profile = file.profile
@@ -459,6 +465,22 @@ private fun FileDetail(
                 file.entryPoints.forEach { ep ->
                     Text(entryKindLabel(ep.kind), fontWeight = FontWeight.Medium)
                     ep.evidence.forEach { EvidenceLine(it, onOpen = viewModel::select) }
+                }
+            }
+        }
+
+        s.model.layerOf(path)?.let { l ->
+            FuncodePanel(accent = com.funcodestudiocb.analyzer.ui.architecture.layerColor(l.layer), modifier = Modifier.testTag("file_architecture")) {
+                SectionTitle(stringResource(R.string.file_architecture))
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(com.funcodestudiocb.analyzer.ui.architecture.layerLabel(l.layer), fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
+                    StatusChip(confidenceLabel(l.confidence), confidenceColor(l.confidence))
+                }
+                Text(l.reason.revealControlCharacters(), style = MaterialTheme.typography.bodySmall)
+                if (s.model.hasRelations) {
+                    OutlinedButton(onClick = { onOpenArchitecture(s.analysis.id, path) }, modifier = Modifier.testTag("file_open_architecture")) {
+                        Text(stringResource(R.string.file_layer_open))
+                    }
                 }
             }
         }

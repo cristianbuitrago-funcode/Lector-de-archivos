@@ -64,6 +64,9 @@ enum class DiagramKind {
 
     /** Subproyectos, servicios externos y dependencias principales. */
     PROJECTS,
+
+    /** Conexiones de un archivo con foco (lo dibuja la app a partir de las relaciones guardadas). */
+    FOCUS,
 }
 
 @Serializable

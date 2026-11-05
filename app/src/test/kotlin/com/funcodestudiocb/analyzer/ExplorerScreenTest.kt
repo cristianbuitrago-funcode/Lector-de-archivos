@@ -247,7 +247,7 @@ class ExplorerScreenTest {
         // Informe: rutas con su controlador y sus llamadas, llamada sin ruta, tablas y claves sin definir.
         compose.onNodeWithTag("report_framework").performScrollTo().assertIsDisplayed()
         compose.onNodeWithText("1 rutas del backend", substring = true).performScrollTo().assertIsDisplayed()
-        compose.onNodeWithText("GET /api/users").performScrollTo().assertIsDisplayed()
+        compose.onNode(hasText("GET /api/users") and hasText("→ ctrl.list", substring = true)).performScrollTo().assertIsDisplayed()
         compose.onNodeWithText("→ ctrl.list · Express · 1 llamada", substring = true).performScrollTo().assertIsDisplayed()
         compose.onNodeWithText("Llamadas HTTP sin ruta en el backend analizado (1)").performScrollTo().assertIsDisplayed()
         compose.onNodeWithText("GET /api/orders").performScrollTo().assertIsDisplayed()
@@ -256,7 +256,7 @@ class ExplorerScreenTest {
         compose.onNodeWithText("STRIPE_KEY").performScrollTo().assertIsDisplayed()
 
         // La ruta abre el archivo que la atiende; la conexión desde el cliente muestra sus cinco atributos.
-        compose.onNodeWithText("GET /api/users").performScrollTo().performClick()
+        compose.onNode(hasText("GET /api/users") and hasText("→ ctrl.list", substring = true)).performScrollTo().performClick()
         awaitCondition { compose.onAllNodesWithTag("file_detail").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithText("users.js").assertIsDisplayed()
         compose.onNodeWithTag("file_relations").performScrollTo()
