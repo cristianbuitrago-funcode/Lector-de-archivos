@@ -89,6 +89,20 @@ fun layerColor(layer: ArchLayer): Color = when (layer) {
     ArchLayer.TEST -> FuncodeColors.Info
 }
 
+/** Cómo se pasa de un paso del flujo al siguiente, en pocas palabras. */
+@Composable
+fun flowViaLabel(kind: com.funcodestudiocb.analyzer.engine.api.RelationKind): String = stringResource(
+    when (kind) {
+        com.funcodestudiocb.analyzer.engine.api.RelationKind.HTTP -> R.string.arch_via_http
+        com.funcodestudiocb.analyzer.engine.api.RelationKind.ROUTE_HANDLER -> R.string.arch_via_handler
+        com.funcodestudiocb.analyzer.engine.api.RelationKind.DB_ACCESS -> R.string.arch_via_db
+        com.funcodestudiocb.analyzer.engine.api.RelationKind.INJECTION -> R.string.arch_via_injection
+        com.funcodestudiocb.analyzer.engine.api.RelationKind.CALL -> R.string.arch_via_call
+        com.funcodestudiocb.analyzer.engine.api.RelationKind.IMPORT -> R.string.arch_via_import
+        else -> R.string.arch_via_uses
+    },
+)
+
 @Composable
 internal fun SectionTitle(text: String) {
     Text(text.uppercase(), style = MaterialTheme.typography.labelSmall, color = FuncodeColors.Gold)
@@ -112,7 +126,7 @@ fun FlowCard(flow: InformationFlow, onOpenFile: ((String) -> Unit)?, modifier: M
             flow.steps.forEachIndexed { i, step ->
                 if (i > 0) {
                     Text(
-                        "→" + (step.via?.let { " " + relationKindLabel(it).lowercase() } ?: ""),
+                        "→" + (step.via?.let { " " + flowViaLabel(it) } ?: ""),
                         style = MaterialTheme.typography.labelSmall,
                         color = step.confidence?.let { relationConfidenceColor(it) } ?: MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.align(Alignment.CenterVertically),

@@ -94,6 +94,20 @@ fun DiagramCanvas(
         fitted = true
     }
     LaunchedEffect(size, diagram) { if (!fitted && size != IntSize.Zero) fit() }
+    // Si se elige un elemento (por ejemplo, desde la lista) que no se ve, el dibujo se desplaza hasta él.
+    LaunchedEffect(selection.node, size) {
+        val n = diagram.nodes.firstOrNull { it.id == selection.node } ?: return@LaunchedEffect
+        if (size == IntSize.Zero) return@LaunchedEffect
+        val s = zoom * density
+        val cx = offset.x + (n.x + n.width / 2) * s
+        val cy = offset.y + (n.y + n.height / 2) * s
+        val margin = 24f * density
+        if (cx < margin || cy < margin || cx > size.width - margin || cy > size.height - margin) {
+            offset = Offset(offset.x + size.width / 2f - cx, offset.y + size.height / 2f - cy)
+        }
+    }
+    // Aristas en los dos sentidos entre los mismos nodos: se separan un poco para que se vean las dos.
+    val opposite = remember(diagram) { diagram.edges.mapTo(HashSet()) { it.from to it.to }.let { set -> diagram.edges.filter { (it.to to it.from) in set }.mapTo(HashSet()) { it.from to it.to } } }
 
     /** Elemento bajo el dedo, en coordenadas del diagrama. */
     fun hit(p: Offset) {
@@ -135,7 +149,8 @@ fun DiagramCanvas(
             for (e in diagram.edges) {
                 val related = (focusNode != null && (e.from == focusNode || e.to == focusNode)) || selection.edge == (e.from to e.to)
                 val dimmed = (focusNode != null || selection.edge != null) && !related
-                drawEdge(e, ::x, ::y, related, dimmed, density)
+                val shift = if ((e.from to e.to) in opposite) (if (e.from < e.to) 4f else -4f) * density else 0f
+                drawEdge(e, ::x, ::y, related, dimmed, density, shift)
             }
             for (n in diagram.nodes) {
                 val rect = Rect(x(n.x), y(n.y), x(n.x + n.width), y(n.y + n.height))
@@ -191,9 +206,25 @@ private fun ZoomButton(text: String, tag: String, onClick: () -> Unit) {
     }
 }
 
-private fun DrawScope.drawEdge(e: DiagramEdge, x: (Float) -> Float, y: (Float) -> Float, related: Boolean, dimmed: Boolean, density: Float) {
+private fun DrawScope.drawEdge(
+    e: DiagramEdge,
+    x0: (Float) -> Float,
+    y0: (Float) -> Float,
+    related: Boolean,
+    dimmed: Boolean,
+    density: Float,
+    shift: Float,
+) {
     val p = e.points
     if (p.size < 4) return
+    // Desplazamiento perpendicular a la arista (solo si hay otra en sentido contrario).
+    val dx = x0(p[p.size - 2]) - x0(p[0])
+    val dy = y0(p[p.size - 1]) - y0(p[1])
+    val len = hypot(dx, dy).takeIf { it > 0f } ?: 1f
+    val ox = -dy / len * shift
+    val oy = dx / len * shift
+    val x: (Float) -> Float = { x0(it) + ox }
+    val y: (Float) -> Float = { y0(it) + oy }
     val path = Path()
     path.moveTo(x(p[0]), y(p[1]))
     for (i in 2 until p.size step 2) path.lineTo(x(p[i]), y(p[i + 1]))

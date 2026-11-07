@@ -190,7 +190,11 @@ class ArchitectureStage(private val collector: ArchitectureCollector) : Stage {
         return Diagram(
             DiagramKind.LAYERS, "Capas de la arquitectura", layout.width, layout.height, diagramNodes,
             edges(layout, shownEdges.mapKeys { (k, _) -> k.first.name to k.second.name }),
-            note = if (tests > 0) "Las $tests pruebas no se dibujan: dependen de casi todo." else null,
+            note = when {
+                tests == 1 -> "El archivo de pruebas no se dibuja: las pruebas dependen de casi todo."
+                tests > 1 -> "Los $tests archivos de pruebas no se dibujan: dependen de casi todo."
+                else -> null
+            },
         )
     }
 

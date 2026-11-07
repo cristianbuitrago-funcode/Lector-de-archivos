@@ -917,4 +917,11 @@
     <string name="arch_layer_test_desc">Pruebas.</string>
     <string name="file_architecture">Arquitectura</string>
     <string name="file_layer_open">Ver sus conexiones</string>
+    <string name="arch_via_http">llama por HTTP</string>
+    <string name="arch_via_handler">la atiende</string>
+    <string name="arch_via_db">accede a datos</string>
+    <string name="arch_via_injection">se le inyecta</string>
+    <string name="arch_via_call">llama</string>
+    <string name="arch_via_import">importa</string>
+    <string name="arch_via_uses">usa</string>
 </resources>
