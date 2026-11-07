@@ -3,6 +3,10 @@
 - **Estado:** aceptada (2026-11-03)
 - **Decisión:**
   - AGP 9.5 (Kotlin integrado), Kotlin 2.4.21, Gradle 9.8.2, compileSdk/targetSdk 37, minSdk 26, JDK 21.
+  - **Actualización (2026-11-07, inicio de la Fase 9):** AGP 9.5.1 y Gradle 9.9.0, versiones estables publicadas
+    después de la Fase 7 que Lint señalaba. El wrapper fija la suma SHA-256 oficial de la distribución y su
+    `gradle-wrapper.jar` coincide con el publicado por Gradle; la verificación de dependencias se regeneró (Gradle 9.9
+    necesita además `kotlin-reflect` para compilar los scripts).
   - **Inyección de dependencias manual** (`AppContainer`) en lugar de Hilt, como preveía la arquitectura v0.2:
     el grafo es pequeño, evita un procesador de anotaciones más y permite a las pruebas construir el contenedor con
     implementaciones falsas del Keystore y una base de datos en memoria. Se revisará si el grafo crece.
