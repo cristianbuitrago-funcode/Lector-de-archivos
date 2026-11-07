@@ -5,6 +5,7 @@ import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
@@ -91,6 +92,8 @@ class AccessFlowTest {
         compose.onNodeWithTag("nav_arquitectura").performScrollTo().performClick()
         compose.waitForIdle()
         compose.onNode(hasTestTag("screen_title") and hasText("Arquitectura")).assertIsDisplayed()
+        // La consulta a la base de datos cifrada va en segundo plano: se espera a que responda.
+        awaitCondition { compose.onAllNodesWithTagExists("arch_no_analyses") }
         compose.onNodeWithTag("arch_no_analyses").assertIsDisplayed()
 
         // Seguridad ya está construida (Fase 6): sin análisis, lo dice.
@@ -98,6 +101,7 @@ class AccessFlowTest {
         compose.onNodeWithTag("nav_seguridad").performScrollTo().performClick()
         compose.waitForIdle()
         compose.onNode(hasTestTag("screen_title") and hasText("Seguridad")).assertIsDisplayed()
+        awaitCondition { compose.onAllNodesWithText("Todavía no hay ningún análisis", substring = true).fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithText("Todavía no hay ningún análisis", substring = true).assertIsDisplayed()
     }
 

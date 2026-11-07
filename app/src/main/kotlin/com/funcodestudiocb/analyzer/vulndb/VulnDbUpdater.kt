@@ -7,7 +7,6 @@ import com.funcodestudiocb.analyzer.engine.vulndb.OsvEcosystems
 import com.funcodestudiocb.analyzer.engine.vulndb.VulnIndexWriter
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -60,22 +59,21 @@ class VulnDbUpdater(
     val state: StateFlow<UpdateState> = _state.asStateFlow()
 
     private val cancelled = AtomicBoolean(false)
-    private var job: Job? = null
     private val lock = Any()
 
     val running: Boolean get() = _state.value is UpdateState.Running
 
     /** Empieza a actualizar con [preferences]. Devuelve `false` si ya hay una actualización o no se eligió nada. */
     fun start(preferences: VulnDbPreferences): Boolean = synchronized(lock) {
-        if (job?.isActive == true) return false
+        if (running) return false
         val ecosystems = OsvEcosystems.SUPPORTED.filter { it in preferences.ecosystems }
         if (ecosystems.isEmpty() && !preferences.endOfLife) return false
         store.savePreferences(preferences)
         cancelled.set(false)
         _state.value = UpdateState.Running("Preparando", 0f)
         foreground.start()
-        job = scope.launch {
-            _state.value = try {
+        scope.launch {
+            val result = try {
                 UpdateState.Done(update(ecosystems, preferences.endOfLife))
             } catch (e: CancellationException) {
                 UpdateState.Cancelled
@@ -92,6 +90,9 @@ class VulnDbUpdater(
             } finally {
                 runCatching { store.workDirectory.deleteRecursively() }
             }
+            // El resultado se publica al final, con los temporales ya borrados: desde ese momento se puede empezar
+            // otra actualización o borrar la base (antes, una pulsación justo después de un error no hacía nada).
+            _state.value = result
         }
         true
     }
@@ -110,7 +111,7 @@ class VulnDbUpdater(
 
     /** Borra la base instalada (no se puede mientras se actualiza). */
     fun delete(): Boolean = synchronized(lock) {
-        if (job?.isActive == true) return false
+        if (running) return false
         store.delete()
         _state.value = UpdateState.Idle
         true

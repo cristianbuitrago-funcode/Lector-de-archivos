@@ -77,14 +77,14 @@ class VulnDbUpdaterTest {
         val store = VulnDbStore(tmp.newFolder("base"))
         val downloader = FakeDownloader()
         val updater = VulnDbUpdater(store, downloader)
-        updater.start(VulnDbPreferences(setOf("npm"), endOfLife = false))
+        assertTrue(updater.start(VulnDbPreferences(setOf("npm"), endOfLife = false)))
         assertTrue(await(updater) is UpdateState.Done)
         val before = store.index.readBytes()
         val status = store.status()
 
         // Error del servidor a mitad: falla y no cambia nada.
         downloader.failOn = "PyPI"
-        updater.start(VulnDbPreferences(setOf("npm", "PyPI"), endOfLife = false))
+        assertTrue(updater.start(VulnDbPreferences(setOf("npm", "PyPI"), endOfLife = false)), "Se puede volver a empezar en cuanto termina")
         val failed = await(updater) as? UpdateState.Failed ?: fail("Estado: ${updater.state.value}")
         assertTrue("503" in failed.message && "se conserva" in failed.message, failed.message)
         assertTrue(before.contentEquals(store.index.readBytes()))
@@ -94,14 +94,14 @@ class VulnDbUpdaterTest {
         // Descarga mayor que el máximo.
         downloader.failOn = null
         downloader.hugeOn = "PyPI"
-        updater.start(VulnDbPreferences(setOf("PyPI"), endOfLife = false))
+        assertTrue(updater.start(VulnDbPreferences(setOf("PyPI"), endOfLife = false)), "Se puede reintentar justo después de un error")
         assertTrue(await(updater) is UpdateState.Failed)
         assertTrue(before.contentEquals(store.index.readBytes()))
 
         // Cancelación durante la descarga.
         downloader.hugeOn = null
         downloader.blockOn = "PyPI"
-        updater.start(VulnDbPreferences(setOf("PyPI"), endOfLife = false))
+        assertTrue(updater.start(VulnDbPreferences(setOf("PyPI"), endOfLife = false)), "Se puede reintentar justo después de un error")
         val deadline = System.currentTimeMillis() + 10_000
         while (!downloader.blocked) {
             check(System.currentTimeMillis() < deadline)

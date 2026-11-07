@@ -77,13 +77,20 @@ fun layerMeaning(layer: ArchLayer): String = stringResource(
     },
 )
 
+/**
+ * Modelo y BD llevan colores propios: con el amarillo y el naranja de la paleta se confundían con el dorado del
+ * controlador y con los colores que marcan los ciclos y las dependencias inversas.
+ */
+private val ModelColor = Color(0xFFB388FF)
+private val DatabaseColor = Color(0xFFFF6FB5)
+
 fun layerColor(layer: ArchLayer): Color = when (layer) {
     ArchLayer.FRONTEND -> FuncodeColors.Electric
     ArchLayer.API -> FuncodeColors.Low
     ArchLayer.CONTROLLER -> FuncodeColors.Gold
     ArchLayer.SERVICE -> FuncodeColors.Success
-    ArchLayer.MODEL -> FuncodeColors.Medium
-    ArchLayer.DATABASE -> FuncodeColors.High
+    ArchLayer.MODEL -> ModelColor
+    ArchLayer.DATABASE -> DatabaseColor
     ArchLayer.SHARED -> FuncodeColors.Info
     ArchLayer.CONFIG -> FuncodeColors.TextSecondary
     ArchLayer.TEST -> FuncodeColors.Info
