@@ -1,6 +1,6 @@
 # Fase 8 — Diagramas
 
-- **Estado:** terminada, pendiente de aprobación
+- **Estado:** terminada y aprobada
 - **Criterio de aceptación:** flujo Frontend → API → Controlador → Servicio → Modelo → BD legible cuando existe.
 
 ## Objetivo
@@ -81,7 +81,10 @@ del proyecto de prueba (`web/util.js` → `web/server.js`).
   incidente 8) y se corrigió.
 - **Ejecución n.º 32** (solo el motor): falló una prueba JVM **de la Fase 7** del actualizador; se buscó la causa y
   era un fallo real de la app (ver incidente 9), corregido.
-- **Ejecución n.º 35** (la fase completa con las correcciones): _pendiente de completar_.
+- **Ejecución n.º 35** (la fase completa con las correcciones): **todo correcto**. Compilación, pruebas JVM y Lint, y
+  **14 de 14 en las tres versiones** (3 de aislamiento, 3 de cifrado, 3 de migración, 4 de análisis completo con las
+  comprobaciones de arquitectura y 1 recorrido de extremo a extremo), incluida la de extremo a extremo en Android 15.
+  La n.º 34 se canceló sola al empezar la n.º 35.
 
 ## Capturas
 
@@ -138,7 +141,7 @@ informe; capa de un archivo en el Explorador.
 ## Errores pendientes
 
 Ninguno conocido en esta fase. La prueba intermitente de la Fase 1 y el fallo del actualizador de la Fase 7 quedan
-corregidos (incidentes 8 y 9); se comprueba en la ejecución n.º 35 de la CI (ver «En emulador»).
+corregidos (incidentes 8 y 9), comprobado en la ejecución n.º 35 de la CI.
 
 Pendiente de decidir: **actualizar el Android Gradle Plugin de 9.5.0 a 9.5.1** (los 2 avisos de Lint). Es una versión
 de corrección, pero cambia la herramienta de compilación y obliga a regenerar la verificación de dependencias, así
