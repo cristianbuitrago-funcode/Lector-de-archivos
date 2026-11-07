@@ -19,7 +19,8 @@ auditoría de seguridad, exportable en PDF, HTML y JSON.
 | 5B. Relaciones de framework | ✅ Terminada y aprobada ([informe](docs/fases/FASE-5B.md)) |
 | 6. Auditoría de seguridad | ✅ Terminada y aprobada ([informe](docs/fases/FASE-6.md)) |
 | 7. Dependencias | ✅ Terminada y aprobada ([informe](docs/fases/FASE-7.md)) |
-| 8–10 | Pendientes |
+| 8. Diagramas | ✅ Terminada, pendiente de aprobación ([informe](docs/fases/FASE-8.md)) |
+| 9–10 | Pendientes |
 
 - Arquitectura: [`docs/ARQUITECTURA.md`](docs/ARQUITECTURA.md)
 - Decisiones técnicas: [`docs/adr/`](docs/adr/)
@@ -45,6 +46,9 @@ engine/vulndb/      índice local de vulnerabilidades (OSV) y fin de soporte (en
 engine/technologies/ motor de reglas declarativas (catálogo YAML) de frameworks, bases de datos y servicios externos
 engine/relations/   relaciones entre archivos: resolución por ecosistema, analizadores de framework (rutas, HTTP, datos,
                     configuración, inyección, Android, Unity, Godot, canales), grafo, ciclos, importancia e impacto
+engine/layout/      disposición de grafos por capas (tipo Sugiyama), determinista y acotada: pantalla, PDF y SVG
+engine/architecture/ capa de cada archivo, diagramas de capas, módulos y proyectos, dependencias inversas y flujos
+                    Frontend → API → Controlador → Servicio → Modelo → BD
 engine/pipeline/    composición del análisis completo
 engine/cli/         herramienta de línea de comandos para probar el motor en el PC (no forma parte de la app)
 native/unrar/       UnRAR oficial (modificado, ver ADR 0004) compilado con el NDK, y su puente JNI

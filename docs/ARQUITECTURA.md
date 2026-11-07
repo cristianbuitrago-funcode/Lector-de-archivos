@@ -1,10 +1,11 @@
 # Funcode Code Analyzer — Arquitectura técnica
 
 **Funcode Studio CB** · Documento de arquitectura **v0.2** · Fecha: 2026-11-03
-**Estado: aprobada** (decisión N1 = A, 2026-11-03). Implementación en curso: fases 1 a 5A terminadas y 5B entregada
-(ver `docs/fases/`). Las decisiones tomadas durante la implementación y sus desviaciones respecto a este documento se
-registran en `docs/adr/` (en particular, ADR 0004 sobre la copia temporal del comprimido, ADR 0006 sobre tree-sitter
-ADR 0007 sobre las relaciones y ADR 0008 sobre los analizadores de framework).
+**Estado: aprobada** (decisión N1 = A, 2026-11-03). Implementación en curso: fases 1 a 7 terminadas y aprobadas, y 8
+entregada (ver `docs/fases/`). Las decisiones tomadas durante la implementación y sus desviaciones respecto a este
+documento se registran en `docs/adr/` (en particular, ADR 0004 sobre la copia temporal del comprimido, ADR 0006 sobre
+tree-sitter, ADR 0007 sobre las relaciones, ADR 0008 sobre los analizadores de framework, ADR 0009 sobre la auditoría
+de seguridad, ADR 0010 sobre las dependencias y ADR 0011 sobre los diagramas de arquitectura).
 
 ---
 
@@ -241,7 +242,8 @@ en un PC, y en el teléfono se ejecuta dentro del proceso aislado.
 | `engine:dependencies` | Parsers de manifiestos (4); archivos de bloqueo y grafo de dependencias (7) | 4 → 7 |
 | `engine:vulndb` | Índice `.fcv` de OSV y endoflife.date (escritura y lectura verificada), comparadores de versión por ecosistema, rangos de OSV, CVSS 3.x (ADR 0010) | 7 |
 | `engine:audit` (`deps`) | Etapa `dependency-audit`: versiones reales, cadenas, uso real, criticidad, vulnerabilidades, fin de soporte y sus hallazgos (ADR 0010) | 6 → 7 |
-| `engine:layout` | Disposición de grafos (pantalla, PDF, SVG) | 8 |
+| `engine:layout` | Disposición por capas tipo Sugiyama propia, determinista y acotada: ciclos, capas, nodos ficticios, reducción de cruces y coordenadas (pantalla, PDF, SVG; ADR 0011) | 8 |
+| `engine:architecture` | Etapa `architecture`: capa de cada archivo con certeza y motivo, diagramas de capas, módulos y proyectos ya dispuestos, dependencias inversas, ciclos entre módulos y flujos Frontend → API → Controlador → Servicio → Modelo → BD en los que cada paso es una conexión encontrada (ADR 0011) | 8 |
 | `engine:metrics` | Complejidad, duplicación, índice de mantenimiento | 9 |
 | `engine:report` | JSON, HTML, comparación entre análisis | 9 |
 | `native:treesitter` | Núcleo de tree-sitter + 15 gramáticas compiladas + JNI | 4 |
@@ -298,7 +300,7 @@ thresholds: { confirmed: 0.8, probable: 0.5 }
 | **Dashboard** | Proyectos analizados, últimos análisis, vulnerabilidades por severidad, tecnologías más utilizadas, tendencia |
 | **Nuevo análisis** | Selección del archivo, ficha (nombre, tamaño, formato), configuración (exclusiones, módulos, límites), progreso por etapas en tiempo real |
 | **Explorador** | Árbol con filtros por rol, visor de código con hallazgos marcados, ficha del archivo y sus relaciones |
-| **Arquitectura** | Diagrama por capas, grafo de archivos/módulos con foco y filtros, flujos de información, dependencias |
+| **Arquitectura** | Diagrama por capas con dependencias inversas, módulos con ciclos, proyectos con servicios externos y dependencias principales, grafo de un archivo con foco (uno o dos saltos, sentido, solo conexiones fuertes) y flujos de información con su certeza (Fase 8) |
 | **Seguridad** | Hallazgos por severidad y certeza, filtros, ficha detallada, recomendaciones, pruebas dinámicas recomendadas |
 | **Informes** | Historial, exportación PDF/HTML/JSON, comparación entre análisis del mismo proyecto |
 | **Ajustes** | Exclusiones por defecto, límites, actualización de bases, almacenamiento de código, bloqueo, borrado de datos |
@@ -640,7 +642,8 @@ Lector-de-archivos/
 ├── data/                   Room + SQLCipher, repositorios, Keystore, validación de resultados
 ├── engine/
 │   ├── api/  core/  ingest/  inventory/  languages/  technologies/
-│   ├── relations/  security/  dependencies/  layout/  metrics/  report/
+│   ├── relations/  security/  audit/  dependencies/  vulndb/  layout/  architecture/
+│   ├── pipeline/  metrics/  report/
 │   └── cli/                solo pruebas y CI
 ├── native/
 │   ├── treesitter/         gramáticas + JNI
