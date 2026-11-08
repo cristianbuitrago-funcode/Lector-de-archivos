@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools" tools:locale="es">
+    <!-- Pantalla Seguridad (Fase 6) -->
+    <string name="security_disclaimer">Auditoría estática: se lee el código sin ejecutarlo. La ausencia de hallazgos no implica ausencia de vulnerabilidades.</string>
+    <string name="security_no_analyses">Todavía no hay ningún análisis. Analiza un proyecto en «Nuevo análisis» para ver su auditoría de seguridad.</string>
+    <string name="security_not_found">El análisis ya no existe.</string>
+    <string name="security_loading">Cargando la auditoría…</string>
+    <string name="security_legacy">Este análisis se hizo con una versión anterior, sin auditoría de seguridad. Repítelo para verla.</string>
+    <string name="security_none">No se encontraron hallazgos con las reglas de esta versión.</string>
+    <string name="security_none_filtered">Ningún hallazgo coincide con los filtros.</string>
+    <string name="security_totals">Hallazgos: %1$d · reglas aplicadas: %2$d · archivos examinados: %3$d</string>
+    <string name="security_downgraded_count">Con la severidad rebajada por su contexto (pruebas, ejemplos, valores de marcador): %1$d</string>
+    <string name="security_suppressions_count">Supresiones de herramientas de seguridad: %1$d (no se respetan: lo que silencian también se analiza)</string>
+    <string name="security_filter_severity">Severidad</string>
+    <string name="security_filter_certainty">Certeza</string>
+    <string name="security_filter_category">Categoría</string>
+    <string name="security_filter_all">Todas</string>
+    <string name="security_clear_filters">Quitar filtros</string>
+    <string name="security_dynamic_title">Requiere prueba dinámica</string>
+    <string name="security_dynamic_intro">Lo que el análisis estático no puede comprobar y conviene probar con la aplicación en marcha:</string>
+    <string name="security_not_evaluated_title">No evaluado en esta versión</string>
+    <string name="security_coverage_title">Cobertura de la auditoría</string>
+    <string name="security_back">Volver a la lista</string>
+    <string name="security_open_file">Abrir el archivo en el Explorador</string>
+    <string name="security_project_wide">Todo el proyecto</string>
+
+    <!-- Ficha de un hallazgo -->
+    <string name="finding_rule">Regla</string>
+    <string name="finding_rule_value">%1$s (versión %2$d)</string>
+    <string name="finding_category">Categoría</string>
+    <string name="finding_cwe">CWE</string>
+    <string name="finding_owasp">OWASP Top 10</string>
+    <string name="finding_location">Ubicación</string>
+    <string name="finding_location_value">%1$s, línea %2$d</string>
+    <string name="finding_explanation">Qué ocurre</string>
+    <string name="finding_consequences">Consecuencias posibles</string>
+    <string name="finding_snippet">Fragmento (copia con secretos ocultados)</string>
+    <string name="finding_flow">Recorrido del dato</string>
+    <string name="finding_flow_step">Línea %1$d: %2$s</string>
+    <string name="finding_recommendation">Recomendación</string>
+    <string name="finding_example">Ejemplo corregido</string>
+    <string name="finding_references">Referencias</string>
+    <string name="finding_downgraded">Severidad rebajada: %1$s</string>
+    <string name="finding_secret">Secreto</string>
+    <string name="finding_secret_value">%1$s · %2$s</string>
+    <string name="finding_fingerprint">Huella local</string>
+    <string name="finding_fingerprint_note">La huella (HMAC-SHA256 con una clave guardada solo en este teléfono) permite reconocer el mismo secreto en otros análisis sin guardarlo.</string>
+
+    <!-- Certeza -->
+    <string name="certainty_confirmed">Confirmado</string>
+    <string name="certainty_probable">Probable</string>
+    <string name="certainty_possible">Posible</string>
+    <string name="certainty_dynamic">Requiere prueba dinámica</string>
+    <string name="certainty_confirmed_meaning">La condición se ve en el código o en la configuración.</string>
+    <string name="certainty_probable_meaning">Patrón peligroso y un recorrido de datos desde una entrada del usuario.</string>
+    <string name="certainty_possible_meaning">Patrón peligroso sin recorrido demostrable: hay que revisarlo.</string>
+    <string name="certainty_dynamic_meaning">No se puede decidir sin ejecutar la aplicación.</string>
+
+    <!-- Categorías -->
+    <string name="category_sql_injection">Inyección SQL</string>
+    <string name="category_xss">XSS</string>
+    <string name="category_csrf">CSRF</string>
+    <string name="category_path_traversal">Rutas de archivo</string>
+    <string name="category_command_execution">Ejecución de comandos y código</string>
+    <string name="category_hardcoded_password">Contraseñas en el código</string>
+    <string name="category_exposed_secret">Secretos expuestos</string>
+    <string name="category_insecure_configuration">Configuración insegura</string>
+    <string name="category_excessive_permissions">Permisos excesivos</string>
+    <string name="category_weak_authentication">Autenticación débil</string>
+    <string name="category_insufficient_validation">Validación insuficiente</string>
+    <string name="category_vulnerable_dependency">Dependencias vulnerables</string>
+    <string name="category_outdated_library">Librerías desactualizadas</string>
+    <string name="category_cors">CORS</string>
+    <string name="category_sensitive_data_exposure">Exposición de datos sensibles</string>
+    <string name="category_session">Sesiones y cookies</string>
+    <string name="category_access_control">Control de acceso</string>
+    <string name="category_suppression">Supresiones</string>
+
+    <!-- Explorador e informe -->
+    <string name="file_security">Seguridad</string>
+    <string name="file_security_more">Y %1$d más en la pantalla Seguridad.</string>
+    <string name="code_findings_banner">Las líneas marcadas en rojo tienen hallazgos de seguridad.</string>
+    <string name="report_security">Auditoría de seguridad</string>
+    <string name="report_security_open">La ficha completa de cada hallazgo, los filtros y las pruebas dinámicas recomendadas están en la pantalla Seguridad.</string>
+    <string name="report_security_top">Más graves</string>
+
+    <plurals name="security_findings_count">
+        <item quantity="one">%d hallazgo</item>
+        <item quantity="many">%d hallazgos</item>
+        <item quantity="other">%d hallazgos</item>
+    </plurals>
+</resources>

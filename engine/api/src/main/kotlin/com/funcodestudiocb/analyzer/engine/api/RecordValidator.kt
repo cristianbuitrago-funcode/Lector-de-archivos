@@ -1,0 +1,671 @@
+package com.funcodestudiocb.analyzer.engine.api
+
+/**
+ * Validación semántica de los registros recibidos del proceso aislado.
+ *
+ * La deserialización ya garantiza la forma del registro; aquí se comprueban rangos, longitudes y
+ * caracteres. Un registro inválido indica un motor defectuoso o comprometido: se rechaza el flujo.
+ */
+object RecordValidator {
+
+    const val MAX_MESSAGE_LENGTH = 2_000
+    const val MAX_DETAIL_LENGTH = 4_000
+    const val MAX_SUBJECT_LENGTH = 1_024
+    const val MAX_PAYLOAD_LENGTH = 4_096
+    const val MAX_PROCESS_NAME_LENGTH = 256
+    const val MAX_STAGES = 128
+    const val MAX_PATH_LENGTH = 8_192
+    const val MAX_DUPLICATE_PATHS = 1_000
+    const val MAX_EVIDENCE = 8
+    const val MAX_EVIDENCE_DETAIL = 500
+    const val MAX_TARGET_LENGTH = 512
+    const val MAX_CHUNK_CHARS = 32_768
+    const val MAX_CHUNKS_PER_FILE = 1_024
+    const val MAX_MASKED_LENGTH = 32
+    const val MAX_HIGHLIGHT_SPANS = 12_000
+    const val MAX_HIGHLIGHT_CATEGORY = 7
+    const val MAX_NAME_LENGTH = 200
+    const val MAX_VERSION_LENGTH = 100
+    const val MAX_TECH_VERSIONS = 8
+    const val MAX_TECH_ROOTS = 50
+    const val MAX_EXCHANGED = 50
+    const val MAX_REFERENCE_LENGTH = 1_024
+    const val MAX_SYMBOLS = 300
+    const val MAX_CYCLE_PATHS = 100
+    const val MAX_IMPACT_ENTRY_POINTS = 3
+    const val MAX_SAMPLES = 5
+    const val MAX_ROUTE_LENGTH = 512
+    const val MAX_OPERATIONS = 8
+    val HTTP_METHODS = setOf("GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS", "ANY")
+    const val MAX_FINDING_TEXT = 2_000
+    const val MAX_SNIPPET_CHARS = 2_000
+    const val MAX_SNIPPET_LINES = 12
+    const val MAX_FIXED_EXAMPLE = 3_000
+    const val MAX_REFERENCES = 8
+    const val MAX_FLOW_STEPS = 10
+    const val MAX_DYNAMIC_CHECKS = 40
+    const val MAX_INTRODUCED_BY = 3
+    const val MAX_VULNERABILITIES = 50
+    const val MAX_ALIASES = 8
+    const val MAX_FIXED_IN = 10
+    const val MAX_REASONS = 6
+    const val MAX_DATABASES = 16
+
+    // Fase 8: diagramas y flujos.
+    const val MAX_DIAGRAM_NODES = 120
+    const val MAX_DIAGRAM_EDGES = 300
+    const val MAX_EDGE_POINTS = 48
+    const val MAX_EDGE_SAMPLES = 3
+    const val MAX_DIAGRAM_SIZE = 100_000f
+    const val MAX_FLOW_STEPS_ARCH = 10
+    const val MAX_ARCH_NOTES = 20
+
+    // Fase 9: métricas e índice de mantenimiento.
+    const val MAX_METRIC_LIST = 30
+    const val MAX_DUPLICATE_OCCURRENCES = 10
+    const val MAX_QUALITY_TOOLS = 40
+    const val MAX_MAINTENANCE_PARTS = 12
+    const val MAX_METRICS_NOTES = 20
+    const val MAX_DEBT_TEXT = 200
+    val RULE_ID_PATTERN = Regex("^FC-[A-Z0-9-]{2,30}$")
+    val FINGERPRINT_PATTERN = Regex("^[0-9a-f]{32}$")
+
+    /** Caracteres visibles que puede mostrar un secreto enmascarado: 4 al principio y 2 al final (§8.4). */
+    const val MAX_VISIBLE_SECRET_CHARS = 6
+    const val MASK_CHAR = '\u2022'
+
+    private val SHA256_PATTERN = Regex("^[0-9a-f]{64}$")
+
+    private val ID_PATTERN = Regex("^[A-Za-z0-9_.-]{1,64}$")
+    private val VERSION_PATTERN = Regex("^[A-Za-z0-9_.+-]{1,64}$")
+
+    fun validate(record: ResultRecord): List<String> {
+        val errors = mutableListOf<String>()
+        when (record) {
+            is SessionStart -> {
+                if (record.schemaVersion != RESULT_SCHEMA_VERSION) {
+                    errors += "Versión de esquema no admitida: ${record.schemaVersion}"
+                }
+                checkPattern(errors, "engineVersion", record.engineVersion, VERSION_PATTERN)
+                checkPattern(errors, "analysisId", record.analysisId, ID_PATTERN)
+                if (record.stageIds.size > MAX_STAGES) errors += "Demasiadas etapas"
+                record.stageIds.forEach { checkPattern(errors, "stageId", it, ID_PATTERN) }
+                if (record.stageIds.toSet().size != record.stageIds.size) errors += "Etapas duplicadas"
+            }
+            is StageEvent -> {
+                checkPattern(errors, "stageId", record.stageId, ID_PATTERN)
+                if (record.durationMs < 0) errors += "Duración negativa"
+                checkText(errors, "message", record.message, MAX_MESSAGE_LENGTH)
+            }
+            is CoverageNote -> {
+                checkPattern(errors, "stageId", record.stageId, ID_PATTERN)
+                checkText(errors, "detail", record.detail, MAX_DETAIL_LENGTH)
+                checkText(errors, "subject", record.subject, MAX_SUBJECT_LENGTH)
+            }
+            is IsolationReport -> {
+                if (record.uid < 0) errors += "UID inválido"
+                if (record.pid <= 0) errors += "PID inválido"
+                checkText(errors, "processName", record.processName, MAX_PROCESS_NAME_LENGTH)
+                listOf(record.network, record.appFiles, record.sharedStorage).forEach {
+                    checkText(errors, "probe.detail", it.detail, MAX_MESSAGE_LENGTH)
+                }
+            }
+            is DiagnosticSample -> {
+                if (record.index < 0) errors += "Índice negativo"
+                checkText(errors, "payload", record.payload, MAX_PAYLOAD_LENGTH)
+            }
+            is SessionEnd -> {
+                if (record.recordCount < 0) errors += "Recuento negativo"
+                checkText(errors, "message", record.message, MAX_MESSAGE_LENGTH)
+            }
+            is ArchiveSummary -> {
+                if (record.sizeBytes < 0 || record.entryCount < 0 || record.directoryCount < 0 || record.declaredUncompressedBytes < 0) {
+                    errors += "Valores negativos en el resumen del comprimido"
+                }
+            }
+            is ArchiveRejected -> checkText(errors, "detail", record.detail, MAX_DETAIL_LENGTH)
+            is PasswordRequired -> checkText(errors, "detail", record.detail, MAX_DETAIL_LENGTH)
+            is FileEntry -> {
+                checkPath(errors, record.path)
+                if (record.sizeBytes < 0 || record.compressedBytes < 0) errors += "Tamaños negativos"
+                record.sha256?.let { if (!SHA256_PATTERN.matches(it)) errors += "Huella SHA-256 inválida" }
+                checkText(errors, "encoding", record.encoding, 32)
+            }
+            is ExcludedDirectory -> {
+                checkPath(errors, record.path)
+                checkText(errors, "rule", record.rule, 200)
+                if (record.fileCount < 0 || record.totalBytes < 0) errors += "Valores negativos"
+            }
+            is ExcludedFile -> {
+                checkPath(errors, record.path)
+                checkText(errors, "rule", record.rule, 200)
+                if (record.sizeBytes < 0) errors += "Tamaño negativo"
+            }
+            is IngestFinding -> {
+                record.path?.let { checkPath(errors, it) }
+                checkText(errors, "detail", record.detail, MAX_DETAIL_LENGTH)
+            }
+            is DuplicateGroup -> {
+                if (!SHA256_PATTERN.matches(record.sha256)) errors += "Huella SHA-256 inválida"
+                if (record.paths.size > MAX_DUPLICATE_PATHS || record.paths.size < 2 || record.count < record.paths.size) {
+                    errors += "Grupo de duplicados inválido"
+                }
+                if (record.sizeBytes < 0) errors += "Tamaño negativo"
+                record.paths.forEach { checkPath(errors, it) }
+            }
+            is FileProfile -> {
+                checkPath(errors, record.path)
+                if (record.roles.size > FileRole.entries.size || record.roles.map { it.role }.toSet().size != record.roles.size) {
+                    errors += "Roles repetidos o excesivos"
+                }
+                record.roles.forEach { checkEvidence(errors, it.evidence) }
+                if ((record.lineCount ?: 0) < 0 || record.redactions < 0) errors += "Valores negativos en la ficha"
+                record.projectRoot?.let { checkDirectory(errors, it) }
+                record.language?.let { language ->
+                    checkPattern(errors, "language.id", language.id, ID_PATTERN)
+                    checkName(errors, "language.name", language.name)
+                    if (language.level !in 0..3) errors += "Nivel de soporte inválido"
+                    if (listOf(language.code, language.comment, language.blank, language.syntaxErrors).any { it < 0 }) errors += "Recuento de líneas negativo"
+                }
+            }
+            is ProjectRoot -> {
+                checkDirectory(errors, record.directory)
+                checkPath(errors, record.marker)
+            }
+            is EntryPoint -> {
+                record.path?.let { checkPath(errors, it) }
+                record.target?.let {
+                    checkText(errors, "target", it, MAX_TARGET_LENGTH)
+                    if (it.any { ch -> ch.isISOControl() }) errors += "Destino con caracteres de control"
+                }
+                if (record.evidence.isEmpty()) errors += "Punto de entrada sin evidencia"
+                checkEvidence(errors, record.evidence)
+                record.projectRoot?.let { checkDirectory(errors, it) }
+            }
+            is Redaction -> {
+                checkPath(errors, record.path)
+                if (record.line < 1 || record.length < 1) errors += "Posición o longitud inválida"
+                checkMasked(errors, record.masked)
+            }
+            is ContentChunk -> {
+                checkPath(errors, record.path)
+                if (record.index !in 0 until MAX_CHUNKS_PER_FILE) errors += "Índice de fragmento fuera de rango"
+                checkText(errors, "text", record.text, MAX_CHUNK_CHARS)
+                checkHighlight(errors, record.highlight, record.text.length)
+            }
+            is LanguageStats -> {
+                checkPattern(errors, "id", record.id, ID_PATTERN)
+                checkName(errors, "name", record.name)
+                if (record.level !in 0..3) errors += "Nivel de soporte inválido"
+                val counts = listOf(record.files, record.syntaxFiles, record.lexicalFiles, record.filesWithErrors)
+                if (counts.any { it < 0 } || listOf(record.code, record.comment, record.blank).any { it < 0 }) errors += "Totales negativos"
+                if (record.syntaxFiles + record.lexicalFiles > record.files || record.filesWithErrors > record.files) errors += "Totales de lenguaje incoherentes"
+            }
+            is DeclaredDependency -> {
+                checkPath(errors, record.manifest)
+                checkName(errors, "name", record.name)
+                record.version?.let { checkName(errors, "version", it, MAX_VERSION_LENGTH) }
+                if ((record.line ?: 1) < 1) errors += "Línea inválida"
+                record.projectRoot?.let { checkDirectory(errors, it) }
+            }
+            is Relation -> {
+                checkPath(errors, record.source)
+                record.target?.let { checkPath(errors, it) }
+                record.external?.let { checkName(errors, "external", it) }
+                if (record.confidence == RelationConfidence.BROKEN) {
+                    if (record.target != null) errors += "Relación rota con destino"
+                } else if ((record.target == null) == (record.external == null)) {
+                    errors += "Relación sin destino o con dos destinos"
+                }
+                checkName(errors, "reference", record.reference, MAX_REFERENCE_LENGTH)
+                if ((record.line ?: 1) < 1) errors += "Línea inválida"
+                if (record.exchanged.size > MAX_EXCHANGED) errors += "Demasiados símbolos intercambiados"
+                record.exchanged.forEach { checkName(errors, "exchanged", it) }
+                record.exchangedNote?.let { checkText(errors, "exchangedNote", it, MAX_EVIDENCE_DETAIL) }
+                if (record.evidence.isEmpty()) errors += "Relación sin evidencia"
+                checkEvidence(errors, record.evidence)
+                val impact = record.impact
+                if (impact.undefinedSymbols.size > MAX_EXCHANGED) errors += "Demasiados símbolos en el impacto"
+                impact.undefinedSymbols.forEach { checkName(errors, "undefinedSymbols", it) }
+                if (listOf(impact.directDependents, impact.transitiveDependents, impact.entryPointCount).any { it < 0 }) errors += "Impacto negativo"
+                if (impact.entryPoints.size > MAX_IMPACT_ENTRY_POINTS || impact.entryPoints.size > impact.entryPointCount) errors += "Puntos de entrada del impacto incoherentes"
+                impact.entryPoints.forEach { checkPath(errors, it) }
+                checkSamples(errors, "affected", impact.affected, impact.affectedCount)
+            }
+            is Endpoint -> {
+                if (record.method !in HTTP_METHODS) errors += "Método HTTP desconocido"
+                checkName(errors, "path", record.path, MAX_ROUTE_LENGTH)
+                if (!record.path.startsWith("/")) errors += "La ruta no empieza por /"
+                checkName(errors, "framework", record.framework)
+                checkPath(errors, record.file)
+                if (record.line < 1) errors += "Línea inválida"
+                record.handler?.let { checkName(errors, "handler", it) }
+                record.handlerFile?.let { checkPath(errors, it) }
+                checkSamples(errors, "callers", record.callers, record.callerCount)
+            }
+            is DataEntity -> {
+                checkName(errors, "name", record.name)
+                record.file?.let { checkPath(errors, it) }
+                if ((record.line ?: 1) < 1) errors += "Línea inválida"
+                if ((record.file == null) != (record.line == null)) errors += "Definición de datos incompleta"
+                record.definedBy?.let { checkName(errors, "definedBy", it) }
+                if (record.accessedBy < 0) errors += "Recuento negativo"
+                if (record.operations.size > MAX_OPERATIONS) errors += "Demasiadas operaciones"
+                record.operations.forEach { checkName(errors, "operation", it) }
+            }
+            is SecurityFinding -> {
+                checkPattern(errors, "ruleId", record.ruleId, RULE_ID_PATTERN)
+                if (record.ruleVersion < 1) errors += "Versión de regla inválida"
+                checkName(errors, "name", record.name)
+                if (record.cwe != null && record.cwe !in 1..2_000) errors += "CWE fuera de rango"
+                record.owasp?.let { checkName(errors, "owasp", it) }
+                record.path?.let { checkPath(errors, it) }
+                if ((record.line ?: 1) < 1) errors += "Línea inválida"
+                if (record.endLine != null && (record.line == null || record.endLine < record.line)) errors += "Línea final inválida"
+                for ((field, text) in listOf("explanation" to record.explanation, "consequences" to record.consequences, "recommendation" to record.recommendation)) {
+                    if (text.isBlank()) errors += "Campo '$field' vacío"
+                    checkText(errors, field, text, MAX_FINDING_TEXT)
+                }
+                record.snippet?.let { s ->
+                    checkText(errors, "snippet", s, MAX_SNIPPET_CHARS)
+                    if (s.count { it == '\n' } >= MAX_SNIPPET_LINES) errors += "Fragmento demasiado largo"
+                    if ((record.snippetLine ?: 0) < 1) errors += "Fragmento sin línea"
+                }
+                checkText(errors, "fixedExample", record.fixedExample, MAX_FIXED_EXAMPLE)
+                if (record.references.size > MAX_REFERENCES) errors += "Demasiadas referencias"
+                record.references.forEach { checkName(errors, "reference", it, MAX_TARGET_LENGTH) }
+                if (record.flow.size > MAX_FLOW_STEPS) errors += "Recorrido demasiado largo"
+                record.flow.forEach {
+                    if (it.line < 1) errors += "Línea del recorrido inválida"
+                    checkName(errors, "flow", it.description, MAX_EVIDENCE_DETAIL)
+                }
+                record.downgraded?.let { checkName(errors, "downgraded", it) }
+                record.masked?.let { checkMasked(errors, it) }
+                record.fingerprint?.let { checkPattern(errors, "fingerprint", it, FINGERPRINT_PATTERN) }
+            }
+            is SecuritySummary -> {
+                val values = listOf(record.findings, record.rules, record.filesExamined, record.downgraded, record.suppressions)
+                if (values.any { it < 0 } || record.bySeverity.values.any { it < 0 } || record.byCertainty.values.any { it < 0 } || record.byCategory.values.any { it < 0 }) {
+                    errors += "Totales negativos"
+                }
+                if (record.bySeverity.values.sum() != record.findings) errors += "Totales por severidad incoherentes"
+                if (record.dynamicChecks.size > MAX_DYNAMIC_CHECKS || record.notEvaluated.size > MAX_DYNAMIC_CHECKS) errors += "Demasiadas comprobaciones"
+                (record.dynamicChecks + record.notEvaluated).forEach { checkName(errors, "check", it, MAX_EVIDENCE_DETAIL) }
+            }
+            is ResolvedDependency -> {
+                checkName(errors, "name", record.name, MAX_TARGET_LENGTH)
+                record.version?.let { checkName(errors, "version", it, MAX_VERSION_LENGTH) }
+                record.declared?.let { checkName(errors, "declared", it, MAX_VERSION_LENGTH) }
+                if (record.version == null && record.versionSource != VersionSource.UNKNOWN) errors += "Versión ausente"
+                record.manifest?.let { checkPath(errors, it) }
+                record.lockfile?.let { checkPath(errors, it) }
+                record.projectRoot?.let { checkDirectory(errors, it) }
+                if ((record.manifestLine ?: 1) < 1 || (record.lockfileLine ?: 1) < 1) errors += "Línea inválida"
+                if (record.introducedBy.size > MAX_INTRODUCED_BY || record.introducedByCount < record.introducedBy.size) errors += "Cadenas de introducción incoherentes"
+                record.introducedBy.forEach { checkName(errors, "introducedBy", it, MAX_REFERENCE_LENGTH) }
+                checkSamples(errors, "usedIn", record.usedIn, record.usedCount)
+                checkSamples(errors, "alsoIn", record.alsoIn, record.alsoInCount)
+                if (record.usage == UsageStatus.USED && record.usedCount == 0) errors += "Uso sin archivos"
+                if (record.criticalityReasons.size > MAX_REASONS) errors += "Demasiados motivos"
+                record.criticalityReasons.forEach { checkName(errors, "reason", it, MAX_EVIDENCE_DETAIL) }
+                if (record.vulnerabilities.size > MAX_VULNERABILITIES || record.vulnerabilityCount < record.vulnerabilities.size) errors += "Vulnerabilidades incoherentes"
+                record.vulnerabilities.forEach { v ->
+                    checkName(errors, "vulnerability", v.id, MAX_TARGET_LENGTH)
+                    if (v.aliases.size > MAX_ALIASES || v.fixedIn.size > MAX_FIXED_IN) errors += "Vulnerabilidad con demasiados datos"
+                    (v.aliases + v.fixedIn).forEach { checkName(errors, "vulnerability", it, MAX_TARGET_LENGTH) }
+                    v.summary?.let { checkText(errors, "summary", it, MAX_EVIDENCE_DETAIL) }
+                    if (v.score != null && v.score !in 0.0..10.0) errors += "Puntuación fuera de rango"
+                }
+            }
+            is EndOfLife -> {
+                checkName(errors, "product", record.product)
+                checkName(errors, "label", record.label)
+                checkName(errors, "version", record.version, MAX_VERSION_LENGTH)
+                checkName(errors, "source", record.source, MAX_EVIDENCE_DETAIL)
+                record.path?.let { checkPath(errors, it) }
+                if ((record.line ?: 1) < 1) errors += "Línea inválida"
+                listOfNotNull(record.cycle, record.eolDate, record.latestInCycle).forEach { checkName(errors, "eol", it, MAX_VERSION_LENGTH) }
+                checkSamples(errors, "alsoIn", record.alsoIn, record.alsoInCount)
+            }
+            is DependencySummary -> {
+                val values = listOf(record.direct, record.indirect, record.lockfiles, record.exactVersions, record.vulnerablePackages, record.vulnerabilities, record.malicious, record.notSeen, record.endOfLife, record.endingSoon)
+                if (values.any { it < 0 } || record.bySeverity.values.any { it < 0 }) errors += "Totales negativos"
+                if (record.bySeverity.values.sum() != record.vulnerabilities) errors += "Totales por severidad incoherentes"
+                if (record.databases.size > MAX_DATABASES) errors += "Demasiadas bases"
+                record.databases.forEach { checkName(errors, "database", it.ecosystem); if (it.advisories < 0) errors += "Totales negativos" }
+                if (record.notEvaluated.size > MAX_DYNAMIC_CHECKS) errors += "Demasiadas notas"
+                record.notEvaluated.forEach { checkName(errors, "notEvaluated", it, MAX_EVIDENCE_DETAIL) }
+            }
+            is FileLayer -> {
+                checkPath(errors, record.path)
+                checkName(errors, "reason", record.reason, MAX_EVIDENCE_DETAIL)
+            }
+            is Diagram -> {
+                checkName(errors, "title", record.title)
+                record.note?.let { checkName(errors, "note", it, MAX_EVIDENCE_DETAIL) }
+                if (!record.width.isFinite() || !record.height.isFinite() || record.width <= 0f || record.height <= 0f ||
+                    record.width > MAX_DIAGRAM_SIZE || record.height > MAX_DIAGRAM_SIZE
+                ) errors += "Tamaño del diagrama inválido"
+                if (record.nodes.size > MAX_DIAGRAM_NODES || record.edges.size > MAX_DIAGRAM_EDGES) errors += "Diagrama demasiado grande"
+                val ids = HashSet<String>()
+                record.nodes.forEach { n ->
+                    checkName(errors, "nodeId", n.id, MAX_PATH_LENGTH)
+                    checkName(errors, "nodeLabel", n.label, MAX_TARGET_LENGTH)
+                    n.detail?.let { checkName(errors, "nodeDetail", it, MAX_EVIDENCE_DETAIL) }
+                    n.path?.let { checkName(errors, "nodePath", it, MAX_PATH_LENGTH) }
+                    if (!ids.add(n.id)) errors += "Nodo repetido"
+                    if (n.files < 0) errors += "Totales negativos"
+                    val box = listOf(n.x, n.y, n.width, n.height)
+                    if (box.any { !it.isFinite() } || n.x < 0f || n.y < 0f || n.width <= 0f || n.height <= 0f ||
+                        n.x + n.width > record.width + 1f || n.y + n.height > record.height + 1f
+                    ) errors += "Nodo fuera del diagrama"
+                }
+                record.edges.forEach { e ->
+                    if (e.from !in ids || e.to !in ids) errors += "Arista con un nodo desconocido"
+                    if (e.count < 1) errors += "Arista sin relaciones"
+                    if (e.points.size < 4 || e.points.size % 2 != 0 || e.points.size > MAX_EDGE_POINTS) errors += "Trazado de arista inválido"
+                    if (e.points.any { !it.isFinite() || it < -1f || it > maxOf(record.width, record.height) + 1f }) errors += "Arista fuera del diagrama"
+                    if (e.kinds.size > RelationKind.entries.size || e.samples.size > MAX_EDGE_SAMPLES) errors += "Arista con demasiados datos"
+                    e.samples.forEach { checkName(errors, "sample", it, MAX_REFERENCE_LENGTH) }
+                }
+            }
+            is InformationFlow -> {
+                if (record.index < 0 || record.alternatives < 0) errors += "Flujo inválido"
+                checkName(errors, "method", record.method, 16)
+                checkName(errors, "path", record.path, MAX_ROUTE_LENGTH)
+                checkName(errors, "framework", record.framework)
+                if (record.steps.size < 2 || record.steps.size > MAX_FLOW_STEPS_ARCH) errors += "Flujo con pasos inválidos"
+                record.steps.forEachIndexed { i, step ->
+                    checkName(errors, "step", step.label, MAX_REFERENCE_LENGTH)
+                    step.path?.let { checkPath(errors, it) }
+                    if ((step.line ?: 1) < 1) errors += "Línea inválida"
+                    if (i > 0 && (step.via == null || step.confidence == null)) errors += "Paso sin conexión"
+                }
+                if (record.reachesDatabase != (record.steps.lastOrNull()?.layer == ArchLayer.DATABASE)) errors += "Flujo incoherente"
+            }
+            is ArchitectureSummary -> {
+                val values = listOf(record.classified, record.files, record.inverted, record.flows, record.completeFlows, record.modules)
+                if (values.any { it < 0 } || record.byLayer.values.any { it < 0 }) errors += "Totales negativos"
+                if (record.byLayer.values.sum() != record.files || record.classified > record.files || record.completeFlows > record.flows) errors += "Totales incoherentes"
+                if (record.invertedSamples.size > MAX_SAMPLES || record.inverted < record.invertedSamples.size) errors += "Ejemplos incoherentes"
+                record.invertedSamples.forEach { checkName(errors, "inverted", it, MAX_REFERENCE_LENGTH) }
+                record.pattern?.let { checkName(errors, "pattern", it) }
+                if (record.notes.size > MAX_ARCH_NOTES) errors += "Demasiadas notas"
+                record.notes.forEach { checkName(errors, "note", it, MAX_EVIDENCE_DETAIL) }
+            }
+            is FileMetrics -> {
+                checkPath(errors, record.path)
+                checkPattern(errors, "language", record.language, ID_PATTERN)
+                val values = listOf(
+                    record.codeLines, record.commentLines, record.functions, record.complexity, record.maxComplexity,
+                    record.longestFunction, record.duplicatedLines, record.debtMarkers,
+                )
+                if (values.any { it < 0 }) errors += "Totales negativos"
+                if (!record.measured && (record.functions > 0 || record.complexity > 0 || record.maxComplexity > 0)) errors += "Complejidad sin medir"
+                if (record.maxComplexity > record.complexity || (record.functions > 0 && record.maxComplexity < 1)) errors += "Complejidad incoherente"
+                if (record.duplicatedLines > record.codeLines) errors += "Duplicación incoherente"
+            }
+            is MetricsSummary -> {
+                val counts = listOf(
+                    record.codeFiles, record.testFiles, record.generatedFiles, record.measuredFiles, record.functions, record.functionsOver10,
+                    record.functionsOver20, record.longFunctions, record.largeFiles, record.filesInCycles, record.cycles, record.highCoupling,
+                )
+                val totals = listOf(record.codeLines, record.commentLines, record.testLines, record.duplicatedLines, record.duplicationBase)
+                if (counts.any { it < 0 } || totals.any { it < 0 } || record.debtByKind.values.any { it < 0 }) errors += "Totales negativos"
+                if (record.measuredFiles > record.codeFiles || record.testFiles > record.codeFiles || record.largeFiles > record.codeFiles ||
+                    record.filesInCycles > record.codeFiles || record.highCoupling > record.codeFiles
+                ) errors += "Totales de archivos incoherentes"
+                if (record.functionsOver20 > record.functionsOver10 || record.functionsOver10 > record.functions || record.longFunctions > record.functions) {
+                    errors += "Totales de funciones incoherentes"
+                }
+                if (record.testLines > record.codeLines || record.duplicatedLines > record.duplicationBase) errors += "Totales de líneas incoherentes"
+                val average = record.averageComplexity
+                if (average != null && (!average.isFinite() || average < 1.0)) errors += "Complejidad media inválida"
+                listOf(record.medianComplexity, record.p90Complexity, record.maxComplexity).forEach { if (it != null && it < 1) errors += "Complejidad inválida" }
+                if (record.functions == 0 && (average != null || record.maxComplexity != null)) errors += "Complejidad sin funciones"
+                if (listOf(record.complexFunctionList.size, record.longFunctionList.size, record.largeFileList.size, record.duplicates.size, record.debtSamples.size)
+                        .any { it > MAX_METRIC_LIST }
+                ) errors += "Listas demasiado largas"
+                (record.complexFunctionList + record.longFunctionList).forEach { f ->
+                    checkPath(errors, f.path)
+                    checkName(errors, "function", f.name)
+                    if (f.line < 1 || f.lines < 1 || f.complexity < 1) errors += "Función inválida"
+                }
+                record.largeFileList.forEach { checkPath(errors, it.path); if (it.lines < 1) errors += "Tamaño inválido" }
+                record.duplicates.forEach { d ->
+                    if (d.lines < 1 || d.occurrences.size < 2 || d.occurrences.size > MAX_DUPLICATE_OCCURRENCES || d.count < d.occurrences.size) {
+                        errors += "Bloque repetido inválido"
+                    }
+                    d.occurrences.forEach { checkName(errors, "occurrence", it, MAX_REFERENCE_LENGTH) }
+                }
+                record.debtSamples.forEach { m ->
+                    checkPath(errors, m.path)
+                    if (m.line < 1) errors += "Línea inválida"
+                    checkText(errors, "debt", m.text, MAX_DEBT_TEXT)
+                    if (m.text.any { it.isISOControl() }) errors += "Texto de deuda con caracteres de control"
+                }
+                if (record.qualityTools.size > MAX_QUALITY_TOOLS) errors += "Demasiadas herramientas"
+                record.qualityTools.forEach { checkName(errors, "tool", it.name); checkPath(errors, it.path) }
+                record.readme?.let { checkPath(errors, it) }
+                checkSamples(errors, "highCoupling", record.highCouplingSamples, record.highCoupling)
+                if (record.notMeasured.size > MAX_METRICS_NOTES || record.notes.size > MAX_METRICS_NOTES) errors += "Demasiadas notas"
+                (record.notMeasured + record.notes).forEach { checkName(errors, "note", it, MAX_EVIDENCE_DETAIL) }
+            }
+            is MaintenanceIndex -> {
+                val score = record.score
+                if (score != null && score !in 0..100) errors += "Índice fuera de rango"
+                if ((score == null) != (record.level == null)) errors += "Nivel incoherente"
+                if (record.parts.isEmpty() || record.parts.size > MAX_MAINTENANCE_PARTS) errors += "Sub-índices inválidos"
+                if (record.parts.map { it.id }.toSet().size != record.parts.size) errors += "Sub-índices repetidos"
+                record.parts.forEach { p ->
+                    checkPattern(errors, "part", p.id, ID_PATTERN)
+                    checkName(errors, "partName", p.name)
+                    if (p.weight !in 0..100 || (p.score != null && p.score !in 0..100)) errors += "Sub-índice fuera de rango"
+                    checkName(errors, "measure", p.measure, MAX_EVIDENCE_DETAIL)
+                    checkName(errors, "explanation", p.explanation, MAX_EVIDENCE_DETAIL)
+                }
+                if (record.parts.sumOf { it.weight } != 100) errors += "Los pesos no suman 100"
+                if (score != null && record.parts.none { it.score != null }) errors += "Índice sin sub-índices evaluados"
+                checkName(errors, "formula", record.formula, MAX_DETAIL_LENGTH)
+                if (record.notes.size > MAX_METRICS_NOTES) errors += "Demasiadas notas"
+                record.notes.forEach { checkName(errors, "note", it, MAX_EVIDENCE_DETAIL) }
+            }
+            is ConfigKey -> {
+                checkName(errors, "name", record.name)
+                if (record.definedIn.size > MAX_SAMPLES) errors += "Demasiados archivos de definición"
+                record.definedIn.forEach { checkPath(errors, it) }
+                checkSamples(errors, "readers", record.readers, record.readCount)
+            }
+            is FileGraph -> {
+                checkPath(errors, record.path)
+                if (listOf(record.outgoing, record.incoming, record.externals, record.transitiveDependents).any { it < 0 } || record.rank < 1) errors += "Valores del grafo inválidos"
+                if (record.importance.isNaN() || record.importance < 0.0 || record.importance > 1.0) errors += "Importancia fuera de rango"
+                if ((record.cycle ?: 0) < 0) errors += "Ciclo inválido"
+                if (record.symbols.size > MAX_SYMBOLS) errors += "Demasiados símbolos"
+                record.symbols.forEach {
+                    checkName(errors, "symbol", it.name)
+                    if (it.line < 1) errors += "Línea de símbolo inválida"
+                }
+            }
+            is DependencyCycle -> {
+                if (record.index < 0 || record.size < 2 || record.paths.size > MAX_CYCLE_PATHS || record.paths.size > record.size || record.paths.isEmpty()) errors += "Ciclo inválido"
+                record.paths.forEach { checkPath(errors, it) }
+            }
+            is RelationsSummary -> {
+                val values = listOf(
+                    record.files, record.relations, record.internal, record.external, record.broken, record.cycles, record.unreferencedFiles,
+                    record.endpoints, record.pages, record.httpCalls, record.httpMatched, record.dataEntities, record.configKeys,
+                )
+                if (record.httpMatched > record.httpCalls) errors += "Llamadas HTTP incoherentes"
+                if (values.any { it < 0 } || record.byKind.values.any { it < 0 } || record.byConfidence.values.any { it < 0 }) errors += "Totales negativos"
+            }
+            is Technology -> {
+                checkPattern(errors, "id", record.id, ID_PATTERN)
+                checkName(errors, "name", record.name)
+                if (record.versions.size > MAX_TECH_VERSIONS) errors += "Demasiadas versiones"
+                record.versions.forEach { checkName(errors, "version", it, MAX_VERSION_LENGTH) }
+                if (record.evidence.isEmpty()) errors += "Tecnología sin evidencia"
+                if (record.evidence.any { it.path == null }) errors += "Evidencia de tecnología sin archivo"
+                checkEvidence(errors, record.evidence)
+                if (record.evidenceCount < record.evidence.size) errors += "Recuento de evidencias incoherente"
+                if (record.projectRoots.size > MAX_TECH_ROOTS) errors += "Demasiados subproyectos"
+                record.projectRoots.forEach { checkDirectory(errors, it) }
+            }
+            is InventorySummary -> {
+                val values = listOf(record.files, record.entryPoints, record.projectRoots, record.unclassified, record.storedFiles, record.redactions)
+                if (values.any { it < 0 } || record.storedChars < 0 || record.roleCounts.values.any { it < 0 }) errors += "Totales negativos"
+            }
+            is IngestSummary -> {
+                val values = listOf(
+                    record.files, record.analyzedFiles, record.notAnalyzedFiles, record.excludedFiles,
+                    record.excludedDirectories, record.duplicateGroups, record.duplicateFiles, record.findings,
+                )
+                if (values.any { it < 0 } || record.analyzedBytes < 0 || record.excludedBytes < 0) errors += "Totales negativos"
+            }
+        }
+        return errors
+    }
+
+    private fun checkEvidence(errors: MutableList<String>, evidence: List<Evidence>) {
+        if (evidence.size > MAX_EVIDENCE) errors += "Demasiadas evidencias"
+        evidence.forEach { e ->
+            checkText(errors, "evidence.detail", e.detail, MAX_EVIDENCE_DETAIL)
+            if (e.detail.any { it.isISOControl() }) errors += "Evidencia con caracteres de control"
+            e.path?.let { checkPath(errors, it) }
+            if ((e.line ?: 1) < 1) errors += "Línea de evidencia inválida"
+        }
+    }
+
+    /** Un secreto enmascarado solo puede mostrar 6 caracteres ASCII visibles; el resto, el carácter de máscara. */
+    private fun checkMasked(errors: MutableList<String>, masked: String) {
+        if (masked.isEmpty() || masked.length > MAX_MASKED_LENGTH) errors += "Secreto enmascarado con longitud inválida"
+        val visible = masked.filter { it != MASK_CHAR }
+        if (visible.length > MAX_VISIBLE_SECRET_CHARS || visible.any { it !in '!'..'~' }) {
+            errors += "El secreto enmascarado muestra demasiado"
+        }
+    }
+
+    /** Tríos (inicio, longitud, categoría) dentro del texto, en orden y sin solaparse. */
+    private fun checkHighlight(errors: MutableList<String>, spans: List<Int>, textLength: Int) {
+        if (spans.isEmpty()) return
+        if (spans.size % 3 != 0 || spans.size > MAX_HIGHLIGHT_SPANS * 3) {
+            errors += "Resaltado con formato inválido"
+            return
+        }
+        var previousEnd = 0
+        for (i in spans.indices step 3) {
+            val start = spans[i]
+            val length = spans[i + 1]
+            val category = spans[i + 2]
+            if (start < previousEnd || length < 1 || start.toLong() + length > textLength || category !in 1..MAX_HIGHLIGHT_CATEGORY) {
+                errors += "Resaltado fuera del texto o desordenado"
+                return
+            }
+            previousEnd = start + length
+        }
+    }
+
+    /** Muestras "archivo:línea" (como máximo [MAX_SAMPLES]) y su total. */
+    private fun checkSamples(errors: MutableList<String>, field: String, samples: List<String>, count: Int) {
+        if (samples.size > MAX_SAMPLES || count < samples.size) errors += "Campo '$field' incoherente"
+        samples.forEach { checkName(errors, field, it, MAX_PATH_LENGTH + 12) }
+    }
+
+    /** Nombre o versión corto, sin caracteres de control. */
+    private fun checkName(errors: MutableList<String>, field: String, value: String, max: Int = MAX_NAME_LENGTH) {
+        if (value.isEmpty() || value.length > max) errors += "Campo '$field' vacío o demasiado largo"
+        if (value.any { it.isISOControl() }) errors += "Campo '$field' con caracteres de control"
+    }
+
+    /** Carpeta dentro del comprimido; "" es la raíz. */
+    private fun checkDirectory(errors: MutableList<String>, directory: String) {
+        if (directory.isNotEmpty()) checkPath(errors, directory)
+    }
+
+    private fun checkPattern(errors: MutableList<String>, field: String, value: String, pattern: Regex) {
+        if (!pattern.matches(value)) errors += "Campo '$field' con formato inválido"
+    }
+
+    /** Las rutas llegan normalizadas y con los caracteres de control ya escapados por el motor. */
+    private fun checkPath(errors: MutableList<String>, path: String) {
+        if (path.isEmpty() || path.length > MAX_PATH_LENGTH) errors += "Ruta vacía o demasiado larga"
+        if (path.any { it.isISOControl() }) errors += "Ruta con caracteres de control sin escapar"
+    }
+
+    private fun checkText(errors: MutableList<String>, field: String, value: String?, max: Int) {
+        if (value == null) return
+        if (value.length > max) errors += "Campo '$field' demasiado largo"
+        if (value.any { it == '\u0000' }) errors += "Campo '$field' contiene caracteres nulos"
+    }
+}
+
+/** Resultado de leer una sesión completa del motor. */
+data class SessionReadResult(
+    val start: SessionStart?,
+    val records: List<ResultRecord>,
+    val end: SessionEnd?,
+    /** Motivo por el que se dejó de confiar en el flujo, o `null` si fue correcto. */
+    val violation: String?,
+) {
+    /** La sesión terminó con su registro final y sin violaciones del protocolo. */
+    val isComplete: Boolean get() = start != null && end != null && violation == null
+}
+
+/**
+ * Lee una sesión completa aplicando las reglas del protocolo:
+ * - el primer registro es [SessionStart] y no se repite;
+ * - nada llega después de [SessionEnd];
+ * - [SessionEnd.recordCount] coincide con el número de registros recibidos antes de él;
+ * - cada registro supera [RecordValidator].
+ *
+ * Los registros válidos recibidos antes de una violación se conservan (resultados parciales).
+ * [onRecord] se invoca con cada registro intermedio validado, en orden.
+ */
+class SessionReader(
+    private val reader: FrameReader,
+    private val maxBufferedRecords: Int = 100_000,
+    private val onRecord: (ResultRecord) -> Unit = {},
+) {
+    fun readAll(): SessionReadResult {
+        var start: SessionStart? = null
+        var end: SessionEnd? = null
+        val records = mutableListOf<ResultRecord>()
+        var received = 0L
+
+        fun result(violation: String?) = SessionReadResult(start, records, end, violation)
+
+        while (true) {
+            val record = try {
+                reader.next()
+            } catch (e: ProtocolViolationException) {
+                return result(e.message)
+            } ?: break
+
+            val errors = RecordValidator.validate(record)
+            if (errors.isNotEmpty()) return result("Registro inválido: ${errors.joinToString("; ")}")
+
+            if (end != null) return result("Se recibieron datos después del final de la sesión")
+            when (record) {
+                is SessionStart -> {
+                    if (start != null) return result("Inicio de sesión duplicado")
+                    start = record
+                    received++
+                }
+                is SessionEnd -> {
+                    if (start == null) return result("Fin de sesión sin inicio")
+                    if (record.recordCount != received) {
+                        return result("Recuento de registros inconsistente: se esperaban ${record.recordCount}, llegaron $received")
+                    }
+                    end = record
+                }
+                else -> {
+                    if (start == null) return result("Se recibieron datos antes del inicio de la sesión")
+                    received++
+                    if (records.size < maxBufferedRecords) records += record
+                    onRecord(record)
+                }
+            }
+        }
+        return result(null)
+    }
+}

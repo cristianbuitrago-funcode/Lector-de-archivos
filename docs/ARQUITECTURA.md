@@ -1,7 +1,12 @@
 # Funcode Code Analyzer — Arquitectura técnica
 
 **Funcode Studio CB** · Documento de arquitectura **v0.2** · Fecha: 2026-11-03
-**Estado: arquitectura revisada para Android, pendiente de confirmación** (ver §15). Aún no hay código de la aplicación.
+**Estado: aprobada** (decisión N1 = A, 2026-11-03). Implementación: fases 1 a 9 terminadas y aprobadas y la 10
+entregada (ver `docs/fases/`; manual de uso en `docs/MANUAL.md`). Las decisiones tomadas durante la implementación y sus desviaciones respecto a este
+documento se registran en `docs/adr/` (en particular, ADR 0004 sobre la copia temporal del comprimido, ADR 0006 sobre
+tree-sitter, ADR 0007 sobre las relaciones, ADR 0008 sobre los analizadores de framework, ADR 0009 sobre la auditoría
+de seguridad, ADR 0010 sobre las dependencias, ADR 0011 sobre los diagramas de arquitectura, ADR 0012 sobre los
+informes y las métricas y ADR 0013 sobre el Panel, el rendimiento, la accesibilidad y la revisión final).
 
 ---
 
@@ -132,8 +137,8 @@
 ### 2.3 Flujo de un análisis
 
 1. **Selección.** El usuario elige el archivo con el selector del sistema, lo abre desde otra app ("Abrir con…/Compartir") o lo arrastra (tablets, multiventana, Samsung DeX).
-2. **Importación.** El coordinador copia el archivo a la caché privada de la app **cifrándolo con una clave efímera que solo existe en memoria**, contando bytes (corta al superar el límite), comprueba la firma real del archivo (ZIP `PK\x03\x04`/`PK\x05\x06`; RAR4 `Rar!\x1A\x07\x00`; RAR5 `Rar!\x1A\x07\x01\x00`) sin fiarse de la extensión y calcula su SHA-256.
-3. **Lanzamiento.** Se inicia un servicio en primer plano (con notificación de progreso, para que Android no lo detenga) que enlaza el servicio aislado y le entrega: descriptor de solo lectura de la copia, clave efímera, configuración y el extremo de escritura de una tubería para los resultados.
+2. **Importación.** El coordinador copia el archivo al almacenamiento privado sin copia de seguridad de la app (protegido por el cifrado basado en archivos de Android; ver ADR 0004), contando bytes (corta al superar el límite), comprueba la firma real del archivo (ZIP `PK\x03\x04`/`PK\x05\x06`; RAR4 `Rar!\x1A\x07\x00`; RAR5 `Rar!\x1A\x07\x01\x00`) sin fiarse de la extensión y calcula su SHA-256.
+3. **Lanzamiento.** Se inicia un servicio en primer plano (con notificación de progreso, para que Android no lo detenga) que enlaza el servicio aislado y le entrega: descriptor de solo lectura de la copia, configuración, contraseña del comprimido si la hay (como `char[]`, fuera de la configuración) y el extremo de escritura de una tubería para los resultados.
 4. **Pipeline** dentro del proceso aislado (cada etapa informa progreso y registra cobertura):
 
    | # | Etapa | Resultado |
@@ -152,7 +157,7 @@
    | E12 | Contenido para el visor | texto **ya redactado** + resaltado de sintaxis precalculado |
 
 5. **Resultados.** El motor envía registros por la tubería a medida que los produce; el progreso llega por un *callback* Binder. El proceso principal **valida cada registro** (esquema, tamaños, rutas) y lo guarda cifrado.
-6. **Limpieza.** Se borra la copia temporal y se destruye la clave efímera (borrado criptográfico, §9.2). El sistema destruye el proceso aislado al desenlazarlo.
+6. **Limpieza.** Se borra la copia temporal (§9.2 y ADR 0004) y se borra de memoria la contraseña del comprimido. El sistema destruye el proceso aislado al desenlazarlo.
 7. **Informes.** Se generan bajo demanda en el proceso principal a partir del resultado almacenado.
 
 ---
@@ -166,11 +171,11 @@
 | Lenguaje | **Kotlin** | Estándar de Android, seguro frente a nulos, corrutinas |
 | Interfaz | **Jetpack Compose + Material 3** con tema oscuro Funcode | UI declarativa moderna, animaciones discretas, accesibilidad |
 | Diseño adaptable | Barra inferior en teléfono; *navigation rail* y paneles dobles en tablet | Explorador y Arquitectura aprovechan pantallas grandes |
-| Arquitectura | MVVM + capas `ui` / `domain` / `data`, **Hilt**, Corrutinas + Flow | Separación clara, testeable |
+| Arquitectura | MVVM + capas `ui` / `domain` / `data`, inyección de dependencias manual (`AppContainer`, ver ADR 0003), Corrutinas + Flow | Separación clara, testeable |
 | Base de datos | **Room + SQLCipher** | Cifrado completo de la BD |
 | Claves | **Android Keystore** (StrongBox si el dispositivo lo tiene), clave ligada a la autenticación del usuario | La clave no puede extraerse del dispositivo |
 | Autenticación | **AndroidX Biometric** (clase fuerte) + contraseña propia con **Argon2id** (Bouncy Castle) | Solo el propietario |
-| Cifrado de la copia temporal | **Google Tink** (`StreamingAead`, con acceso aleatorio) | Permite leer el ZIP cifrado sin descifrarlo entero, y el borrado criptográfico |
+| Cifrado de temporales | AES-256-GCM de `javax.crypto` con clave efímera para la copia del código mientras se guarda (ADR 0005). La copia del comprimido no se cifra (ADR 0004) | Borrado criptográfico sin dependencias adicionales |
 | Gráficas | **Vico** (gráficas para Compose) | Nativo, ligero |
 | Diagramas | **Compose Canvas** + algoritmo de disposición propio del motor | Zoom, desplazamiento y foco; el mismo dibujo se reutiliza en el PDF |
 | Árbol de archivos | `LazyColumn` virtualizada | Miles de nodos sin bloquear la UI |
@@ -182,24 +187,24 @@
 
 | Necesidad | Tecnología | Motivo / alternativa descartada |
 |-----------|-----------|---------------------------------|
-| Análisis sintáctico | **tree-sitter** con los *bindings* oficiales de Kotlin (**KTreeSitter**); gramáticas compiladas desde su código C con el **NDK** | Un motor para todos los lenguajes, tolerante a errores. Descartado ANTLR: lento y poco tolerante a errores |
+| Análisis sintáctico | **tree-sitter** 0.25 con un **puente JNI propio** (una llamada por archivo, recorrido iterativo, tiempo máximo) y 15 gramáticas compiladas desde su código C con el **NDK**; fuentes descargadas de npm con integridad SHA-512 (ADR 0006) | Un motor para todos los lenguajes, tolerante a errores. Descartados ANTLR (lento y poco tolerante a errores) y KTreeSitter (una llamada JNI por nodo y sin artefacto para todas las gramáticas) |
 | ZIP | **Apache Commons Compress** (acceso aleatorio) + validación propia | Control total sobre cada entrada |
 | RAR | **Biblioteca UnRAR oficial de RARLAB** (C++) compilada con el NDK | Soporta RAR4 y RAR5 y detecta cifrado. Descartada `junrar` (Java), que **no soporta RAR5**, el formato por defecto de las versiones actuales de WinRAR |
 | Regex sobre contenido no confiable | **RE2/J** | Tiempo lineal: inmune a ReDoS |
-| XML | `XmlPullParser` con DTD desactivado | Sin XXE ni *billion laughs* |
-| YAML / TOML / JSON | **snakeyaml-engine** con límites de alias; **tomlj**; lector JSON por flujo con límite de profundidad | Parsers seguros frente a bombas |
+| XML | **Lector XML propio** que salta el DTD y solo resuelve las entidades predefinidas (ADR 0005) | Sin XXE ni *billion laughs* por construcción, y el mismo comportamiento en el PC y en Android |
+| YAML / TOML / JSON | **snakeyaml-engine 2.x** usado solo por eventos (árbol propio sin recursión, alias nunca expandidos, profundidad limitada); lector TOML parcial por líneas para las tablas de dependencias; JSON con límite de profundidad comprobado antes de analizarlo (ADR 0006) | Parsers seguros frente a bombas. tomlj se descartó por su dependencia de ANTLR |
 | Grafos | Algoritmos propios: Tarjan (ciclos), PageRank (importancia), alcanzabilidad (impacto), disposición por capas tipo Sugiyama | Pequeños, auditables y comunes a pantalla, PDF y SVG |
 | Complejidad | Cálculo propio sobre el árbol de tree-sitter | lizard (Python) no existe en Android |
 | SAST | **Motor de reglas propio de Funcode**: consultas tree-sitter + RE2/J + chequeos de configuración, con análisis de flujo intraprocedural | Semgrep no puede ejecutarse en Android. Al ser una herramienta interna (D2), las reglas comunitarias de Semgrep pueden servir de referencia técnica, porque su licencia permite el uso interno |
-| Vulnerabilidades | **Base de datos OSV** (volcados públicos oficiales por ecosistema) indexada en SQLite en el dispositivo | Cubre npm, PyPI, Maven, Packagist, NuGet, Pub, Go, crates.io y RubyGems. OWASP Dependency-Check no puede ejecutarse en Android |
+| Vulnerabilidades | **Base de datos OSV** (volcados públicos oficiales por ecosistema) convertida en el dispositivo a un índice binario propio verificado con SHA-256 (`engine:vulndb`, ADR 0010; el plan inicial preveía SQLite) | Cubre npm, PyPI, Maven, Packagist, NuGet, Pub, Go, crates.io y RubyGems. OWASP Dependency-Check no puede ejecutarse en Android |
 | Fin de soporte | Datos públicos de **endoflife.date** (Android SDK, Node.js, PHP, Python, Django, Laravel, Spring Boot, Angular, .NET…) | Permite detectar versiones obsoletas sin consultar nada del proyecto en línea |
 | Serialización | **kotlinx.serialization** | Esquema de resultados versionado |
-| HTML del informe | **kotlinx.html** | Escapa el texto por defecto: el contenido del proyecto nunca se convierte en HTML |
+| HTML del informe | **Generador propio** con una sola función de escape (`engine:report`, ADR 0012; el plan inicial preveía kotlinx.html) | Todo el texto del proyecto se escapa; sin dependencias nuevas; autocontenido, sin JavaScript y con CSP por huella |
 | PDF | **`android.graphics.pdf.PdfDocument`** + `StaticLayout` | Nativo, sin bibliotecas externas ni WebView; reutiliza el dibujo de los diagramas |
 
 ### 3.3 Construcción y calidad
 
-**Gradle (Kotlin DSL)** con catálogo de versiones y **verificación de dependencias por checksum**; **Android Gradle Plugin**; **NDK + CMake** para tree-sitter y UnRAR; **detekt**, **ktlint**, **Android Lint**; **JUnit 5 + Kotest** (motor), **Robolectric + pruebas de Compose** (UI en la JVM), pruebas instrumentadas en emulador; **GitHub Actions** compila el APK en cada fase.
+**Gradle (Kotlin DSL)** con catálogo de versiones y **verificación de dependencias por checksum**; **Android Gradle Plugin**; **NDK + CMake** para tree-sitter y UnRAR; **Android Lint** y el compilador de Kotlin con los avisos tratados como errores (detekt y ktlint no se adoptaron: ADR 0013); **JUnit 6 (Jupiter) + kotlin.test** (motor), **Robolectric + pruebas de Compose** (UI en la JVM), pruebas instrumentadas en emulador; **GitHub Actions** compila el APK en cada fase.
 
 ### 3.4 Identidad visual (tokens iniciales, ajustables)
 
@@ -230,15 +235,19 @@ en un PC, y en el teléfono se ejecuta dentro del proceso aislado.
 | `engine:core` | Orquestador del pipeline, contexto, cobertura, presupuestos de memoria/tiempo | 1 |
 | `engine:ingest` | ZIP/RAR, validación, lectura en memoria, exclusiones, duplicados | 2 |
 | `engine:inventory` | Árbol, roles de archivo, puntos de entrada, archivos posiblemente innecesarios | 3 |
-| `engine:languages` | Detección de lenguaje, conteo de líneas, carga de gramáticas | 4 |
-| `engine:technologies` | Motor de reglas declarativas (YAML) con evidencia | 4 |
-| `engine:relations` | Extractores por lenguaje, resolutores por ecosistema, analizadores de framework, grafo, impacto | 5 |
-| `engine:security` | Reglas, secretos, redacción, auditores de configuración | 6 |
-| `engine:dependencies` | Parsers de manifiestos/lockfiles, índice OSV, fin de soporte, uso real, criticidad | 7 |
-| `engine:layout` | Disposición de grafos (pantalla, PDF, SVG) | 8 |
-| `engine:metrics` | Complejidad, duplicación, índice de mantenimiento | 9 |
-| `engine:report` | JSON, HTML, comparación entre análisis | 9 |
-| `native:treesitter` | Gramáticas tree-sitter compiladas + JNI | 5 |
+| `engine:languages` | Detección de lenguaje, conteo de líneas (sintáctico o léxico), importaciones, resaltado, puente con tree-sitter | 4 |
+| `engine:technologies` | Motor de reglas declarativas (catálogo YAML) con evidencia y confianza | 4 |
+| `engine:pipeline` | Composición del pipeline completo (lo usan el servicio aislado y la CLI) | 4 |
+| `engine:relations` | Recolector y resolutores por ecosistema, grafo (ciclos, importancia, dependientes, alcance) e impacto (5A); analizadores de framework y enlazador: rutas, llamadas HTTP, datos, configuración, inyección, Android, Unity, Godot, escritorio, compilación y canales (5B, ADR 0008). Los extractores de símbolos están en `engine:languages` (ADR 0007) | 5A, 5B |
+| `engine:security` | Reglas, secretos, redacción, auditores de configuración | 3 (redactor) → 6 |
+| `engine:dependencies` | Parsers de manifiestos (4); archivos de bloqueo y grafo de dependencias (7) | 4 → 7 |
+| `engine:vulndb` | Índice `.fcv` de OSV y endoflife.date (escritura y lectura verificada), comparadores de versión por ecosistema, rangos de OSV, CVSS 3.x (ADR 0010) | 7 |
+| `engine:audit` (`deps`) | Etapa `dependency-audit`: versiones reales, cadenas, uso real, criticidad, vulnerabilidades, fin de soporte y sus hallazgos (ADR 0010) | 6 → 7 |
+| `engine:layout` | Disposición por capas tipo Sugiyama propia, determinista y acotada: ciclos, capas, nodos ficticios, reducción de cruces y coordenadas (pantalla, PDF, SVG; ADR 0011) | 8 |
+| `engine:architecture` | Etapa `architecture`: capa de cada archivo con certeza y motivo, diagramas de capas, módulos y proyectos ya dispuestos, dependencias inversas, ciclos entre módulos y flujos Frontend → API → Controlador → Servicio → Modelo → BD en los que cada paso es una conexión encontrada (ADR 0011) | 8 |
+| `engine:metrics` | Etapa `metrics`: complejidad de cada función en el árbol sintáctico, tamaño, código repetido, pruebas, documentación, deuda señalada, herramientas de calidad, ciclos y acoplamiento, e índice de mantenimiento con sus nueve sub-índices (ADR 0012) | 9 |
+| `engine:report` | Informe de 15 secciones y 2 anexos con resumen, problemas, recomendaciones y conclusiones trazables; HTML sin JavaScript, JSON y comparación entre análisis; el PDF lo dibuja la app con el mismo modelo (ADR 0012) | 9 |
+| `native:treesitter` | Núcleo de tree-sitter + 15 gramáticas compiladas + JNI | 4 |
 | `native:unrar` | UnRAR + JNI | 2 |
 | `engine:cli` | Ejecutable de consola **solo para pruebas y CI**: ejecuta el motor en un PC sobre un ZIP | 2 |
 
@@ -292,7 +301,7 @@ thresholds: { confirmed: 0.8, probable: 0.5 }
 | **Dashboard** | Proyectos analizados, últimos análisis, vulnerabilidades por severidad, tecnologías más utilizadas, tendencia |
 | **Nuevo análisis** | Selección del archivo, ficha (nombre, tamaño, formato), configuración (exclusiones, módulos, límites), progreso por etapas en tiempo real |
 | **Explorador** | Árbol con filtros por rol, visor de código con hallazgos marcados, ficha del archivo y sus relaciones |
-| **Arquitectura** | Diagrama por capas, grafo de archivos/módulos con foco y filtros, flujos de información, dependencias |
+| **Arquitectura** | Diagrama por capas con dependencias inversas, módulos con ciclos, proyectos con servicios externos y dependencias principales, grafo de un archivo con foco (uno o dos saltos, sentido, solo conexiones fuertes) y flujos de información con su certeza (Fase 8) |
 | **Seguridad** | Hallazgos por severidad y certeza, filtros, ficha detallada, recomendaciones, pruebas dinámicas recomendadas |
 | **Informes** | Historial, exportación PDF/HTML/JSON, comparación entre análisis del mismo proyecto |
 | **Ajustes** | Exclusiones por defecto, límites, actualización de bases, almacenamiento de código, bloqueo, borrado de datos |
@@ -308,14 +317,14 @@ curso llega a la UI como un `Flow` del coordinador.
 
 ### 5.2 Proceso principal ↔ proceso aislado (AIDL)
 
-Boceto:
+Contrato implementado (Fase 2):
 
 ```
 interface IAnalyzer {
-    void start(in ParcelFileDescriptor archive,     // copia cifrada, solo lectura
-               in byte[] ephemeralKey,              // clave efímera de la copia
-               in byte[] config,                    // configuración serializada
-               in ParcelFileDescriptor resultsPipe, // extremo de escritura de la tubería
+    void start(in byte[] config,                    // configuración serializada (sin secretos)
+               in ParcelFileDescriptor archive,     // copia del comprimido, solo lectura
+               in char[] password,                  // contraseña del comprimido o null; se borra tras usarla
+               in ParcelFileDescriptor results,     // extremo de escritura de la tubería
                IAnalysisCallback callback);         // progreso y finalización
     void cancel();
 }
@@ -337,8 +346,11 @@ máximo por archivo. Cada etapa registra en la cobertura qué analizó, qué omi
 ### 5.4 Actualizador
 
 Descarga los volcados públicos de OSV de los ecosistemas que elijas y los datos de fin de soporte, los valida, los
-indexa en una BD local de solo lectura y la pasa al proceso aislado como descriptor de solo lectura en cada análisis.
-Se ejecuta a petición o periódicamente (WorkManager, solo con Wi-Fi si así se configura).
+indexa en un índice local de solo lectura y lo pasa al proceso aislado como descriptor de solo lectura en cada
+análisis. **Solo se ejecuta cuando lo pides** en Ajustes, tras un diálogo que dice qué servidores se contactan y cuánto
+se descarga; no hay actualizaciones automáticas (se avisa cuando la base tiene 7 días o más). Solo HTTPS, solo a
+`osv-vulnerabilities.storage.googleapis.com` y `endoflife.date`, con sustitución atómica: si falla, la base anterior
+queda intacta (Fase 7, ADR 0010).
 
 ---
 
@@ -416,8 +428,8 @@ después se enlazan entre sí.
 
 ### 8.1 Fuentes de hallazgos
 
-1. **Reglas propias de Funcode**: consultas tree-sitter con análisis de flujo intraprocedural, patrones RE2/J y chequeos de configuración estructurada (Manifest, `settings.py`, `.env`, `application.properties`, reglas de Firebase…).
-2. **Secretos**: patrones por proveedor + entropía + contexto.
+1. **Reglas propias de Funcode**: lector de código léxico guiado (el de la Fase 5B) con flujo de datos intraprocedural aproximado, patrones RE2/J y chequeos de configuración estructurada (Manifest, `settings.py`, `.env`, `application.properties`, reglas de Firebase…). Implementado en la Fase 6 en `engine:audit` (ADR 0009); el plan inicial preveía consultas tree-sitter.
+2. **Secretos**: patrones por proveedor + nombres sensibles + contexto (sin medida de entropía: un valor aleatorio sin nombre ni formato conocido no se detecta).
 3. **OSV** (offline) para dependencias, y datos de fin de soporte.
 
 Todos los hallazgos se normalizan a un único formato y se deduplican (archivo + línea + CWE).
@@ -490,8 +502,8 @@ cuando sea viable) · referencias · regla que lo produjo y su versión.
 | Aislamiento del análisis | `android:isolatedProcess="true"`: el sistema le asigna un UID aleatorio y un dominio SELinux restringido, **sin permisos, sin red y sin acceso al almacenamiento de la app**. Solo usa los descriptores que recibe. |
 | Límites de memoria y tiempo | Presupuestos internos de memoria (tamaño máximo por entrada leída, cachés acotadas, un árbol sintáctico a la vez por hilo); tiempo máximo por archivo y total; vigilante en el proceso principal que desenlaza el servicio si se excede (el sistema destruye entonces el proceso aislado). Un fallo por memoria en el proceso aislado no afecta a la app. |
 | Prohibición de ejecutar archivos extraídos | Nada se escribe a disco. Además, Android (API 29+) prohíbe ejecutar binarios desde los directorios de datos de la app. El motor nunca usa `DexClassLoader`, `System.load` ni WebView con contenido del proyecto. |
-| Protección de archivos temporales | El único temporal es la copia del comprimido, en el directorio privado `noBackupFilesDir`, **cifrada con una clave efímera** que solo existe en memoria. |
-| Eliminación segura | **Borrado criptográfico**: al terminar se borra la copia y se destruye la clave efímera; aunque la memoria flash conserve restos físicos, son ilegibles. Limpieza de huérfanos al iniciar la app. |
+| Protección de archivos temporales | El único temporal es la copia del comprimido, en el directorio privado `noBackupFilesDir`, protegido por el cifrado basado en archivos de Android (clave por archivo). |
+| Eliminación segura | La copia se borra al terminar o al descartar; limpieza de huérfanos al iniciar la app. Con el cifrado por archivo de Android 10+, los restos físicos que pudieran quedar en la memoria flash están cifrados con las claves del dispositivo. En Android 8–9 con cifrado de disco completo pueden quedar restos físicos hasta que se sobrescriban (ADR 0004: el cifrado con clave efímera no es compatible con UnRAR). |
 | Cifrado de información almacenada | BD completa con SQLCipher; su clave está envuelta por una clave del Android Keystore (en hardware, StrongBox si existe) que **solo puede usarse tras autenticarte**. |
 | Solo el propietario accede | Configuración inicial con contraseña propia (Argon2id) y biometría fuerte; bloqueo al pasar a segundo plano y por inactividad; espera creciente tras intentos fallidos y borrado opcional de datos tras N fallos; `FLAG_SECURE` (sin capturas ni miniaturas en recientes). |
 | No enviar código a servicios externos | El proceso aislado no puede usar la red. La app solo descarga datos públicos (OSV, fin de soporte). Sin analítica ni SDKs de informes de errores de terceros. Copias de seguridad desactivadas (`allowBackup=false` y reglas de extracción de datos). Exportar o compartir un informe solo ocurre por acción explícita, con aviso. |
@@ -499,7 +511,7 @@ cuando sea viable) · referencias · regla que lo produjo y su versión.
 
 Controles adicionales:
 
-- **Parsers**: `XmlPullParser` sin DTD, YAML con límites de alias, JSON con límite de profundidad, RE2/J, tiempo máximo en tree-sitter.
+- **Parsers**: lector XML propio sin DTD, YAML con límites de alias, JSON con límite de profundidad, RE2/J, tiempo máximo en tree-sitter.
 - **Interfaz**: Compose muestra el contenido del proyecto solo como texto; los caracteres de control y de dirección bidireccional (p. ej. U+202E) de los nombres se muestran escapados; no se usa WebView para contenido del proyecto.
 - **Informes**: HTML generado con escape automático, sin JavaScript y con su propia CSP. Los informes exportados quedan fuera de la protección de la app (contienen secretos enmascarados, nunca completos); la app lo advierte al exportar.
 - **Cadena de suministro propia**: verificación de checksums de dependencias de Gradle, catálogo de versiones, Dependabot y, desde la Fase 6, el motor se analiza a sí mismo en CI mediante `engine:cli`.
@@ -513,7 +525,8 @@ Controles adicionales:
 | Tamaño total descomprimido leído (bytes reales) | 1 GB |
 | Número de entradas | 100 000 |
 | Tamaño máximo por entrada leída en memoria | 8 MB (las mayores, hasta 100 MB, solo reciben inventario y búsqueda de secretos por flujo) |
-| Tamaño máximo para análisis sintáctico | 2 MB |
+| Tamaño máximo para análisis sintáctico (y para examinar el contenido en el inventario) | 2 MB |
+| Copia redactada del código por análisis | 64 M caracteres (desactivable) |
 | Ratio de compresión por entrada | 250:1 (en entradas de más de 1 MB) |
 | Ratio de compresión global | 100:1 |
 | Profundidad / longitud de ruta | 64 niveles / 1 024 caracteres |
@@ -593,7 +606,7 @@ añadidos/eliminados/modificados (por hash) y evolución de métricas.
 | **Instrumentadas** | Emulador en GitHub Actions y tu dispositivo | Proceso aislado (sin red, sin acceso a archivos), Keystore, bloqueo, extremo a extremo |
 | **Seguridad de la app** | JVM + instrumentadas | XSS en el informe HTML; XXE; bomba YAML; cadenas ReDoS; registros de resultados manipulados rechazados; terminación por tiempo |
 | **Aceptación** | Tu dispositivo | Al final de cada fase instalas el APK generado por CI y compruebas la funcionalidad |
-| **CI** | GitHub Actions | detekt, ktlint, Lint, pruebas JVM, pruebas en emulador, compilación del APK, verificación de dependencias |
+| **CI** | GitHub Actions | Lint, pruebas JVM, pruebas en emulador (Android 8.0, 15 y 16, comprobando que se ejecutan todas), compilación del APK, verificación de dependencias |
 
 ---
 
@@ -630,7 +643,8 @@ Lector-de-archivos/
 ├── data/                   Room + SQLCipher, repositorios, Keystore, validación de resultados
 ├── engine/
 │   ├── api/  core/  ingest/  inventory/  languages/  technologies/
-│   ├── relations/  security/  dependencies/  layout/  metrics/  report/
+│   ├── relations/  security/  audit/  dependencies/  vulndb/  layout/  architecture/
+│   ├── pipeline/  metrics/  report/
 │   └── cli/                solo pruebas y CI
 ├── native/
 │   ├── treesitter/         gramáticas + JNI
@@ -638,7 +652,8 @@ Lector-de-archivos/
 ├── testing/                corpus malicioso y proyectos de referencia
 ├── gradle/                 catálogo de versiones, verificación de dependencias
 ├── docs/                   ARQUITECTURA.md, adr/, fases/
-└── .github/workflows/      CI: análisis, pruebas, emulador, APK
+├── .github/workflows/      CI: análisis, pruebas, emulador, APK
+└── .github/scripts/        pruebas en emulador y comprobación de que se ejecutaron todas
 ```
 
 ---
@@ -657,15 +672,13 @@ Lector-de-archivos/
 | D6 | Comprimidos con contraseña | Detectar y permitir introducir la contraseña (solo en memoria) |
 | D7 | Acceso | **Exclusivo del propietario** (biometría + contraseña propia) |
 
-### 15.2 Pendiente de confirmar
+### 15.2 Confirmadas después
 
-| # | Decisión | Recomendación | Alternativa |
-|---|----------|---------------|-------------|
-| N1 | Dónde se ejecuta el análisis | **Todo en el teléfono** (esta v0.2): privado, sin servidor, funciona sin conexión | APK como cliente + servidor propio que analiza (mantendría Semgrep y Dependency-Check y más potencia, pero necesita un PC/servidor siempre accesible y el código viaja del teléfono al servidor) |
+| # | Decisión | Resultado |
+|---|----------|-----------|
+| N1 | Dónde se ejecuta el análisis | **Todo en el teléfono** (proceso aislado), confirmado por el propietario |
 
-### 15.3 Requisito del entorno de desarrollo
+### 15.3 Entorno de desarrollo
 
-Para compilar el APK hacen falta el Android SDK y el NDK, que se descargan de `dl.google.com`. La política de red
-de este entorno de desarrollo en la nube bloquea actualmente ese dominio. Hay que permitirlo en la configuración
-de red del entorno (ver la respuesta del asistente para los pasos). Mientras tanto se puede avanzar con los
-módulos del motor, que no dependen de Android.
+El acceso a `dl.google.com` (Android SDK y NDK) quedó habilitado. Las decisiones técnicas tomadas durante la
+implementación se registran en `docs/adr/`.
