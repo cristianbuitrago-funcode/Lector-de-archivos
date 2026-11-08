@@ -652,7 +652,8 @@ Lector-de-archivos/
 ├── testing/                corpus malicioso y proyectos de referencia
 ├── gradle/                 catálogo de versiones, verificación de dependencias
 ├── docs/                   ARQUITECTURA.md, adr/, fases/
-└── .github/workflows/      CI: análisis, pruebas, emulador, APK
+├── .github/workflows/      CI: análisis, pruebas, emulador, APK
+└── .github/scripts/        pruebas en emulador y comprobación de que se ejecutaron todas
 ```
 
 ---

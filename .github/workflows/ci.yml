@@ -90,8 +90,9 @@ jobs:
           target: google_apis
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
-          # Si fallan, se guarda el registro del emulador (incluye los fallos del proceso aislado).
-          script: ./gradlew connectedDebugAndroidTest --stacktrace || (adb logcat -d > emulator-logcat.txt; exit 1)
+          # Comprueba además que cada módulo ejecutó todas sus pruebas (el plugin puede dar por buena una tarea con 0);
+          # si algo falla, guarda el registro del emulador (incluye los fallos del proceso aislado).
+          script: bash .github/scripts/pruebas-instrumentadas.sh
 
       - name: Informes de pruebas instrumentadas
         if: always()
@@ -100,6 +101,7 @@ jobs:
           name: informes-emulador-api-${{ matrix.api-level }}
           path: |
             **/build/reports/androidTests/
+            **/build/outputs/androidTest-results/connected/
             **/build/outputs/connected_android_test_additional_output/
             emulator-logcat.txt
           retention-days: 14

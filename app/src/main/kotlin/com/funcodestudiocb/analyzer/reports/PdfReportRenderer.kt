@@ -326,17 +326,10 @@ object PdfReportRenderer {
         private fun table(t: Block.Table) {
             val cols = t.headers.size
             if (cols == 0) return
-            val weights = (0 until cols).map { i ->
-                val longest = (listOf(t.headers[i]) + t.rows.mapNotNull { it.getOrNull(i) }).maxOf { minOf(it.length, 60) }
-                maxOf(longest, 5).toFloat()
-            }
-            val total = weights.sum()
-            val widths = weights.map { maxOf(CONTENT_W * it / total, 34f) }
-            val scale = CONTENT_W / widths.sum()
-            val w = widths.map { it * scale }
+            val w = TableColumns.widths(t.headers, t.rows, CONTENT_W, headPaint::measureText, cellPaint::measureText)
 
             fun row(cells: List<String>, paint: TextPaint): Pair<List<StaticLayout>, Float> {
-                val ls = (0 until cols).map { i -> layout(cells.getOrElse(i) { "" }.take(MAX_CELL), paint, w[i] - 8f) }
+                val ls = (0 until cols).map { i -> layout(cells.getOrElse(i) { "" }.take(MAX_CELL), paint, w[i] - TableColumns.PADDING) }
                 return ls to (ls.maxOf { it.height } + 7f)
             }
 

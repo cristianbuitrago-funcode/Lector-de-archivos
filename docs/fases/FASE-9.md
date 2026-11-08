@@ -64,9 +64,9 @@ app, del motor y del esquema, reglas, fecha de las bases OSV y de fin de soporte
 | `engine:metrics` (nuevo) | 9 | **Índice** con todos los sub-índices calculados a mano (69,4 → 69, medio), reparto de pesos cuando algo no se evalúa (y el aviso si pesa menos del 50 %), dependencias sin base = no evaluado, niveles y porcentajes en español. **Código repetido**: un bloque copiado en otro archivo marca las dos copias; comentarios, líneas triviales e importaciones no cuentan; dentro del mismo archivo solo si no se solapa. **Etapa completa** con el pipeline real: complejidad 6 de una función, deuda (la documentación que menciona las marcas, o las pone entre comillas, no cuenta), bloque repetido con sus dos ubicaciones, ESLint + GitHub Actions + Prettier, README, ciclo entre dos archivos; sin relaciones, la estructura no se evalúa. |
 | `engine:report` (nuevo) | 4 | Con análisis reales: las **15 secciones y 2 anexos** en orden y cada frase citando una sección existente; **HTML** sin ninguna etiqueta `script` (ni siquiera la que trae el proyecto en un comentario, que aparece escapada), sin atributos `style` ni recursos externos, CSP con la huella exacta de su hoja de estilos y sin enlaces rotos; **JSON** con su esquema, la huella del comprimido, 17 secciones y los registros por tipo; **la contraseña del proyecto no aparece completa** en ninguno; **comparación** entre dos versiones (hallazgo resuelto, archivos añadidos, eliminados y modificados por su huella, dependencia añadida y actualizada, tendencia de las cifras). |
 | `engine:api` | 37 | Las 35 anteriores y 2 de los registros nuevos: van y vuelven sin cambios y se rechazan si son incoherentes o superan sus límites. |
-| `app` (Robolectric) | 41 | Las 39 anteriores y 2 de **Informes**: historial con el índice y el resumen, informe completo en pantalla (de §1 al Anexo B), HTML y JSON generados en el teléfono, guardar en un destino, **compartir** con el `FileProvider` (una sola copia temporal, permiso de lectura y borrado) y **un análisis completo se presenta como completo**; **comparación** entre dos análisis del mismo proyecto. |
+| `app` (Robolectric) | 44 | Las 39 anteriores, 3 del **reparto de columnas del PDF** (ninguna palabra corta se parte, el espacio sobrante va a quien lo necesita, una ruta muy larga no se queda la tabla) y 2 de **Informes**: historial con el índice y el resumen, informe completo en pantalla (de §1 al Anexo B), HTML y JSON generados en el teléfono, guardar en un destino, **compartir** con el `FileProvider` (una sola copia temporal, permiso de lectura y borrado) y **un análisis completo se presenta como completo**; **comparación** entre dos análisis del mismo proyecto. |
 | Resto | 156 | `engine:layout` 8, `engine:architecture` 4, `engine:audit` 10, `engine:core` 10, `engine:dependencies` 15, `engine:ingest` 36, `engine:inventory` 14, `engine:pipeline` 6, `engine:relations` 11, `engine:security` 10, `engine:technologies` 5, `engine:vulndb` 8, `data` 18, `analyzer-service` 1. |
-| **Total** | **283** | **0 fallos** |
+| **Total** | **286** | **0 fallos** |
 
 Además: **Android Lint sin ningún hallazgo**, APK de publicación con R8 correcto y dependencias verificadas en modo
 estricto (la Fase 9 no añade ninguna dependencia externa; solo cambian las versiones de AGP y Gradle).
@@ -94,7 +94,13 @@ sintáctico, el índice calculado, los registros válidos) y los tres informes g
 abre con `PdfRenderer` de Android (al menos 5 páginas, tamaño A4 y la banda azul marino de la portada) y el HTML y el
 JSON no contienen el secreto del proyecto. La CI adjunta el PDF y el HTML generados en cada emulador.
 
-- **Ejecución n.º 41**: _pendiente de completar_.
+Desde esta fase la CI **comprueba que cada módulo ejecutó todas sus pruebas**: cuenta los `@Test` de cada módulo y
+los compara con los resultados del emulador (ver el incidente 11).
+
+- **Ejecución n.º 41**: todos los trabajos en verde. Android 15 y 16: 15 de 15 (app 6, data 6, proceso aislado 3).
+  Android 8.0: app 6 y data 6, pero **el proceso aislado, 0 pruebas** sin que el trabajo fallara (incidente 11). El
+  PDF del emulador (10 páginas A4) se revisó página a página: una columna estrecha partía «Probable» (incidente 12).
+- **Ejecución n.º 42**: _pendiente de completar_.
 
 ## Capturas
 
@@ -129,6 +135,18 @@ muestra en PDF (del emulador), HTML y JSON.
    antes de que se redibujara. Ahora espera a que muestre la base instalada.
 9. **Lint** avisó de dos textos sin usar y de cuatro llamadas que tienen equivalente en core-ktx; corregido.
 10. **Concordancias** («Se señalan 1 problema», «1 añadidas», «1 archivos de pruebas»): corregidas.
+11. **En Android 8.0 no se ejecutaron las 3 pruebas de aislamiento y la CI salió en verde** (ejecución n.º 41; en las
+    Fases 7 y 8 sí se ejecutaban). El registro lo explica: con las pruebas de tres módulos instalándose a la vez en el
+    mismo emulador, el ejecutor del plugin de Android no pudo leer la versión del dispositivo por ADB («Failed to get
+    device API level», código 255), y el plugin (9.5.1) dio la tarea por buena con 0 pruebas. Dos cambios: las tareas
+    que usan el emulador se ejecutan **de una en una** (un servicio compartido de Gradle) y la CI usa
+    `.github/scripts/pruebas-instrumentadas.sh`, que **cuenta los `@Test` de cada módulo y los compara con los
+    resultados**: si falta alguno, o alguno falla o se omite, la CI falla. Un módulo sin ningún resultado (el ejecutor
+    no llegó a arrancar) se repite una vez; **una prueba que falla no se repite nunca**.
+12. **El PDF partía palabras en columnas estrechas** («Probabl-e» en la columna Certeza), visto al revisar el PDF del
+    emulador. El ancho de las columnas se repartía por número de caracteres; ahora se mide el texto: cada columna tiene
+    al menos el ancho de su palabra más larga (una ruta muy larga sí se parte, como mucho ocupa el 40 %) y el resto se
+    reparte según lo que necesita cada una. Tres pruebas nuevas.
 
 ## Limitaciones conocidas (honestidad del resultado)
 

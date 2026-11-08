@@ -68,7 +68,8 @@ dice.
 
 7. **PDF nativo con `PdfDocument`**: texto y diagramas vectoriales dibujados con el lienzo de Android, en A4, con
    portada de Funcode, índice con la página de cada sección, «Página X de Y» y cabeceras de tabla repetidas al cambiar
-   de página. Se compone en **dos pasadas** (la primera solo mide). Como la JVM de pruebas no tiene `PdfDocument`, el
+   de página. Las columnas se reparten midiendo el texto: cada una tiene al menos el ancho de su palabra más larga
+   (una ruta muy larga sí se parte) y el resto del ancho va a las que más lo necesitan. Se compone en **dos pasadas** (la primera solo mide). Como la JVM de pruebas no tiene `PdfDocument`, el
    PDF se comprueba en el emulador con `PdfRenderer` (páginas, tamaño, portada) y la CI adjunta el PDF generado.
 
 8. **Exportar sin permisos y compartir solo por acción explícita.** Guardar usa el selector de documentos de Android

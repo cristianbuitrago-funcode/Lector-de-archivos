@@ -73,6 +73,10 @@ y acceso a `registry.npmjs.org` la primera vez (fuentes de tree-sitter). Indica 
 ./gradlew connectedDebugAndroidTest # pruebas en dispositivo o emulador (aislamiento, cifrado, análisis reales)
 ```
 
+En la CI las pruebas en emulador se lanzan con `.github/scripts/pruebas-instrumentadas.sh`, que además comprueba que
+cada módulo ejecutó **todos** sus `@Test` (el plugin de Android puede dar por buena una tarea con 0 pruebas si el
+ejecutor no llega a arrancar).
+
 Para probar el motor en el PC (sin aislamiento: úsalo solo con archivos de confianza):
 
 ```bash
