@@ -186,7 +186,7 @@ fun VulnDbSection(viewModel: VulnDbSettingsViewModel) {
         SettingRow(
             title = stringResource(R.string.vulndb_eol_option),
             subtitle = stringResource(R.string.vulndb_eol_option_desc),
-            trailing = { Switch(checked = s.preferences.endOfLife, onCheckedChange = viewModel::setEndOfLife, enabled = !s.running, modifier = Modifier.testTag("vulndb_eol")) },
+            trailing = { Switch(checked = s.preferences.endOfLife, onCheckedChange = viewModel::setEndOfLife, enabled = !s.running, modifier = Modifier.testTag("vulndb_eol").labelled(stringResource(R.string.vulndb_eol_option))) },
         )
         Text(stringResource(R.string.vulndb_approx, s.approxDownloadMb), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 

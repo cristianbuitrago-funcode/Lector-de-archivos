@@ -102,21 +102,27 @@ fun DashboardScreen(container: AppContainer, actions: DashboardActions) {
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         when {
-            dashboard == null -> item { Text(stringResource(R.string.dash_loading), color = FuncodeColors.TextSecondary) }
+            dashboard == null -> item {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 24.dp)) {
+                    androidx.compose.material3.CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                    Spacer(Modifier.width(12.dp))
+                    Text(stringResource(R.string.dash_loading), color = FuncodeColors.TextSecondary)
+                }
+            }
             dashboard.empty -> item { Welcome(actions) }
             else -> {
                 item { Totals(dashboard, zone) }
                 item { SeverityPanel(dashboard, actions) }
                 item { VulnerabilityPanel(dashboard, actions) }
                 item { SectionTitle(stringResource(R.string.dash_projects), "dash_projects") }
-                items(dashboard.projects.take(MAX_PROJECTS), key = { it.key }) { ProjectRow(it, zone, actions) }
+                items(dashboard.projects.take(MAX_PROJECTS), key = { it.key }) { ProjectRow(it, zone, actions, Modifier.animateItem()) }
                 if (dashboard.projects.size > MAX_PROJECTS) {
                     item { Note(pluralStringResource(R.plurals.dash_more_projects, dashboard.projects.size - MAX_PROJECTS, dashboard.projects.size - MAX_PROJECTS)) }
                 }
                 if (dashboard.trends.isNotEmpty()) item { TrendPanel(dashboard.trends, zone) }
                 item { UsagePanel(dashboard) }
                 item { SectionTitle(stringResource(R.string.dash_recent), "dash_recent") }
-                items(dashboard.recent, key = { "r-" + it.id }) { RecentRow(it, zone, actions) }
+                items(dashboard.recent, key = { "r-" + it.id }) { RecentRow(it, zone, actions, Modifier.animateItem()) }
             }
         }
         item { InstallationPanel(container, diagnostics, zone, actions) }
@@ -150,7 +156,7 @@ private fun Welcome(actions: DashboardActions) {
         Text(stringResource(R.string.dash_welcome_text), color = FuncodeColors.TextSecondary)
         listOf(R.string.dash_welcome_step1, R.string.dash_welcome_step2, R.string.dash_welcome_step3).forEachIndexed { i, step ->
             Row(verticalAlignment = Alignment.Top) {
-                Text("${i + 1}.", color = FuncodeColors.Gold, fontWeight = FontWeight.Bold, modifier = Modifier.width(22.dp))
+                Text("${i + 1}.", color = FuncodeColors.Gold, fontWeight = FontWeight.Bold, softWrap = false, modifier = Modifier.widthIn(min = 22.dp).padding(end = 6.dp))
                 Text(stringResource(step))
             }
         }
@@ -285,12 +291,12 @@ private fun VulnerabilityPanel(d: Dashboard, actions: DashboardActions) {
 }
 
 @Composable
-private fun ProjectRow(p: ProjectOverview, zone: ZoneId, actions: DashboardActions) {
+private fun ProjectRow(p: ProjectOverview, zone: ZoneId, actions: DashboardActions, modifier: Modifier = Modifier) {
     val latest = p.latest
     val index = latest.maintenance
     val open = if (latest.usable) actions.onOpenReport else actions.onOpenAnalysis
     Row(
-        Modifier
+        modifier
             .fillMaxWidth()
             .heightIn(min = 56.dp)
             .background(MaterialTheme.colorScheme.surfaceContainer, RoundedCornerShape(12.dp))
@@ -466,9 +472,9 @@ private fun TechnologyChip(t: Usage) {
 }
 
 @Composable
-private fun RecentRow(a: AnalysisDigest, zone: ZoneId, actions: DashboardActions) {
+private fun RecentRow(a: AnalysisDigest, zone: ZoneId, actions: DashboardActions, modifier: Modifier = Modifier) {
     Row(
-        Modifier
+        modifier
             .fillMaxWidth()
             .heightIn(min = 52.dp)
             .background(MaterialTheme.colorScheme.surfaceContainer, RoundedCornerShape(12.dp))

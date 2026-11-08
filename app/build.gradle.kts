@@ -1,4 +1,7 @@
+import java.io.File
 import java.util.Properties
+import java.util.zip.ZipEntry
+import java.util.zip.ZipOutputStream
 
 plugins {
     alias(libs.plugins.android.application)
@@ -28,8 +31,8 @@ android {
         applicationId = "com.funcodestudiocb.analyzer"
         minSdk = libs.versions.minSdk.get().toInt()
         targetSdk = libs.versions.targetSdk.get().toInt()
-        versionCode = 9
-        versionName = "0.9.0"
+        versionCode = 10
+        versionName = "1.0.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -155,4 +158,48 @@ dependencies {
     androidTestImplementation(platform(libs.compose.bom))
     androidTestImplementation(libs.compose.ui.test.junit4)
     androidTestImplementation(kotlin("test"))
+}
+
+// Proyecto «desconocido» para la prueba de extremo a extremo (Fase 10): código real que no se escribió para las
+// pruebas (UnRAR, de terceros, en C++) y un módulo del propio repositorio (Kotlin con Gradle). Se comprime al
+// compilar las pruebas instrumentadas y viaja como recurso de la APK de pruebas.
+abstract class ProyectoDesconocido : DefaultTask() {
+    @get:InputDirectory
+    @get:PathSensitive(PathSensitivity.RELATIVE)
+    abstract val unrar: DirectoryProperty
+
+    @get:InputDirectory
+    @get:PathSensitive(PathSensitivity.RELATIVE)
+    abstract val informes: DirectoryProperty
+
+    @get:OutputDirectory
+    abstract val outputDir: DirectoryProperty
+
+    @TaskAction
+    fun write() {
+        val target = outputDir.get().file("proyecto-desconocido.zip").asFile
+        target.parentFile.mkdirs()
+        ZipOutputStream(target.outputStream().buffered()).use { out ->
+            fun add(root: File, prefix: String) {
+                root.walkTopDown().filter { it.isFile && "/build/" !in it.invariantSeparatorsPath }.sortedBy { it.path }.forEach { f ->
+                    out.putNextEntry(ZipEntry("proyecto-desconocido/$prefix/" + f.relativeTo(root).invariantSeparatorsPath).apply { time = 0 })
+                    f.inputStream().use { it.copyTo(out) }
+                    out.closeEntry()
+                }
+            }
+            add(unrar.get().asFile, "unrar")
+            add(informes.get().asFile, "informes")
+        }
+    }
+}
+
+val proyectoDesconocido = tasks.register<ProyectoDesconocido>("proyectoDesconocido") {
+    unrar.set(rootProject.layout.projectDirectory.dir("native/unrar/src/main/cpp/unrar"))
+    informes.set(rootProject.layout.projectDirectory.dir("engine/report/src"))
+}
+
+androidComponents {
+    onVariants { variant ->
+        variant.deviceTests.values.forEach { it.sources.assets?.addGeneratedSourceDirectory(proyectoDesconocido, ProyectoDesconocido::outputDir) }
+    }
 }

@@ -6,11 +6,14 @@ import android.util.Log
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.funcodestudiocb.analyzer.analysis.AnalysisState
+import com.funcodestudiocb.analyzer.data.session.SessionState
+import com.funcodestudiocb.analyzer.data.vault.UnlockResult
 import com.funcodestudiocb.analyzer.engine.api.ExclusionOptions
 import com.funcodestudiocb.analyzer.engine.api.FileStatus
 import com.funcodestudiocb.analyzer.engine.api.StageStatus
 import com.funcodestudiocb.analyzer.engine.report.AnalysisOutcome
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
 import org.junit.After
@@ -66,8 +69,7 @@ class LargeProjectInstrumentedTest {
             withTimeoutOrNull(LIMIT_MS) { coordinator.state.first { it is AnalysisState.Finished || it is AnalysisState.Failed } }
         } as? AnalysisState.Finished ?: fail("El análisis no terminó a tiempo: ${coordinator.state.value}")
         val analyzed = (System.nanoTime() - started) / 1_000_000
-        runBlocking { withTimeoutOrNull(LIMIT_MS) { coordinator.state.first { (it as? AnalysisState.Finished)?.saved == true } } }
-            ?: fail("No se guardó en el historial: ${coordinator.state.value}")
+        val relocks = awaitSaved()
         val saved = (System.nanoTime() - started) / 1_000_000
 
         val report = finished.report
@@ -80,6 +82,7 @@ class LargeProjectInstrumentedTest {
             Análisis (desde la importación): $analyzed ms
             Guardado en el historial cifrado: ${saved - analyzed} ms
             Total: $saved ms
+            Bloqueos automáticos de la app durante la prueba (en segundo plano): $relocks
             Resultado: ${finished.outcome}; archivos analizados: ${report.files.count { it.status == FileStatus.ANALYZED }}; funciones medidas: ${report.metrics?.functions}
             Etapas en el proceso aislado:
         """.trimIndent() + "\n" + stages
@@ -96,6 +99,30 @@ class LargeProjectInstrumentedTest {
         val digest = runBlocking { container.repository.digests().first() }.single()
         assertTrue(digest.maintenance?.score != null && digest.security != null, "Resumen del Panel incompleto")
         assertTrue(runBlocking { container.reports.document(finished.analysisId) }!!.sections.size >= 15)
+    }
+
+    /**
+     * Espera a que el resultado se guarde. Sin pantalla, la app está en segundo plano y se bloquea sola (por defecto,
+     * al minuto), como en un teléfono: el resultado espera en memoria a que se desbloquee, porque bloqueada no puede
+     * escribir en la base de datos cifrada. Aquí se desbloquea como lo haría el usuario al volver. Devuelve cuántas veces.
+     */
+    private fun awaitSaved(): Int {
+        var relocks = 0
+        val done = runBlocking {
+            withTimeoutOrNull(LIMIT_MS) {
+                while ((coordinator.state.value as? AnalysisState.Finished)?.saved != true) {
+                    if (container.session.state.value == SessionState.Locked) {
+                        relocks++
+                        val key = (container.vault.unlockWithPassword("Funcode-2026".toCharArray()) as UnlockResult.Success).databaseKey
+                        container.session.unlock(key)
+                    }
+                    delay(200)
+                }
+                true
+            }
+        }
+        if (done != true) fail("No se guardó en el historial: ${coordinator.state.value}")
+        return relocks
     }
 
     private companion object {

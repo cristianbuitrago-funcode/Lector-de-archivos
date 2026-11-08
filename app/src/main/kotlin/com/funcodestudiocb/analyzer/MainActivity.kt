@@ -21,6 +21,8 @@ class MainActivity : FragmentActivity() {
         super.onCreate(savedInstanceState)
         // Sin capturas de pantalla ni miniaturas en "recientes": el contenido es confidencial.
         window.setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE)
+        // Contra el «tapjacking»: si otra app dibuja encima, los toques no llegan (Android 12+ ya lo hace por defecto).
+        window.decorView.filterTouchesWhenObscured = true
         enableEdgeToEdge()
         setContent {
             FuncodeTheme { FuncodeRoot(app.container) }
@@ -44,12 +46,26 @@ class MainActivity : FragmentActivity() {
             Intent.ACTION_SEND -> IntentCompat.getParcelableExtra(intent, Intent.EXTRA_STREAM, Uri::class.java)
             else -> null
         } ?: return
-        if (uri.scheme != ContentResolver.SCHEME_CONTENT) return
+        if (!IncomingArchive.acceptable(uri, packageName)) return
         app.container.coordinator.select(uri, fromOtherApp = true)
     }
 
     override fun onUserInteraction() {
         super.onUserInteraction()
         app.autoLock.onUserInteraction()
+    }
+}
+
+/** Qué comprimidos de otras apps se aceptan. */
+internal object IncomingArchive {
+    /**
+     * Solo `content://` (nunca `file://`, que permitiría pedir a la app que lea sus propios archivos) y nunca de un
+     * proveedor de esta misma app: otra app podría apuntar a uno para que Funcode importe datos internos.
+     */
+    fun acceptable(uri: Uri, ownPackage: String): Boolean {
+        if (uri.scheme != ContentResolver.SCHEME_CONTENT) return false
+        val authority = uri.authority?.lowercase().orEmpty()
+        val own = ownPackage.lowercase()
+        return authority.isNotEmpty() && authority != own && !authority.startsWith("$own.")
     }
 }

@@ -357,6 +357,9 @@
     <string name="notif_running_public">Análisis en curso</string>
     <string name="notif_running_title">Analizando %1$s</string>
     <string name="notif_preparing">Preparando…</string>
+    <string name="notif_pending_public">Análisis terminado</string>
+    <string name="notif_pending_title">Análisis de %1$s terminado</string>
+    <string name="notif_pending_text">Desbloquea Funcode para guardarlo en el historial cifrado.</string>
 
     <!-- Fase 3: explorador e inventario -->
     <string name="explorer_loading">Cargando el análisis…</string>

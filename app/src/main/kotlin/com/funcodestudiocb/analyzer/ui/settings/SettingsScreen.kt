@@ -1,8 +1,8 @@
 package com.funcodestudiocb.analyzer.ui.settings
 
+import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
-import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -35,6 +35,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.fragment.app.FragmentActivity
@@ -104,6 +106,7 @@ fun SettingsScreen(viewModel: SettingsViewModel, vulnDb: VulnDbSettingsViewModel
                             checked = state.biometricEnabled,
                             onCheckedChange = viewModel::onBiometricToggle,
                             enabled = state.biometricAvailable || state.biometricEnabled,
+                            modifier = Modifier.labelled(stringResource(R.string.settings_biometric)),
                         )
                     },
                 )
@@ -136,7 +139,11 @@ fun SettingsScreen(viewModel: SettingsViewModel, vulnDb: VulnDbSettingsViewModel
                     title = stringResource(R.string.settings_wipe_after_failures),
                     subtitle = stringResource(R.string.settings_wipe_after_failures_desc),
                     trailing = {
-                        Switch(checked = state.settings.wipeAfterFailedAttempts, onCheckedChange = viewModel::setWipeAfterFailures)
+                        Switch(
+                            checked = state.settings.wipeAfterFailedAttempts,
+                            onCheckedChange = viewModel::setWipeAfterFailures,
+                            modifier = Modifier.labelled(stringResource(R.string.settings_wipe_after_failures)),
+                        )
                     },
                 )
                 SettingRow(title = stringResource(R.string.settings_lock_now), onClick = viewModel::lockNow)
@@ -151,7 +158,7 @@ fun SettingsScreen(viewModel: SettingsViewModel, vulnDb: VulnDbSettingsViewModel
                         Switch(
                             checked = state.keepCodeCopy,
                             onCheckedChange = viewModel::setKeepCodeCopy,
-                            modifier = Modifier.testTag("settings_keep_copy"),
+                            modifier = Modifier.testTag("settings_keep_copy").labelled(stringResource(R.string.settings_keep_copy)),
                         )
                     },
                 )
@@ -339,3 +346,6 @@ private fun ChangePasswordDialog(dialog: SettingsDialog.ChangePassword, viewMode
         },
     )
 }
+
+/** Nombre para los lectores de pantalla de un control cuyo texto está al lado (un interruptor en una fila). */
+internal fun Modifier.labelled(label: String): Modifier = semantics { contentDescription = label }

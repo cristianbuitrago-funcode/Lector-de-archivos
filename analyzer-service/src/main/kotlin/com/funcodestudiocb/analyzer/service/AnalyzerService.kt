@@ -254,7 +254,7 @@ class AnalyzerService : Service() {
 
     companion object {
         const val PROTOCOL_VERSION = 4
-        const val ENGINE_VERSION = "0.3.0"
+        const val ENGINE_VERSION = "1.0.0"
         private const val MAX_CONFIG_BYTES = 64 * 1024
     }
 }

@@ -49,9 +49,13 @@ class AnalysisForegroundService : Service() {
             val coordinator = (application as FuncodeApp).container.coordinator
             watcher = scope.launch {
                 coordinator.state.collect { state ->
-                    when (state) {
-                        is AnalysisState.Running -> notify(build(state))
-                        AnalysisState.Importing -> Unit
+                    when {
+                        state is AnalysisState.Running -> notify(build(state))
+                        state == AnalysisState.Importing -> Unit
+                        // Terminó con la app bloqueada: el resultado espera en memoria a que se desbloquee (no se puede
+                        // escribir en la base cifrada sin la sesión). El servicio sigue para que Android no cierre la
+                        // app y se pierda el análisis.
+                        state is AnalysisState.Finished && !state.saved -> notify(buildPending(state))
                         else -> stopIfIdle()
                     }
                 }
@@ -70,6 +74,13 @@ class AnalysisForegroundService : Service() {
             ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
             watcher?.cancel()
         }
+    }
+
+    /** Android 15 limita el tiempo de este tipo de servicio: al agotarse se detiene (el resultado sigue en memoria). */
+    override fun onTimeout(startId: Int, fgsType: Int) {
+        ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
+        watcher?.cancel()
+        stopSelf()
     }
 
     private fun notify(notification: Notification) {
@@ -98,6 +109,29 @@ class AnalysisForegroundService : Service() {
             .setSilent(true)
             .setContentIntent(open)
             .setCategory(NotificationCompat.CATEGORY_PROGRESS)
+            .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
+            .setPublicVersion(publicVersion)
+            .build()
+    }
+
+    private fun buildPending(state: AnalysisState.Finished): Notification {
+        val open = PendingIntent.getActivity(
+            this, 0,
+            Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
+        val publicVersion = NotificationCompat.Builder(this, CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_stat_analysis)
+            .setContentTitle(getString(R.string.notif_pending_public))
+            .build()
+        return NotificationCompat.Builder(this, CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_stat_analysis)
+            .setContentTitle(getString(R.string.notif_pending_title, state.archiveName))
+            .setContentText(getString(R.string.notif_pending_text))
+            .setOngoing(true)
+            .setOnlyAlertOnce(true)
+            .setSilent(true)
+            .setContentIntent(open)
             .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
             .setPublicVersion(publicVersion)
             .build()

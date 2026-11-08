@@ -130,6 +130,7 @@ class ArchitectureScreenTest {
         compose.onNodeWithText("userService.js").performScrollTo().assertIsDisplayed()
 
         // Flujos: la cadena completa hasta la tabla.
+        compose.onNodeWithTag("arch_tabs").performScrollToNode(hasTestTag("arch_tab_FLOWS"))
         compose.onNodeWithTag("arch_tab_FLOWS").performClick()
         awaitCondition("flujos") { compose.onAllNodesWithTag("arch_flows").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithTag("arch_flows").performScrollToNode(hasText("GET /api/users"))
@@ -142,8 +143,10 @@ class ArchitectureScreenTest {
         compose.waitForIdle()
 
         // Módulos y proyectos se dibujan.
+        compose.onNodeWithTag("arch_tabs").performScrollToNode(hasTestTag("arch_tab_MODULES"))
         compose.onNodeWithTag("arch_tab_MODULES").performClick()
         awaitCondition("módulos") { compose.onAllNodesWithTag("diagram_canvas").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithTag("arch_tabs").performScrollToNode(hasTestTag("arch_tab_PROJECTS"))
         compose.onNodeWithTag("arch_tab_PROJECTS").performClick()
         compose.waitForIdle()
         compose.onNodeWithTag("arch_node_chips").performScrollToNode(hasTestTag("arch_node_prj:tienda/client"))
@@ -152,6 +155,7 @@ class ArchitectureScreenTest {
         compose.onNode(hasTestTag("arch_node_title") and hasText("tienda/client")).assertExists()
 
         // Archivos: foco en el controlador, con sus vecinos a dos saltos.
+        compose.onNodeWithTag("arch_tabs").performScrollToNode(hasTestTag("arch_tab_FILES"))
         compose.onNodeWithTag("arch_tab_FILES").performClick()
         awaitCondition("selector") { compose.onAllNodesWithTag("arch_file_picker").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithTag("arch_file_search").performTextInput("controllers")

@@ -96,7 +96,7 @@ private fun Centered(content: @Composable () -> Unit) {
 private fun Header(s: ArchitectureUiState.Loaded, analyses: List<AnalysisEntity>, viewModel: ArchitectureViewModel) {
     Column(Modifier.padding(horizontal = 12.dp, vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         AnalysisPicker(s.analysis, analyses, viewModel::pick)
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.testTag("arch_tabs")) {
             items(ArchTab.entries) { tab ->
                 FilterChip(
                     selected = s.tab == tab,

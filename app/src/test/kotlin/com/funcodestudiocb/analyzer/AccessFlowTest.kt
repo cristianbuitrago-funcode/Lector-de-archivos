@@ -9,6 +9,7 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTextInput
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -75,10 +76,14 @@ class AccessFlowTest {
     }
 
     @Test
-    fun crearAccesoEntraEnLaAppConLasPantallasMarcadasPorFase() {
+    fun crearAccesoEntraEnLaAppYCadaPantallaDiceQueNoHayAnalisis() {
         createAccess()
         compose.onNodeWithTag("screen_title").assertIsDisplayed()
         compose.onNode(hasTestTag("screen_title") and hasText("Panel")).assertIsDisplayed()
+        // Panel (Fase 10): sin análisis da la bienvenida y, debajo, el estado de la instalación.
+        awaitCondition { compose.onAllNodesWithTagExists("dash_welcome") }
+        compose.onNodeWithTag("dash_welcome").assertIsDisplayed()
+        compose.onNodeWithTag("dashboard").performScrollToNode(hasTestTag("dash_installation"))
         compose.onNodeWithText("Estado de la instalación").assertIsDisplayed()
 
         compose.onNodeWithTag("open_menu").performClick()
