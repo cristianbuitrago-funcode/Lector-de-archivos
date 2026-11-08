@@ -11,6 +11,8 @@ import com.funcodestudiocb.analyzer.engine.dependencies.DependencyCollector
 import com.funcodestudiocb.analyzer.engine.dependencies.DependencyStage
 import com.funcodestudiocb.analyzer.engine.inventory.ContentCollector
 import com.funcodestudiocb.analyzer.engine.inventory.InventoryPipeline
+import com.funcodestudiocb.analyzer.engine.metrics.MetricsCollector
+import com.funcodestudiocb.analyzer.engine.metrics.MetricsStage
 import com.funcodestudiocb.analyzer.engine.relations.RelationCollector
 import com.funcodestudiocb.analyzer.engine.relations.RelationStage
 import com.funcodestudiocb.analyzer.engine.technologies.TechnologyCatalog
@@ -19,8 +21,9 @@ import com.funcodestudiocb.analyzer.engine.technologies.TechnologyStage
 
 /**
  * Pipeline completo del análisis hasta la fase actual: ingesta, inventario, lenguajes, dependencias declaradas,
- * tecnologías, relaciones entre archivos, dependencias con sus vulnerabilidades, auditoría de seguridad y arquitectura
- * (capas, diagramas y flujos de información). Todo el contenido se examina en un único recorrido del comprimido.
+ * tecnologías, relaciones entre archivos, dependencias con sus vulnerabilidades, auditoría de seguridad, arquitectura
+ * (capas, diagramas y flujos de información) y métricas con el índice de mantenimiento. Todo el contenido se examina en
+ * un único recorrido del comprimido.
  */
 object FullPipeline {
     fun stages(): List<Stage> {
@@ -31,7 +34,8 @@ object FullPipeline {
         val audit = AuditCollector()
         val runtimes = RuntimeCollector()
         val architecture = ArchitectureCollector()
-        val collector = ContentCollector(listOfNotNull(dependencies, technologies, relations, audit, runtimes, architecture))
+        val metrics = MetricsCollector()
+        val collector = ContentCollector(listOfNotNull(dependencies, technologies, relations, audit, runtimes, architecture, metrics))
         return InventoryPipeline.registry(collector)
             .register(DependencyStage(dependencies))
             .register(TechnologyStage(technologies))
@@ -39,6 +43,7 @@ object FullPipeline {
             .register(DependencyAuditStage(runtimes))
             .register(SecurityStage(audit))
             .register(ArchitectureStage(architecture))
+            .register(MetricsStage(metrics))
             .plan()
     }
 }

@@ -59,6 +59,9 @@ object AuditKeys {
 
     /** Dependencias resueltas con sus vulnerabilidades (para el diagrama de proyectos de la Fase 8). */
     val RESOLVED = AttributeKey<List<ResolvedDependency>>("audit.resolved")
+
+    /** Resumen de dependencias, vulnerabilidades y fin de soporte (lo usa el índice de mantenimiento, Fase 9). */
+    val SUMMARY = AttributeKey<DependencySummary>("audit.summary")
 }
 
 /**
@@ -205,6 +208,7 @@ class DependencyAuditStage(private val runtimes: RuntimeCollector) : Stage {
             notEvaluated = notes.map { it.take(RecordValidator.MAX_EVIDENCE_DETAIL) }.take(RecordValidator.MAX_DYNAMIC_CHECKS),
         )
         context.emit(summary)
+        attrs[AuditKeys.SUMMARY] = summary
         attrs[AuditKeys.DEPENDENCY_NOTES] = notes
     }
 

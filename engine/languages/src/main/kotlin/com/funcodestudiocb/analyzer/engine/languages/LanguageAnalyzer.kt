@@ -25,7 +25,14 @@ class LanguageAnalysis(
     val declarations: List<Declaration> = emptyList(),
     /** Paquete o espacios de nombres declarados (Java, Kotlin, C#, PHP, C++). */
     val namespaces: List<String> = emptyList(),
+    /** Complejidad de cada función, medida en el árbol sintáctico (Fase 9); vacío si no se pudo medir. */
+    val functions: List<FunctionMeasure> = emptyList(),
+    /** Puntos de decisión fuera de cualquier función (código de nivel superior). */
+    val topLevelDecisions: Int = 0,
 ) {
+    /** La complejidad se midió en el árbol sintáctico (el lenguaje la admite y el análisis no fue léxico). */
+    val complexityMeasured: Boolean get() = method == CountMethod.SYNTAX && language.complexity != null
+
     /** La posición (en caracteres) está dentro de un comentario. */
     fun inComment(offset: Int): Boolean {
         var lo = 0
@@ -92,6 +99,7 @@ object LanguageAnalyzer {
                 return LanguageAnalysis(
                     language, CountMethod.SYNTAX, counts[0], counts[1], counts[2], result.syntaxErrors, null,
                     imports.take(MAX_IMPORTS), spans, comments, declarations, symbols.namespaces,
+                    symbols.functions, symbols.topLevelDecisions,
                 )
             }
             val problem = when (result.status) {

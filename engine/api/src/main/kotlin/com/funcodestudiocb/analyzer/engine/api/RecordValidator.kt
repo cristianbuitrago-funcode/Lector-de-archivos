@@ -59,6 +59,14 @@ object RecordValidator {
     const val MAX_DIAGRAM_SIZE = 100_000f
     const val MAX_FLOW_STEPS_ARCH = 10
     const val MAX_ARCH_NOTES = 20
+
+    // Fase 9: métricas e índice de mantenimiento.
+    const val MAX_METRIC_LIST = 30
+    const val MAX_DUPLICATE_OCCURRENCES = 10
+    const val MAX_QUALITY_TOOLS = 40
+    const val MAX_MAINTENANCE_PARTS = 12
+    const val MAX_METRICS_NOTES = 20
+    const val MAX_DEBT_TEXT = 200
     val RULE_ID_PATTERN = Regex("^FC-[A-Z0-9-]{2,30}$")
     val FINGERPRINT_PATTERN = Regex("^[0-9a-f]{32}$")
 
@@ -383,6 +391,83 @@ object RecordValidator {
                 record.invertedSamples.forEach { checkName(errors, "inverted", it, MAX_REFERENCE_LENGTH) }
                 record.pattern?.let { checkName(errors, "pattern", it) }
                 if (record.notes.size > MAX_ARCH_NOTES) errors += "Demasiadas notas"
+                record.notes.forEach { checkName(errors, "note", it, MAX_EVIDENCE_DETAIL) }
+            }
+            is FileMetrics -> {
+                checkPath(errors, record.path)
+                checkPattern(errors, "language", record.language, ID_PATTERN)
+                val values = listOf(
+                    record.codeLines, record.commentLines, record.functions, record.complexity, record.maxComplexity,
+                    record.longestFunction, record.duplicatedLines, record.debtMarkers,
+                )
+                if (values.any { it < 0 }) errors += "Totales negativos"
+                if (!record.measured && (record.functions > 0 || record.complexity > 0 || record.maxComplexity > 0)) errors += "Complejidad sin medir"
+                if (record.maxComplexity > record.complexity || (record.functions > 0 && record.maxComplexity < 1)) errors += "Complejidad incoherente"
+                if (record.duplicatedLines > record.codeLines) errors += "Duplicación incoherente"
+            }
+            is MetricsSummary -> {
+                val counts = listOf(
+                    record.codeFiles, record.testFiles, record.generatedFiles, record.measuredFiles, record.functions, record.functionsOver10,
+                    record.functionsOver20, record.longFunctions, record.largeFiles, record.filesInCycles, record.cycles, record.highCoupling,
+                )
+                val totals = listOf(record.codeLines, record.commentLines, record.testLines, record.duplicatedLines, record.duplicationBase)
+                if (counts.any { it < 0 } || totals.any { it < 0 } || record.debtByKind.values.any { it < 0 }) errors += "Totales negativos"
+                if (record.measuredFiles > record.codeFiles || record.testFiles > record.codeFiles || record.largeFiles > record.codeFiles ||
+                    record.filesInCycles > record.codeFiles || record.highCoupling > record.codeFiles
+                ) errors += "Totales de archivos incoherentes"
+                if (record.functionsOver20 > record.functionsOver10 || record.functionsOver10 > record.functions || record.longFunctions > record.functions) {
+                    errors += "Totales de funciones incoherentes"
+                }
+                if (record.testLines > record.codeLines || record.duplicatedLines > record.duplicationBase) errors += "Totales de líneas incoherentes"
+                val average = record.averageComplexity
+                if (average != null && (!average.isFinite() || average < 1.0)) errors += "Complejidad media inválida"
+                listOf(record.medianComplexity, record.p90Complexity, record.maxComplexity).forEach { if (it != null && it < 1) errors += "Complejidad inválida" }
+                if (record.functions == 0 && (average != null || record.maxComplexity != null)) errors += "Complejidad sin funciones"
+                if (listOf(record.complexFunctionList.size, record.longFunctionList.size, record.largeFileList.size, record.duplicates.size, record.debtSamples.size)
+                        .any { it > MAX_METRIC_LIST }
+                ) errors += "Listas demasiado largas"
+                (record.complexFunctionList + record.longFunctionList).forEach { f ->
+                    checkPath(errors, f.path)
+                    checkName(errors, "function", f.name)
+                    if (f.line < 1 || f.lines < 1 || f.complexity < 1) errors += "Función inválida"
+                }
+                record.largeFileList.forEach { checkPath(errors, it.path); if (it.lines < 1) errors += "Tamaño inválido" }
+                record.duplicates.forEach { d ->
+                    if (d.lines < 1 || d.occurrences.size < 2 || d.occurrences.size > MAX_DUPLICATE_OCCURRENCES || d.count < d.occurrences.size) {
+                        errors += "Bloque repetido inválido"
+                    }
+                    d.occurrences.forEach { checkName(errors, "occurrence", it, MAX_REFERENCE_LENGTH) }
+                }
+                record.debtSamples.forEach { m ->
+                    checkPath(errors, m.path)
+                    if (m.line < 1) errors += "Línea inválida"
+                    checkText(errors, "debt", m.text, MAX_DEBT_TEXT)
+                    if (m.text.any { it.isISOControl() }) errors += "Texto de deuda con caracteres de control"
+                }
+                if (record.qualityTools.size > MAX_QUALITY_TOOLS) errors += "Demasiadas herramientas"
+                record.qualityTools.forEach { checkName(errors, "tool", it.name); checkPath(errors, it.path) }
+                record.readme?.let { checkPath(errors, it) }
+                checkSamples(errors, "highCoupling", record.highCouplingSamples, record.highCoupling)
+                if (record.notMeasured.size > MAX_METRICS_NOTES || record.notes.size > MAX_METRICS_NOTES) errors += "Demasiadas notas"
+                (record.notMeasured + record.notes).forEach { checkName(errors, "note", it, MAX_EVIDENCE_DETAIL) }
+            }
+            is MaintenanceIndex -> {
+                val score = record.score
+                if (score != null && score !in 0..100) errors += "Índice fuera de rango"
+                if ((score == null) != (record.level == null)) errors += "Nivel incoherente"
+                if (record.parts.isEmpty() || record.parts.size > MAX_MAINTENANCE_PARTS) errors += "Sub-índices inválidos"
+                if (record.parts.map { it.id }.toSet().size != record.parts.size) errors += "Sub-índices repetidos"
+                record.parts.forEach { p ->
+                    checkPattern(errors, "part", p.id, ID_PATTERN)
+                    checkName(errors, "partName", p.name)
+                    if (p.weight !in 0..100 || (p.score != null && p.score !in 0..100)) errors += "Sub-índice fuera de rango"
+                    checkName(errors, "measure", p.measure, MAX_EVIDENCE_DETAIL)
+                    checkName(errors, "explanation", p.explanation, MAX_EVIDENCE_DETAIL)
+                }
+                if (record.parts.sumOf { it.weight } != 100) errors += "Los pesos no suman 100"
+                if (score != null && record.parts.none { it.score != null }) errors += "Índice sin sub-índices evaluados"
+                checkName(errors, "formula", record.formula, MAX_DETAIL_LENGTH)
+                if (record.notes.size > MAX_METRICS_NOTES) errors += "Demasiadas notas"
                 record.notes.forEach { checkName(errors, "note", it, MAX_EVIDENCE_DETAIL) }
             }
             is ConfigKey -> {

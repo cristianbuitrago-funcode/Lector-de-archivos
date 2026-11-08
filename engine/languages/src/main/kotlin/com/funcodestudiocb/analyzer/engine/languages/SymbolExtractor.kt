@@ -20,6 +20,14 @@ data class ImportRef(
 /** Supertipo declarado en la cabecera de una clase. [implementation] si la sintaxis indica una interfaz. */
 data class Supertype(val name: String, val implementation: Boolean)
 
+/**
+ * Complejidad ciclomática de una función: 1 + los puntos de decisión que contiene (los de una función anidada cuentan
+ * para la anidada). [line] y [endLine] son la primera y la última línea de la función.
+ */
+data class FunctionMeasure(val name: String, val line: Int, val endLine: Int, val complexity: Int) {
+    val lines: Int get() = endLine - line + 1
+}
+
 /** Símbolo declarado en el nivel superior de un archivo, con su línea y sus supertipos. */
 data class Declaration(val name: String, val kind: SymbolKind, val line: Int, val supertypes: List<Supertype> = emptyList())
 
@@ -36,7 +44,19 @@ internal object SymbolExtractor {
     private const val MAX_SYMBOLS = 50
     private const val MAX_NAME = 200
 
-    class Result(val imports: List<ImportRef>, val declarations: List<Declaration>, val namespaces: List<String>)
+    const val MAX_FUNCTIONS = 5_000
+
+    /**
+     * [functions]: complejidad de cada función (vacío si el lenguaje no la mide); [topLevelDecisions], puntos de
+     * decisión fuera de cualquier función (código de nivel superior de un script).
+     */
+    class Result(
+        val imports: List<ImportRef>,
+        val declarations: List<Declaration>,
+        val namespaces: List<String>,
+        val functions: List<FunctionMeasure> = emptyList(),
+        val topLevelDecisions: Int = 0,
+    )
 
     private class Node(val type: Int, val start: Int, val end: Int, val nameStart: Int, val nameEnd: Int)
 
@@ -45,6 +65,15 @@ internal object SymbolExtractor {
         val declarationTypes = language.declarationTypes.entries.toList()
         val namespaceOffset = importCount + declarationTypes.size
         val conditionalOffset = namespaceOffset + language.namespaceTypes.size
+        val complexity = language.complexity
+        val functionOffset = conditionalOffset + language.conditionalTypes.size
+        val decisionOffset = functionOffset + (complexity?.functions?.size ?: 0)
+        val operatorOffset = decisionOffset + (complexity?.decisions?.size ?: 0)
+        val functionNodes = mutableListOf<Node>()
+        val decisionStarts = IntList()
+        // El puente nativo da cada nodo con el primer tipo pedido que coincide: una declaración que también es función
+        // (`function_declaration`) llega como declaración y se cuenta además como función.
+        val declarationAsFunction = IntArray(declarationTypes.size) { i -> complexity?.functions?.indexOf(declarationTypes[i].key) ?: -1 }
         val imports = mutableListOf<ImportRef>()
         val importStarts = mutableListOf<Int>()
         val declarationNodes = mutableListOf<Node>()
@@ -62,9 +91,16 @@ internal object SymbolExtractor {
                         importStarts += node.start
                     }
                 }
-                node.type < namespaceOffset -> declarationNodes += node
+                node.type < namespaceOffset -> {
+                    declarationNodes += node
+                    val f = declarationAsFunction[node.type - importCount]
+                    if (f >= 0) functionNodes += Node(functionOffset + f, node.start, node.end, node.nameStart, node.nameEnd)
+                }
                 node.type < conditionalOffset -> namespaceName(language, utf8, node)?.let { if (namespaces.size < 20 && it !in namespaces) namespaces += it }
-                else -> if (conditionals.size < 10_000) conditionals += node
+                node.type < functionOffset -> if (conditionals.size < 10_000) conditionals += node
+                node.type < decisionOffset -> functionNodes += node
+                node.type < operatorOffset -> if (!isDefaultBranch(utf8, node)) decisionStarts.add(node.start)
+                else -> decisionStarts.add(node.start)
             }
         }
         if (conditionals.isNotEmpty()) {
@@ -77,8 +113,91 @@ internal object SymbolExtractor {
             val type = declarationTypes[node.type - importCount]
             declaration(language, type.key, type.value, utf8, node, lineOf)
         }.take(MAX_DECLARATIONS)
-        return Result(imports.take(MAX_IMPORTS), declarations, namespaces)
+        if (complexity == null) return Result(imports.take(MAX_IMPORTS), declarations, namespaces)
+        val (functions, topLevel) = measure(language, utf8, functionNodes, decisionStarts.toArray(), lineOf) { complexity.functions[it.type - functionOffset] }
+        return Result(imports.take(MAX_IMPORTS), declarations, namespaces, functions, topLevel)
     }
+
+    // ------------------------------------------------------------------ complejidad
+
+    /** Rama por defecto (`default:`, `else ->`, `_ =>`): no abre un camino nuevo. */
+    private fun isDefaultBranch(utf8: ByteArray, node: Node): Boolean {
+        val head = text(utf8, node.start, node.end, 12).trimStart()
+        fun word(w: String) = head.startsWith(w) && (head.length == w.length || !(head[w.length].isLetterOrDigit() || head[w.length] == '_'))
+        return word("default") || word("else") || head == "_" || head.startsWith("_ ") || head.startsWith("_=")
+    }
+
+    /**
+     * Asigna cada punto de decisión a la función más interior que lo contiene (barrido por posición) y calcula la
+     * complejidad de cada función como 1 + sus decisiones.
+     */
+    private fun measure(
+        language: Language,
+        utf8: ByteArray,
+        functionNodes: List<Node>,
+        decisions: IntArray,
+        lineOf: (Int) -> Int,
+        typeOf: (Node) -> String,
+    ): Pair<List<FunctionMeasure>, Int> {
+        val functions = functionNodes.sortedWith(compareBy<Node>({ it.start }, { -it.end })).take(MAX_FUNCTIONS)
+        val counts = IntArray(functions.size)
+        decisions.sort()
+        val stack = ArrayList<Int>()
+        var next = 0
+        var topLevel = 0
+        for (offset in decisions) {
+            while (next < functions.size && functions[next].start <= offset) {
+                while (stack.isNotEmpty() && functions[stack.last()].end <= functions[next].start) stack.removeAt(stack.size - 1)
+                stack += next
+                next++
+            }
+            while (stack.isNotEmpty() && functions[stack.last()].end <= offset) stack.removeAt(stack.size - 1)
+            if (stack.isEmpty()) topLevel++ else counts[stack.last()]++
+        }
+        val out = functions.mapIndexed { i, node ->
+            val name = functionName(language, typeOf(node), utf8, node) ?: ANONYMOUS
+            FunctionMeasure(name.take(MAX_NAME), lineOf(node.start), lineOf(maxOf(node.start, node.end - 1)), 1 + counts[i])
+        }
+        return out to topLevel
+    }
+
+    private const val ANONYMOUS = "(anónima)"
+    private val ASSIGNED = Pattern.compile("""([A-Za-z_$][\w$]*)\s*(?:=|:)\s*(?:async\s*)?$""")
+    private val SIGNATURE = Pattern.compile("""([A-Za-z_]\w*)\s*(?:<[^<>]*>)?\s*\([^()]*\)\s*(?:async\*?|sync\*)?\s*(?:=>)?\s*$""")
+    private val ACCESSOR = Pattern.compile("""\b(?:get|set)\s+([A-Za-z_]\w*)\s*(?:\([^()]*\))?\s*$""")
+
+    /**
+     * Nombre de una función: el campo `name` del árbol; si no lo tiene, el de su cabecera (`fun nombre`, `int nombre(`);
+     * si es anónima, la variable o propiedad a la que se asigna (`const Usuarios = () => …`); en Dart, la firma que
+     * precede al cuerpo. `null` si no tiene nombre.
+     */
+    private fun functionName(language: Language, type: String, utf8: ByteArray, node: Node): String? {
+        if (node.nameStart >= 0 && node.nameEnd > node.nameStart && node.nameEnd <= utf8.size) {
+            val name = text(utf8, node.nameStart, node.nameEnd, MAX_NAME).trim()
+            if (IDENTIFIER.matcher(name).matches()) return name
+        }
+        val full = text(utf8, node.start, node.end, MAX_HEADER)
+        if (type == "function_definition" && language.id in setOf("c", "cpp")) {
+            val header = full.substringBefore('{')
+            val paren = header.indexOf('(')
+            if (paren > 0) header.substring(0, paren).trimEnd().takeLastWhile { it.isLetterOrDigit() || it == '_' }.ifEmpty { null }?.let { return it }
+        }
+        if (type == "getter" || type == "setter") return if (type == "getter") "get" else "set"
+        FALLBACK_NAMES[type]?.matcher(full.substringBefore('{'))?.let { m -> if (m.find()) return m.group(1) }
+        // Lo que precede a la función en su línea o en la anterior (asignación o firma).
+        val from = maxOf(0, node.start - MAX_HEADER)
+        val before = String(utf8, from, node.start - from, Charsets.UTF_8).takeLast(MAX_HEADER).trimEnd()
+        for (pattern in listOf(ACCESSOR, SIGNATURE, ASSIGNED)) {
+            val m = pattern.matcher(before)
+            if (m.find()) {
+                val name = m.group(1)
+                if (name !in NOT_NAMES) return name
+            }
+        }
+        return null
+    }
+
+    private val NOT_NAMES = setOf("if", "for", "while", "switch", "catch", "return", "function", "async", "await", "new", "else", "yield")
 
     private fun text(utf8: ByteArray, start: Int, end: Int, max: Int = MAX_NODE_TEXT): String =
         String(utf8, start, minOf(end, start + max) - start, Charsets.UTF_8)

@@ -13,6 +13,18 @@ enum class LanguageKind { PROGRAMMING, MARKUP, DATA, PROSE }
 enum class SymbolKind { CLASS, INTERFACE, ENUM, OBJECT, FUNCTION, TYPE, CONSTANT }
 
 /**
+ * Nodos de tree-sitter para medir la complejidad ciclomática (Fase 9): [functions] son las funciones (con su extensión
+ * completa: cada punto de decisión cuenta para la función más interior que lo contiene); [decisions], las condiciones,
+ * bucles, casos, capturas y ternarios; [operators], los operadores lógicos que abren otro camino (`&&`, `||`, `and`,
+ * `or`, `??`), que en la gramática son símbolos anónimos.
+ */
+data class ComplexityTypes(
+    val functions: List<String>,
+    val decisions: List<String>,
+    val operators: List<String>,
+)
+
+/**
  * Un lenguaje reconocido. [grammar] es la gramática de tree-sitter (si la hay); [level] es el nivel de soporte de la
  * arquitectura (1 = máximo, 0 = solo inventario, líneas y secretos); [importTypes] son los nodos de importación;
  * [declarationTypes], los de declaración de símbolos; [namespaceTypes], los de paquete o espacio de nombres.
@@ -29,9 +41,15 @@ data class Language(
     val namespaceTypes: List<String> = emptyList(),
     /** Bloques condicionales (`#if`, `#ifdef`): lo que hay dentro puede no compilarse. */
     val conditionalTypes: List<String> = emptyList(),
+    /** Nodos para medir la complejidad; `null` si no se mide en este lenguaje. */
+    val complexity: ComplexityTypes? = null,
 ) {
-    /** Nodos que se piden a tree-sitter, en este orden. */
-    val wantedTypes: List<String> = importTypes + declarationTypes.keys + namespaceTypes + conditionalTypes
+    /**
+     * Nodos que se piden a tree-sitter, en este orden. Los símbolos anónimos (operadores) van con el prefijo `=`, que
+     * ningún tipo con nombre tiene: así el puente nativo solo los busca cuando se piden expresamente.
+     */
+    val wantedTypes: List<String> = importTypes + declarationTypes.keys + namespaceTypes + conditionalTypes +
+        complexity?.let { c -> c.functions + c.decisions + c.operators.map { "=$it" } }.orEmpty()
 }
 
 /** Detección del lenguaje de un archivo por su nombre, su extensión, su línea `#!` y, si es ambiguo, su contenido. */
@@ -57,12 +75,25 @@ object Languages {
         "enum_declaration" to SymbolKind.ENUM,
     )
 
-    val JAVASCRIPT = Language("javascript", "JavaScript", LanguageKind.PROGRAMMING, 1, "javascript", C_STYLE_TEMPLATES, JS_IMPORTS, JS_DECLARATIONS)
-    val TYPESCRIPT = Language("typescript", "TypeScript", LanguageKind.PROGRAMMING, 1, "typescript", C_STYLE_TEMPLATES, JS_IMPORTS, TS_DECLARATIONS)
-    val TSX = Language("tsx", "TypeScript (TSX)", LanguageKind.PROGRAMMING, 1, "tsx", C_STYLE_TEMPLATES, JS_IMPORTS, TS_DECLARATIONS)
+    // ---------------------------------------------------------------- complejidad (nombres de cada gramática)
+    private val JS_COMPLEXITY = ComplexityTypes(
+        listOf("function_declaration", "function_expression", "generator_function_declaration", "generator_function", "arrow_function", "method_definition"),
+        listOf("if_statement", "for_statement", "for_in_statement", "while_statement", "do_statement", "switch_case", "catch_clause", "ternary_expression"),
+        listOf("&&", "||", "??"),
+    )
+    private val C_DECISIONS = listOf("if_statement", "for_statement", "while_statement", "do_statement", "case_statement", "conditional_expression")
+
+    val JAVASCRIPT = Language("javascript", "JavaScript", LanguageKind.PROGRAMMING, 1, "javascript", C_STYLE_TEMPLATES, JS_IMPORTS, JS_DECLARATIONS, complexity = JS_COMPLEXITY)
+    val TYPESCRIPT = Language("typescript", "TypeScript", LanguageKind.PROGRAMMING, 1, "typescript", C_STYLE_TEMPLATES, JS_IMPORTS, TS_DECLARATIONS, complexity = JS_COMPLEXITY)
+    val TSX = Language("tsx", "TypeScript (TSX)", LanguageKind.PROGRAMMING, 1, "tsx", C_STYLE_TEMPLATES, JS_IMPORTS, TS_DECLARATIONS, complexity = JS_COMPLEXITY)
     val PYTHON = Language(
         "python", "Python", LanguageKind.PROGRAMMING, 1, "python", HASH, listOf("import_statement", "import_from_statement"),
         mapOf("class_definition" to SymbolKind.CLASS, "function_definition" to SymbolKind.FUNCTION),
+        complexity = ComplexityTypes(
+            listOf("function_definition", "lambda"),
+            listOf("if_statement", "elif_clause", "for_statement", "while_statement", "except_clause", "conditional_expression", "case_clause", "for_in_clause", "if_clause"),
+            listOf("and", "or"),
+        ),
     )
     val JAVA = Language(
         "java", "Java", LanguageKind.PROGRAMMING, 1, "java", C_STYLE, listOf("import_declaration"),
@@ -74,6 +105,11 @@ object Languages {
             "annotation_type_declaration" to SymbolKind.INTERFACE,
         ),
         listOf("package_declaration"),
+        complexity = ComplexityTypes(
+            listOf("method_declaration", "constructor_declaration", "compact_constructor_declaration", "lambda_expression"),
+            listOf("if_statement", "for_statement", "enhanced_for_statement", "while_statement", "do_statement", "switch_label", "catch_clause", "ternary_expression"),
+            listOf("&&", "||"),
+        ),
     )
     val KOTLIN = Language(
         "kotlin", "Kotlin", LanguageKind.PROGRAMMING, 1, "kotlin", C_STYLE, listOf("import"),
@@ -85,6 +121,11 @@ object Languages {
             "type_alias" to SymbolKind.TYPE,
         ),
         listOf("package_header"),
+        complexity = ComplexityTypes(
+            listOf("function_declaration", "anonymous_function", "lambda_literal", "secondary_constructor", "getter", "setter"),
+            listOf("if_expression", "for_statement", "while_statement", "do_while_statement", "when_entry", "catch_block"),
+            listOf("&&", "||"),
+        ),
     )
     val PHP = Language(
         "php", "PHP", LanguageKind.PROGRAMMING, 1, "php", CommentSyntax(listOf("//", "#"), listOf("/*" to "*/")),
@@ -97,6 +138,14 @@ object Languages {
             "function_definition" to SymbolKind.FUNCTION,
         ),
         listOf("namespace_definition"),
+        complexity = ComplexityTypes(
+            listOf("function_definition", "method_declaration", "anonymous_function", "arrow_function"),
+            listOf(
+                "if_statement", "else_if_clause", "for_statement", "foreach_statement", "while_statement", "do_statement", "case_statement",
+                "catch_clause", "conditional_expression", "match_conditional_expression",
+            ),
+            listOf("&&", "||", "and", "or", "??"),
+        ),
     )
     val CSHARP = Language(
         "csharp", "C#", LanguageKind.PROGRAMMING, 2, "c_sharp", C_STYLE, listOf("using_directive"),
@@ -108,6 +157,17 @@ object Languages {
             "record_declaration" to SymbolKind.CLASS,
         ),
         listOf("namespace_declaration", "file_scoped_namespace_declaration"),
+        complexity = ComplexityTypes(
+            listOf(
+                "method_declaration", "constructor_declaration", "destructor_declaration", "operator_declaration", "conversion_operator_declaration",
+                "local_function_statement", "lambda_expression", "anonymous_method_expression", "accessor_declaration",
+            ),
+            listOf(
+                "if_statement", "for_statement", "foreach_statement", "while_statement", "do_statement", "switch_section", "switch_expression_arm",
+                "catch_clause", "conditional_expression",
+            ),
+            listOf("&&", "||", "??"),
+        ),
     )
     val DART = Language(
         "dart", "Dart", LanguageKind.PROGRAMMING, 2, "dart", C_STYLE, listOf("library_import", "library_export"),
@@ -119,6 +179,15 @@ object Languages {
             "function_signature" to SymbolKind.FUNCTION,
             "type_alias" to SymbolKind.TYPE,
         ),
+        // En Dart la firma y el cuerpo son nodos hermanos: se mide el cuerpo y el nombre sale de la firma que lo precede.
+        complexity = ComplexityTypes(
+            listOf("function_body", "function_expression"),
+            listOf(
+                "if_statement", "if_element", "for_statement", "for_element", "while_statement", "do_statement", "switch_label", "catch_clause",
+                "conditional_expression", "if_null_expression",
+            ),
+            listOf("&&", "||"),
+        ),
     )
     val HTML = Language("html", "HTML", LanguageKind.MARKUP, 2, "html", XML_LIKE)
     val CSS = Language("css", "CSS", LanguageKind.MARKUP, 2, "css", CommentSyntax(block = listOf("/*" to "*/")), listOf("import_statement"))
@@ -126,17 +195,28 @@ object Languages {
     val GDSCRIPT = Language(
         "gdscript", "GDScript", LanguageKind.PROGRAMMING, 2, "gdscript", HASH, listOf("extends_statement"),
         mapOf("class_name_statement" to SymbolKind.CLASS, "function_definition" to SymbolKind.FUNCTION),
+        complexity = ComplexityTypes(
+            listOf("function_definition", "constructor_definition", "lambda"),
+            listOf("if_statement", "elif_clause", "for_statement", "while_statement", "conditional_expression", "pattern_section"),
+            listOf("&&", "||", "and", "or"),
+        ),
     )
     val C = Language(
         "c", "C", LanguageKind.PROGRAMMING, 3, "c", C_STYLE, listOf("preproc_include"),
         mapOf("function_definition" to SymbolKind.FUNCTION, "struct_specifier" to SymbolKind.CLASS),
         conditionalTypes = PREPROCESSOR_CONDITIONALS,
+        complexity = ComplexityTypes(listOf("function_definition"), C_DECISIONS, listOf("&&", "||")),
     )
     val CPP = Language(
         "cpp", "C++", LanguageKind.PROGRAMMING, 3, "cpp", C_STYLE, listOf("preproc_include"),
         mapOf("function_definition" to SymbolKind.FUNCTION, "struct_specifier" to SymbolKind.CLASS, "class_specifier" to SymbolKind.CLASS),
         listOf("namespace_definition"),
         PREPROCESSOR_CONDITIONALS,
+        complexity = ComplexityTypes(
+            listOf("function_definition", "lambda_expression"),
+            C_DECISIONS + listOf("for_range_loop", "catch_clause"),
+            listOf("&&", "||", "and", "or"),
+        ),
     )
 
     private fun lexical(id: String, name: String, syntax: CommentSyntax, kind: LanguageKind = LanguageKind.PROGRAMMING) =

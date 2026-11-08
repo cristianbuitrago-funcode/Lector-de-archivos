@@ -266,7 +266,14 @@ Java_com_funcodestudiocb_analyzer_engine_languages_treesitter_TreeSitterNative_n
     for (jsize i = 0; i < wanted_count; i++) {
         jstring name = (jstring)(*env)->GetObjectArrayElement(env, wanted_types, i);
         const char *chars = (*env)->GetStringUTFChars(env, name, NULL);
-        wanted[i] = chars ? ts_language_symbol_for_name(language, chars, (uint32_t)strlen(chars), true) : 0;
+        if (!chars) {
+            wanted[i] = 0;
+        } else if (chars[0] == '=' && chars[1] != '\0') {
+            /* "=&&": símbolo anónimo de la gramática (operadores como "&&" u "or"), pedido expresamente. */
+            wanted[i] = ts_language_symbol_for_name(language, chars + 1, (uint32_t)strlen(chars + 1), false);
+        } else {
+            wanted[i] = ts_language_symbol_for_name(language, chars, (uint32_t)strlen(chars), true);
+        }
         if (chars) (*env)->ReleaseStringUTFChars(env, name, chars);
         (*env)->DeleteLocalRef(env, name);
     }
