@@ -112,6 +112,7 @@ class MetricsTest {
         "tienda/src/docs.js" to """
             /**
              * Las marcas TODO, FIXME o HACK solo se mencionan aquí: no son deuda.
+             * Ejemplo de uso: `TODO(ana): revisar` o "FIXME: algo".
              */
             export const nada = () => null;
         """,

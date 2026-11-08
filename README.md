@@ -20,7 +20,8 @@ auditoría de seguridad, exportable en PDF, HTML y JSON.
 | 6. Auditoría de seguridad | ✅ Terminada y aprobada ([informe](docs/fases/FASE-6.md)) |
 | 7. Dependencias | ✅ Terminada y aprobada ([informe](docs/fases/FASE-7.md)) |
 | 8. Diagramas | ✅ Terminada y aprobada ([informe](docs/fases/FASE-8.md)) |
-| 9–10 | Pendientes |
+| 9. Informes | ✅ Terminada, pendiente de aprobación ([informe](docs/fases/FASE-9.md)) |
+| 10 | Pendiente |
 
 - Arquitectura: [`docs/ARQUITECTURA.md`](docs/ARQUITECTURA.md)
 - Decisiones técnicas: [`docs/adr/`](docs/adr/)
@@ -49,6 +50,10 @@ engine/relations/   relaciones entre archivos: resolución por ecosistema, anali
 engine/layout/      disposición de grafos por capas (tipo Sugiyama), determinista y acotada: pantalla, PDF y SVG
 engine/architecture/ capa de cada archivo, diagramas de capas, módulos y proyectos, dependencias inversas y flujos
                     Frontend → API → Controlador → Servicio → Modelo → BD
+engine/metrics/     métricas de mantenimiento: complejidad en el árbol sintáctico, tamaño, código repetido, pruebas,
+                    documentación, deuda, herramientas de calidad y estructura, e índice de mantenimiento
+engine/report/      el informe (15 secciones y anexos), resumen y conclusiones trazables, HTML sin JavaScript, JSON y
+                    comparación entre análisis (el PDF lo dibuja la app con el mismo modelo)
 engine/pipeline/    composición del análisis completo
 engine/cli/         herramienta de línea de comandos para probar el motor en el PC (no forma parte de la app)
 native/unrar/       UnRAR oficial (modificado, ver ADR 0004) compilado con el NDK, y su puente JNI
@@ -73,6 +78,7 @@ Para probar el motor en el PC (sin aislamiento: úsalo solo con archivos de conf
 ```bash
 ./gradlew :engine:cli:run --args="/ruta/proyecto.zip"                      # un registro por línea
 ./gradlew :engine:cli:run --args="/ruta/proyecto.rar --password X --json"  # los mismos registros en JSON
+./gradlew :engine:cli:run --args="/ruta/proyecto.zip --informe informe.html" # además, el informe en HTML (o .json)
 ```
 
 El APK de prueba de cada ejecución del CI se puede descargar en GitHub → *Actions* → ejecución → artefacto

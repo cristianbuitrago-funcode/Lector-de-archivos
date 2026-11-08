@@ -1,11 +1,12 @@
 # Funcode Code Analyzer — Arquitectura técnica
 
 **Funcode Studio CB** · Documento de arquitectura **v0.2** · Fecha: 2026-11-03
-**Estado: aprobada** (decisión N1 = A, 2026-11-03). Implementación en curso: fases 1 a 7 terminadas y aprobadas, y 8
+**Estado: aprobada** (decisión N1 = A, 2026-11-03). Implementación en curso: fases 1 a 8 terminadas y aprobadas, y 9
 entregada (ver `docs/fases/`). Las decisiones tomadas durante la implementación y sus desviaciones respecto a este
 documento se registran en `docs/adr/` (en particular, ADR 0004 sobre la copia temporal del comprimido, ADR 0006 sobre
 tree-sitter, ADR 0007 sobre las relaciones, ADR 0008 sobre los analizadores de framework, ADR 0009 sobre la auditoría
-de seguridad, ADR 0010 sobre las dependencias y ADR 0011 sobre los diagramas de arquitectura).
+de seguridad, ADR 0010 sobre las dependencias, ADR 0011 sobre los diagramas de arquitectura y ADR 0012 sobre los
+informes y las métricas).
 
 ---
 
@@ -198,7 +199,7 @@ de seguridad, ADR 0010 sobre las dependencias y ADR 0011 sobre los diagramas de 
 | Vulnerabilidades | **Base de datos OSV** (volcados públicos oficiales por ecosistema) convertida en el dispositivo a un índice binario propio verificado con SHA-256 (`engine:vulndb`, ADR 0010; el plan inicial preveía SQLite) | Cubre npm, PyPI, Maven, Packagist, NuGet, Pub, Go, crates.io y RubyGems. OWASP Dependency-Check no puede ejecutarse en Android |
 | Fin de soporte | Datos públicos de **endoflife.date** (Android SDK, Node.js, PHP, Python, Django, Laravel, Spring Boot, Angular, .NET…) | Permite detectar versiones obsoletas sin consultar nada del proyecto en línea |
 | Serialización | **kotlinx.serialization** | Esquema de resultados versionado |
-| HTML del informe | **kotlinx.html** | Escapa el texto por defecto: el contenido del proyecto nunca se convierte en HTML |
+| HTML del informe | **Generador propio** con una sola función de escape (`engine:report`, ADR 0012; el plan inicial preveía kotlinx.html) | Todo el texto del proyecto se escapa; sin dependencias nuevas; autocontenido, sin JavaScript y con CSP por huella |
 | PDF | **`android.graphics.pdf.PdfDocument`** + `StaticLayout` | Nativo, sin bibliotecas externas ni WebView; reutiliza el dibujo de los diagramas |
 
 ### 3.3 Construcción y calidad
@@ -244,8 +245,8 @@ en un PC, y en el teléfono se ejecuta dentro del proceso aislado.
 | `engine:audit` (`deps`) | Etapa `dependency-audit`: versiones reales, cadenas, uso real, criticidad, vulnerabilidades, fin de soporte y sus hallazgos (ADR 0010) | 6 → 7 |
 | `engine:layout` | Disposición por capas tipo Sugiyama propia, determinista y acotada: ciclos, capas, nodos ficticios, reducción de cruces y coordenadas (pantalla, PDF, SVG; ADR 0011) | 8 |
 | `engine:architecture` | Etapa `architecture`: capa de cada archivo con certeza y motivo, diagramas de capas, módulos y proyectos ya dispuestos, dependencias inversas, ciclos entre módulos y flujos Frontend → API → Controlador → Servicio → Modelo → BD en los que cada paso es una conexión encontrada (ADR 0011) | 8 |
-| `engine:metrics` | Complejidad, duplicación, índice de mantenimiento | 9 |
-| `engine:report` | JSON, HTML, comparación entre análisis | 9 |
+| `engine:metrics` | Etapa `metrics`: complejidad de cada función en el árbol sintáctico, tamaño, código repetido, pruebas, documentación, deuda señalada, herramientas de calidad, ciclos y acoplamiento, e índice de mantenimiento con sus nueve sub-índices (ADR 0012) | 9 |
+| `engine:report` | Informe de 15 secciones y 2 anexos con resumen, problemas, recomendaciones y conclusiones trazables; HTML sin JavaScript, JSON y comparación entre análisis; el PDF lo dibuja la app con el mismo modelo (ADR 0012) | 9 |
 | `native:treesitter` | Núcleo de tree-sitter + 15 gramáticas compiladas + JNI | 4 |
 | `native:unrar` | UnRAR + JNI | 2 |
 | `engine:cli` | Ejecutable de consola **solo para pruebas y CI**: ejecuta el motor en un PC sobre un ZIP | 2 |

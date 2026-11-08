@@ -103,6 +103,8 @@ class MetricsCollector : RedactedTextListener {
     }
 
     private fun isMarker(text: String, from: Int, to: Int): Boolean {
+        // Entre comillas o acentos graves es un ejemplo en la documentación, no una marca.
+        if (from > 0 && text[from - 1] in QUOTES) return false
         if (to < text.length && (text[to] == ':' || text[to] == '(')) return true
         var i = from - 1
         while (i >= 0 && text[i] != '\n') {
@@ -124,5 +126,6 @@ class MetricsCollector : RedactedTextListener {
         const val MAX_DUPLICATION_CHARS = 2_000_000
         val DEBT: Pattern = Pattern.compile("""\b(TODO|FIXME|HACK|XXX)\b""")
         const val COMMENT_PUNCTUATION = "/*#-!<;'%"
+        const val QUOTES = "`'\"«"
     }
 }
