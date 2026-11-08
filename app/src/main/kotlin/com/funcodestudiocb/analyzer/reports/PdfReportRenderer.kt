@@ -244,7 +244,8 @@ object PdfReportRenderer {
         // ------------------------------------------------------------ secciones y bloques
 
         private fun section(s: ReportSection, first: Boolean) {
-            if (first) newPage() else ensure(90f)
+            // El título no se queda solo al pie de una página: va con el principio de su primer bloque.
+            if (first) newPage() else ensure(14f + TITLE_H + keepWith(s.blocks.firstOrNull()))
             if (!first) y += 14f
             sectionPages[s.id] = pages
             val title = if (s.number.all { it.isDigit() }) "${s.number}. ${s.title}" else "Anexo ${s.number}. ${s.title}"
@@ -254,13 +255,24 @@ object PdfReportRenderer {
                 c.drawRect(LEFT, y, LEFT + 42f, y + 2.5f, fill)
             }
             y += 12f
-            s.blocks.forEach(::block)
+            s.blocks.forEachIndexed { i, b -> block(b, s.blocks.getOrNull(i + 1)) }
         }
 
-        private fun block(b: Block) {
+        /** Alto mínimo para empezar [b] en la página actual (lo que un título necesita debajo para no quedarse solo). */
+        private fun keepWith(b: Block?): Float = when (b) {
+            null -> 0f
+            is Block.Gauge -> GAUGE_H
+            is Block.Figure -> figureHeight(b.diagram) + 34f
+            is Block.Table -> 44f
+            is Block.Callout -> layout(b.text, body, CONTENT_W - 28f).height + 24f
+            is Block.Heading -> 30f + MIN_LINES
+            else -> MIN_LINES
+        }.coerceAtMost(BOTTOM - TOP - TITLE_H - 14f)
+
+        private fun block(b: Block, next: Block?) {
             when (b) {
                 is Block.Heading -> {
-                    ensure(40f)
+                    ensure(30f + keepWith(next))
                     y += 6f
                     text(b.text.uppercase(), subheading, after = 4f)
                 }
@@ -371,7 +383,7 @@ object PdfReportRenderer {
         }
 
         private fun gauge(g: Block.Gauge) {
-            ensure(92f)
+            ensure(GAUGE_H)
             canvas?.let { c ->
                 val box = RectF(LEFT + 6f, y + 6f, LEFT + 80f, y + 80f)
                 stroke.strokeWidth = 9f
@@ -390,10 +402,13 @@ object PdfReportRenderer {
             y += 94f
         }
 
+        private fun figureScale(d: Diagram) = minOf(CONTENT_W / d.width, (BOTTOM - TOP - 60f) / d.height, 1.15f)
+
+        private fun figureHeight(d: Diagram) = d.height * figureScale(d)
+
         private fun figure(d: Diagram, caption: String) {
-            val maxH = BOTTOM - TOP - 60f
-            val scale = minOf(CONTENT_W / d.width, maxH / d.height, 1.15f)
-            val h = d.height * scale
+            val scale = figureScale(d)
+            val h = figureHeight(d)
             ensure(h + 34f)
             canvas?.let { c ->
                 fill.color = PANEL
@@ -474,4 +489,7 @@ object PdfReportRenderer {
     }
 
     private const val MAX_CELL = 600
+    private const val TITLE_H = 40f // título de sección con su subrayado
+    private const val GAUGE_H = 94f
+    private const val MIN_LINES = 30f // dos líneas de texto
 }

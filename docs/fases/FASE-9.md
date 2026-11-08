@@ -100,7 +100,10 @@ los compara con los resultados del emulador (ver el incidente 11).
 - **Ejecución n.º 41**: todos los trabajos en verde. Android 15 y 16: 15 de 15 (app 6, data 6, proceso aislado 3).
   Android 8.0: app 6 y data 6, pero **el proceso aislado, 0 pruebas** sin que el trabajo fallara (incidente 11). El
   PDF del emulador (10 páginas A4) se revisó página a página: una columna estrecha partía «Probable» (incidente 12).
-- **Ejecución n.º 42**: _pendiente de completar_.
+- **Ejecución n.º 42** (con la corrección): todos los trabajos en verde y la comprobación nueva lo confirma en los
+  tres emuladores: **15 de 15** (proceso aislado 3, app 6, data 6), sin que hiciera falta repetir nada. En el PDF ya no
+  se parte ninguna palabra; al revisarlo apareció un título de sección solo al pie de una página (incidente 13).
+- **Ejecución n.º 43**: _pendiente de completar_.
 
 ## Capturas
 
@@ -147,6 +150,11 @@ muestra en PDF (del emulador), HTML y JSON.
     emulador. El ancho de las columnas se repartía por número de caracteres; ahora se mide el texto: cada columna tiene
     al menos el ancho de su palabra más larga (una ruta muy larga sí se parte, como mucho ocupa el 40 %) y el resto se
     reparte según lo que necesita cada una. Tres pruebas nuevas.
+13. **Un título de sección se quedaba solo al pie de una página** («14. Nivel general de mantenimiento» con su
+    indicador en la página siguiente), visto en el PDF de la ejecución n.º 42. El PDF reservaba siempre el mismo alto
+    para empezar una sección; ahora un título (de sección o de apartado) solo se dibuja si debajo cabe el principio de
+    su primer bloque: el indicador entero, el diagrama entero, la cabecera y la primera fila de una tabla o dos líneas
+    de texto.
 
 ## Limitaciones conocidas (honestidad del resultado)
 
