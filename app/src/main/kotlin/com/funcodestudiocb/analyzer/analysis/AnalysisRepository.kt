@@ -13,6 +13,7 @@ import com.funcodestudiocb.analyzer.engine.api.FileStatus
 import com.funcodestudiocb.analyzer.engine.api.ProtocolJson
 import com.funcodestudiocb.analyzer.engine.api.ResultRecord
 import com.funcodestudiocb.analyzer.engine.api.SessionEnd
+import com.funcodestudiocb.analyzer.engine.api.SessionOutcome
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.serialization.json.Json
@@ -157,9 +158,15 @@ class AnalysisRepository(private val session: SessionManager) {
         val records = db.analyses().records(id).mapNotNull {
             runCatching { ProtocolJson.decodeFromString(ResultRecord.serializer(), it.json) }.getOrNull()
         }
-        val end = records.filterIsInstance<SessionEnd>().lastOrNull()
+        // El resultado de la sesión se guarda en el estado del análisis, no como registro: se recupera de ahí para que el
+        // informe reconstruido diga lo mismo que el historial (si no, un análisis completo parecería no terminado).
+        val sessionOutcome = records.filterIsInstance<SessionEnd>().lastOrNull()?.outcome ?: when (entity.status) {
+            AnalysisOutcome.COMPLETED.name -> SessionOutcome.COMPLETED
+            AnalysisOutcome.PARTIAL.name -> SessionOutcome.PARTIAL
+            else -> null
+        }
         val problem = if (entity.status == AnalysisOutcome.FAILED.name) entity.message else null
-        return StoredAnalysis(entity, AnalysisReport.from(records, end?.outcome, problem), records)
+        return StoredAnalysis(entity, AnalysisReport.from(records, sessionOutcome, problem), records)
     }
 
     suspend fun delete(id: String) {

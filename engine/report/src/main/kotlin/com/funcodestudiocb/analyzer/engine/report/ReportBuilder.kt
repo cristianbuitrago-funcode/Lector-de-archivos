@@ -81,7 +81,13 @@ object ReportBuilder {
             )
         }
         val outcome = r.outcome()
-        if (outcome != AnalysisOutcome.COMPLETED) out += Statement("El análisis es ${Labels.outcome(outcome).lowercase()}: lo que no se pudo analizar se detalla en el anexo.", "Anexo A")
+        when (outcome) {
+            AnalysisOutcome.COMPLETED -> {}
+            AnalysisOutcome.PARTIAL -> out += Statement("El análisis es parcial: lo que no se pudo analizar se detalla en el anexo.", "Anexo A")
+            AnalysisOutcome.REJECTED -> out += Statement("El comprimido no se pudo analizar; el motivo está en el anexo.", "Anexo A")
+            AnalysisOutcome.PASSWORD_MISSING -> out += Statement("Faltó la contraseña del comprimido, así que su contenido no se analizó.", "Anexo A")
+            AnalysisOutcome.FAILED -> out += Statement("El análisis no terminó: se muestra lo que se llegó a analizar y el problema se detalla en el anexo.", "Anexo A")
+        }
         val code = r.languages.filter { it.category == LanguageCategory.PROGRAMMING }.sortedByDescending { it.code }
         val totalCode = code.sumOf { it.code }
         if (totalCode > 0) {

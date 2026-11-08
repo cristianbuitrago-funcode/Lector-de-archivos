@@ -9,6 +9,7 @@ import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -112,6 +113,11 @@ class ReportsScreenTest {
         compose.onNodeWithTag("reports_privacy").assertIsDisplayed()
         compose.onNodeWithText("Índice de mantenimiento:", substring = true).assertIsDisplayed()
         compose.onNodeWithText("§2", substring = true).assertExists() // cada frase del resumen cita su sección
+        // Un análisis completo se presenta como completo (el resultado se guarda en el historial, no como registro).
+        assertTrue(compose.onAllNodesWithText("no terminó", substring = true).fetchSemanticsNodes().isEmpty())
+        val doc = assertNotNull(runBlocking { container.reports.document(id) })
+        val facts = doc.sections.first { it.number == "2" }.blocks.filterIsInstance<com.funcodestudiocb.analyzer.engine.report.Block.Facts>().first().items.toMap()
+        assertEquals("Completo", facts["Resultado"])
         compose.onNodeWithTag("reports_list").performScrollToNode(hasTestTag("reports_item_$id"))
 
         // Informe completo en pantalla: las 15 secciones y los anexos.
@@ -179,7 +185,7 @@ class ReportsScreenTest {
         compose.onNodeWithTag("reports_compare_$first").performClick()
         awaitCondition("comparación") { exists("report_section_s1") }
         compose.onNodeWithText("1. Resumen de cambios").assertExists()
-        compose.onNodeWithText("Dependencias: 1 añadidas", substring = true).assertExists()
+        compose.onNodeWithText("Dependencias: 1 añadida,", substring = true).assertExists()
         compose.onNodeWithTag("reports_comparison").performScrollToNode(hasText("tienda/server/health.js", substring = true))
         compose.onNodeWithTag("reports_comparison").performScrollToNode(hasTestTag("report_section_s2"))
         compose.onNodeWithText("Índice de mantenimiento", substring = true).assertExists()

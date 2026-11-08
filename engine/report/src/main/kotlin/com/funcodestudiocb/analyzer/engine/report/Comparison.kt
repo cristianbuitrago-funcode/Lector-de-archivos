@@ -126,9 +126,11 @@ data class Comparison(
         summary += Block.Bullets(
             listOf(
                 "Seguridad: ${count(newFindings.size, "hallazgo nuevo", "hallazgos nuevos")} y ${count(resolvedFindings.size, "resuelto", "resueltos")}.",
-                "Dependencias: ${number(addedDependencies.size)} añadidas, ${number(removedDependencies.size)} eliminadas y ${number(updatedDependencies.size)} actualizadas.",
-                "Tecnologías: ${number(addedTechnologies.size)} nuevas y ${number(removedTechnologies.size)} que ya no aparecen.",
-                "Archivos: ${number(addedFiles.size)} añadidos, ${number(removedFiles.size)} eliminados y ${number(modifiedFiles.size)} modificados" +
+                "Dependencias: ${count(addedDependencies.size, "añadida", "añadidas")}, ${count(removedDependencies.size, "eliminada", "eliminadas")} y " +
+                    "${count(updatedDependencies.size, "actualizada", "actualizadas")}.",
+                "Tecnologías: ${count(addedTechnologies.size, "nueva", "nuevas")} y ${count(removedTechnologies.size, "que ya no aparece", "que ya no aparecen")}.",
+                "Archivos: ${count(addedFiles.size, "añadido", "añadidos")}, ${count(removedFiles.size, "eliminado", "eliminados")} y " +
+                    "${count(modifiedFiles.size, "modificado", "modificados")}" +
                     if (unknownFiles > 0) " (${count(unknownFiles, "archivo", "archivos")} sin huella para comparar)." else ".",
             ),
         )
