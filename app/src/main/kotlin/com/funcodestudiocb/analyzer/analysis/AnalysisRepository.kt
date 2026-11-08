@@ -102,7 +102,8 @@ class AnalysisRepository(private val session: SessionManager) {
             duplicateGroups = report.duplicates.size,
             message = report.engineProblem ?: report.rejection?.detail,
         )
-        fun entities(records: List<ResultRecord>) = records.mapIndexed { i, r ->
+        // Se convierten a JSON por lotes mientras se guardan, no todos a la vez (ver AnalysisDao.insert).
+        fun entities(records: List<ResultRecord>) = records.asSequence().mapIndexed { i, r ->
             val json = ProtocolJson.encodeToString(ResultRecord.serializer(), r)
             AnalysisRecordEntity(analysis.id, i, typeOf(json), json)
         }

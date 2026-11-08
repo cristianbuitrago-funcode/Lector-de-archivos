@@ -26,6 +26,8 @@ dependencies {
 application {
     mainClass.set("com.funcodestudiocb.analyzer.engine.cli.MainKt")
     applicationName = "funcode-analyzer"
+    // Los textos van en español: la salida es UTF-8 aunque el terminal no lo anuncie.
+    applicationDefaultJvmArgs = listOf("-Dstdout.encoding=UTF-8", "-Dstderr.encoding=UTF-8")
 }
 
 // UnRAR y tree-sitter compilados para el PC.

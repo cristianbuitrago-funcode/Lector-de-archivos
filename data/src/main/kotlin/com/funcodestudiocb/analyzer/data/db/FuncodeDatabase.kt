@@ -135,11 +135,12 @@ abstract class AnalysisDao {
     protected abstract suspend fun insertContents(contents: List<FileContentEntity>)
 
     /**
-     * Guarda el análisis, sus registros y la copia del código en una sola transacción. [contents] se recorre
-     * por lotes (la copia puede ocupar decenas de MB y no se carga entera en memoria).
+     * Guarda el análisis, sus registros y la copia del código en una sola transacción. [records] y [contents] se
+     * recorren por lotes: un proyecto grande produce decenas de miles de registros y la copia puede ocupar decenas
+     * de MB, así que ninguno de los dos se convierte entero en memoria.
      */
     @Transaction
-    open suspend fun insert(analysis: AnalysisEntity, records: List<AnalysisRecordEntity>, contents: Sequence<FileContentEntity> = emptySequence()) {
+    open suspend fun insert(analysis: AnalysisEntity, records: Sequence<AnalysisRecordEntity>, contents: Sequence<FileContentEntity> = emptySequence()) {
         insertAnalysis(analysis)
         records.chunked(500).forEach { insertRecords(it) }
         contents.chunked(100).forEach { insertContents(it) }

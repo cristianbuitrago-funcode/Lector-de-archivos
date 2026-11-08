@@ -2,12 +2,14 @@ package com.funcodestudiocb.analyzer.engine.cli
 
 import com.funcodestudiocb.analyzer.engine.api.AnalysisConfig
 import com.funcodestudiocb.analyzer.engine.api.AnalysisMode
+import com.funcodestudiocb.analyzer.engine.api.FrameWriter
 import com.funcodestudiocb.analyzer.engine.api.IngestOptions
 import com.funcodestudiocb.analyzer.engine.api.ProtocolJson
 import com.funcodestudiocb.analyzer.engine.api.RecordValidator
 import com.funcodestudiocb.analyzer.engine.api.ResultRecord
 import com.funcodestudiocb.analyzer.engine.api.SessionEnd
 import com.funcodestudiocb.analyzer.engine.api.SessionStart
+import com.funcodestudiocb.analyzer.engine.api.StageEvent
 import com.funcodestudiocb.analyzer.engine.audit.deps.AuditKeys
 import com.funcodestudiocb.analyzer.engine.core.Attributes
 import com.funcodestudiocb.analyzer.engine.core.CollectingSink
@@ -29,12 +31,16 @@ import com.funcodestudiocb.analyzer.engine.vulndb.VulnIndexWriter
 import kotlinx.coroutines.runBlocking
 import java.io.File
 import java.io.FileInputStream
+import java.io.OutputStream
+import java.lang.management.ManagementFactory
+import java.lang.management.MemoryType
 import java.nio.file.Files
 import java.security.MessageDigest
 import kotlin.system.exitProcess
 
 private const val USAGE = """Uso:
   funcode-analyzer <archivo.zip|archivo.rar> [--password <contraseña>] [--vulndb <base.fcv>] [--json] [--informe <salida.html|salida.json>]
+  funcode-analyzer <archivo.zip|archivo.rar> --medir [--password <contraseña>] [--vulndb <base.fcv>]
   funcode-analyzer --construir-base <base.fcv> <ecosistema>=<all.zip>… [--eol <carpeta con <producto>.json>]
 
 Herramienta de pruebas del motor de Funcode Code Analyzer. Ejecuta el análisis en este equipo, SIN el
@@ -44,7 +50,11 @@ La segunda forma construye la base de vulnerabilidades a partir de los volcados 
 (https://osv-vulnerabilities.storage.googleapis.com/<ecosistema>/all.zip) y de los datos de endoflife.date
 (https://endoflife.date/api/<producto>.json), igual que el actualizador de la app.
 
-Con --informe escribe además el informe completo (15 secciones y anexos) en HTML o JSON, como la app."""
+Con --informe escribe además el informe completo (15 secciones y anexos) en HTML o JSON, como la app.
+
+Con --medir no guarda los registros: los serializa y los descarta, como hace el proceso aislado al enviarlos a la
+app, y muestra la duración de cada etapa y la memoria máxima ocupada. Para simular el límite de memoria de un
+teléfono, limita la de la JVM (por ejemplo, JAVA_OPTS="-Xmx192m")."""
 
 fun main(args: Array<String>) {
     if (args.firstOrNull() == "--construir-base") {
@@ -61,6 +71,10 @@ fun main(args: Array<String>) {
     val json = "--json" in args
     val reportFile = args.indexOf("--informe").takeIf { it >= 0 }?.let { args.getOrNull(it + 1) }?.let(::File)
     val started = System.currentTimeMillis()
+    if ("--medir" in args) {
+        measure(file, password, vulndb)
+        return
+    }
 
     val sink = CollectingSink()
     FileInputStream(file).use { stream ->
@@ -86,6 +100,49 @@ fun main(args: Array<String>) {
         exitProcess(1)
     }
     if (reportFile != null) writeReport(file, reportFile, sink.records, started)
+}
+
+/** Análisis sin guardar los registros (como el proceso aislado), con tiempos por etapa y memoria máxima. */
+private fun measure(file: File, password: CharArray?, vulndb: File?) {
+    val heapPools = ManagementFactory.getMemoryPoolMXBeans().filter { it.type == MemoryType.HEAP }
+    System.gc()
+    heapPools.forEach { it.resetPeakUsage() }
+    var bytes = 0L
+    var records = 0
+    val stages = ArrayList<StageEvent>()
+    var end: SessionEnd? = null
+    val writer = FrameWriter(object : OutputStream() {
+        override fun write(b: Int) {
+            bytes++
+        }
+
+        override fun write(b: ByteArray, off: Int, len: Int) {
+            bytes += len
+        }
+    })
+    val started = System.nanoTime()
+    FileInputStream(file).use { stream ->
+        val attributes = Attributes()
+        attributes[IngestKeys.SOURCE] = ArchiveSource(stream.channel, file.absolutePath)
+        attributes[IngestKeys.PASSWORD] = attributes.closeLater(PasswordHolder(password))
+        if (vulndb != null) attributes[AuditKeys.DATABASE] = attributes.closeLater(VulnDatabase.open(FileInputStream(vulndb).channel))
+        val config = AnalysisConfig("medir", AnalysisMode.FULL, ingest = IngestOptions(file.name))
+        runBlocking {
+            PipelineRunner("medir").run(config, FullPipeline.stages(), { record ->
+                records++
+                if (record is StageEvent) stages += record
+                if (record is SessionEnd) end = record
+                writer.write(record)
+            }, attributes)
+        }
+    }
+    val millis = (System.nanoTime() - started) / 1_000_000
+    // La suma de los máximos de cada zona es una cota superior: no tienen por qué coincidir en el tiempo.
+    val peak = heapPools.sumOf { it.peakUsage.used }
+    val max = Runtime.getRuntime().maxMemory()
+    stages.forEach { println("%8d ms  %-20s %s".format(it.durationMs, it.stageId, it.status)) }
+    println("Total: $millis ms · ${end?.outcome ?: "sin final"} · $records registros · ${bytes / 1024} KB enviados")
+    println("Memoria máxima (cota superior): ${peak / (1024 * 1024)} MB de ${max / (1024 * 1024)} MB")
 }
 
 private fun writeReport(archive: File, target: File, records: List<ResultRecord>, started: Long) {
