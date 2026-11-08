@@ -7,6 +7,7 @@ import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTextInput
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
@@ -144,6 +145,7 @@ class EndToEndTest {
         compose.onNodeWithTag("setup_password").performTextInput("Funcode-2026")
         compose.onNodeWithTag("setup_confirm").performTextInput("Funcode-2026")
         createAccess()
+        hideKeyboard()
 
         // El selector de documentos de Android no se puede manejar desde la prueba: el comprimido se entrega como si
         // el usuario lo hubiera elegido en «Nuevo análisis».
@@ -153,7 +155,7 @@ class EndToEndTest {
         open("nuevo", "analysis_drop_zone")
         app.container.coordinator.select(Uri.fromFile(zip))
         compose.waitUntil(60_000) { exists("analysis_start") }
-        compose.onNodeWithTag("analysis_start").performScrollTo().performClick()
+        startAnalysis()
         compose.waitUntil(ANALYSIS_MS) { (app.container.coordinator.state.value as? AnalysisState.Finished)?.saved == true }
         compose.waitUntil(30_000) { exists("report_outcome") }
         val finished = app.container.coordinator.state.value as AnalysisState.Finished
@@ -167,7 +169,9 @@ class EndToEndTest {
         assertTrue((report.metrics?.functions ?: 0) > 100 && report.maintenance?.score != null, diagnosis)
 
         // Cada pantalla muestra el análisis.
-        open("panel", "dash_project_proyecto-desconocido")
+        open("panel", "dash_totals")
+        // La fila del proyecto está más abajo: la lista solo la dibuja al llegar a ella.
+        compose.onNodeWithTag("dashboard").performScrollToNode(hasTestTag("dash_project_proyecto-desconocido"))
         open("explorador", "explorer_tree")
         open("arquitectura", "arch_summary")
         open("seguridad", "security_disclaimer")
@@ -185,6 +189,25 @@ class EndToEndTest {
         assertTrue(runBlocking { app.container.reports.export(id, ReportFormat.HTML) } != null)
         assertTrue(runBlocking { app.container.reports.export(id, ReportFormat.JSON) } != null)
         zip.delete()
+    }
+
+    /**
+     * Pulsa «Analizar» y espera a que el análisis empiece. Si la pulsación se pierde (el teclado aún se estaba
+     * ocultando y el botón se movió), se repite: en cuanto empieza, el botón desaparece, así que no hay doble análisis.
+     */
+    private fun startAnalysis() {
+        fun started() = app.container.coordinator.state.value !is AnalysisState.Ready
+        repeat(CREATE_ATTEMPTS) {
+            if (started()) return
+            compose.onNodeWithTag("analysis_start").performScrollTo().performClick()
+            try {
+                compose.waitUntil(CREATE_WAIT_MS) { started() }
+                return
+            } catch (_: ComposeTimeoutException) {
+                // Se vuelve a pulsar.
+            }
+        }
+        compose.waitUntil(30_000) { started() }
     }
 
     private companion object {
