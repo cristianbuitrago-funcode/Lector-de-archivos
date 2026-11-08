@@ -1,8 +1,8 @@
 # Funcode Code Analyzer — Arquitectura técnica
 
 **Funcode Studio CB** · Documento de arquitectura **v0.2** · Fecha: 2026-11-03
-**Estado: aprobada** (decisión N1 = A, 2026-11-03). Implementación en curso: fases 1 a 8 terminadas y aprobadas, y 9
-entregada (ver `docs/fases/`). Las decisiones tomadas durante la implementación y sus desviaciones respecto a este
+**Estado: aprobada** (decisión N1 = A, 2026-11-03). Implementación en curso: fases 1 a 9 terminadas y aprobadas; falta
+la 10 (ver `docs/fases/`). Las decisiones tomadas durante la implementación y sus desviaciones respecto a este
 documento se registran en `docs/adr/` (en particular, ADR 0004 sobre la copia temporal del comprimido, ADR 0006 sobre
 tree-sitter, ADR 0007 sobre las relaciones, ADR 0008 sobre los analizadores de framework, ADR 0009 sobre la auditoría
 de seguridad, ADR 0010 sobre las dependencias, ADR 0011 sobre los diagramas de arquitectura y ADR 0012 sobre los

@@ -1,6 +1,6 @@
 # Fase 3 — Explorador y estructura
 
-**Estado: terminada, pendiente de tu aprobación.** Fecha: 2026-11-03.
+**Estado: terminada y aprobada.** Fecha: 2026-11-03.
 
 ## Objetivo
 

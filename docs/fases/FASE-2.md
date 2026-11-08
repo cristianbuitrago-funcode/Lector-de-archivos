@@ -1,6 +1,6 @@
 # Fase 2 — Carga y extracción de ZIP y RAR
 
-**Estado: terminada, pendiente de tu aprobación.** Fecha: 2026-11-03.
+**Estado: terminada y aprobada.** Fecha: 2026-11-03.
 
 ## Objetivo
 

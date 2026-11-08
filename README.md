@@ -20,7 +20,7 @@ auditoría de seguridad, exportable en PDF, HTML y JSON.
 | 6. Auditoría de seguridad | ✅ Terminada y aprobada ([informe](docs/fases/FASE-6.md)) |
 | 7. Dependencias | ✅ Terminada y aprobada ([informe](docs/fases/FASE-7.md)) |
 | 8. Diagramas | ✅ Terminada y aprobada ([informe](docs/fases/FASE-8.md)) |
-| 9. Informes | ✅ Terminada, pendiente de aprobación ([informe](docs/fases/FASE-9.md)) |
+| 9. Informes | ✅ Terminada y aprobada ([informe](docs/fases/FASE-9.md)) |
 | 10 | Pendiente |
 
 - Arquitectura: [`docs/ARQUITECTURA.md`](docs/ARQUITECTURA.md)

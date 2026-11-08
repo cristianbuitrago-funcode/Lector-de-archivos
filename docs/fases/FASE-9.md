@@ -1,6 +1,6 @@
 # Fase 9 — Informes
 
-- **Estado:** terminada, pendiente de aprobación
+- **Estado:** terminada y aprobada
 - **Criterio de aceptación:** los tres formatos se exportan con las 15 secciones + anexos.
 
 ## Objetivo
@@ -103,7 +103,9 @@ los compara con los resultados del emulador (ver el incidente 11).
 - **Ejecución n.º 42** (con la corrección): todos los trabajos en verde y la comprobación nueva lo confirma en los
   tres emuladores: **15 de 15** (proceso aislado 3, app 6, data 6), sin que hiciera falta repetir nada. En el PDF ya no
   se parte ninguna palabra; al revisarlo apareció un título de sección solo al pie de una página (incidente 13).
-- **Ejecución n.º 43**: _pendiente de completar_.
+- **Ejecución n.º 43** (título con su contenido): todos los trabajos en verde; **15 de 15** en Android 8.0, 15 y 16.
+  El PDF (10 páginas A4 en los tres) ya no deja ningún título solo al pie de una página: la sección 14 empieza
+  arriba de la página 8 con su indicador. Comprobado con un detector sobre el texto de cada página y a la vista.
 
 ## Capturas
 
