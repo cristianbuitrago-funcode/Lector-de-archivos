@@ -31,7 +31,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.funcodestudiocb.analyzer.R
-import com.funcodestudiocb.analyzer.analysis.AnalysisReport
+import com.funcodestudiocb.analyzer.engine.report.AnalysisReport
 import com.funcodestudiocb.analyzer.engine.api.Certainty
 import com.funcodestudiocb.analyzer.engine.api.SecurityCategory
 import com.funcodestudiocb.analyzer.engine.api.SecurityFinding

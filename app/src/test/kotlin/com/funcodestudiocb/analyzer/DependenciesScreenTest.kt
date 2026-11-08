@@ -103,6 +103,11 @@ class DependenciesScreenTest {
         assertTrue(downloader.requested.isEmpty(), "Nada se descarga antes de aceptar")
         compose.onNodeWithTag("vulndb_confirm").performClick()
         awaitCondition("base descargada") { container.vulnDbUpdater.state.value is UpdateState.Done }
+        // La pantalla se redibuja después de que el actualizador termina: se espera a que muestre la base instalada.
+        awaitCondition("estado de la base en pantalla") {
+            compose.onAllNodesWithTag("vulndb_done").fetchSemanticsNodes().isNotEmpty() &&
+                compose.onAllNodesWithTag("vulndb_status").fetchSemanticsNodes().isNotEmpty()
+        }
         compose.onNodeWithTag("vulndb_done").performScrollTo().assertIsDisplayed()
         compose.onNodeWithTag("vulndb_status").performScrollTo().assertIsDisplayed()
         compose.onNodeWithText("npm: 3 avisos de 3 paquetes", substring = true).performScrollTo().assertIsDisplayed()

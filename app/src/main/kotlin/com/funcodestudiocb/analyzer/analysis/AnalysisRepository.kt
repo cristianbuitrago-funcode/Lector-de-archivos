@@ -18,6 +18,8 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import com.funcodestudiocb.analyzer.engine.report.AnalysisOutcome
+import com.funcodestudiocb.analyzer.engine.report.AnalysisReport
 
 /** Un análisis listo para guardarse en el historial cifrado. */
 data class AnalysisToSave(

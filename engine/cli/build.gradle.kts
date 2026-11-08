@@ -20,6 +20,7 @@ java {
 
 dependencies {
     implementation(project(":engine:pipeline"))
+    implementation(project(":engine:report"))
 }
 
 application {

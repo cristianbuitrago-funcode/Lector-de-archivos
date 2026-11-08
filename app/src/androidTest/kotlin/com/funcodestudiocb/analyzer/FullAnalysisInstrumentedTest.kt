@@ -3,7 +3,7 @@ package com.funcodestudiocb.analyzer
 import android.net.Uri
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
-import com.funcodestudiocb.analyzer.analysis.AnalysisOutcome
+import com.funcodestudiocb.analyzer.engine.report.AnalysisOutcome
 import com.funcodestudiocb.analyzer.analysis.AnalysisState
 import com.funcodestudiocb.analyzer.data.vault.UnlockResult
 import com.funcodestudiocb.analyzer.engine.api.ArchiveFormat

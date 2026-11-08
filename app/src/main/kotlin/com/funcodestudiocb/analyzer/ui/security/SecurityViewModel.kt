@@ -3,7 +3,7 @@ package com.funcodestudiocb.analyzer.ui.security
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.funcodestudiocb.analyzer.AppContainer
-import com.funcodestudiocb.analyzer.analysis.AnalysisReport
+import com.funcodestudiocb.analyzer.engine.report.AnalysisReport
 import com.funcodestudiocb.analyzer.data.db.AnalysisEntity
 import com.funcodestudiocb.analyzer.engine.api.Certainty
 import com.funcodestudiocb.analyzer.engine.api.SecurityCategory

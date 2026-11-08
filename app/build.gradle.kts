@@ -121,6 +121,7 @@ android {
 dependencies {
     implementation(project(":data"))
     implementation(project(":analyzer-service"))
+    implementation(project(":engine:report"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.fragment.ktx)

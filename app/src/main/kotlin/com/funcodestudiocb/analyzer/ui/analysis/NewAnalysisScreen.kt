@@ -60,7 +60,7 @@ import com.funcodestudiocb.analyzer.R
 import com.funcodestudiocb.analyzer.analysis.AnalysisState
 import com.funcodestudiocb.analyzer.analysis.FailureReason
 import com.funcodestudiocb.analyzer.analysis.ImportedArchive
-import com.funcodestudiocb.analyzer.analysis.AnalysisOutcome
+import com.funcodestudiocb.analyzer.engine.report.AnalysisOutcome
 import com.funcodestudiocb.analyzer.data.db.AnalysisEntity
 import com.funcodestudiocb.analyzer.engine.api.ExclusionOptions
 import com.funcodestudiocb.analyzer.ui.components.FuncodePanel

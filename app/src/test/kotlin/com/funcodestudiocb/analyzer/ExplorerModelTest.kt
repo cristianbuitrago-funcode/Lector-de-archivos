@@ -1,6 +1,6 @@
 package com.funcodestudiocb.analyzer
 
-import com.funcodestudiocb.analyzer.analysis.AnalysisReport
+import com.funcodestudiocb.analyzer.engine.report.AnalysisReport
 import com.funcodestudiocb.analyzer.engine.api.Confidence
 import com.funcodestudiocb.analyzer.engine.api.ContentState
 import com.funcodestudiocb.analyzer.engine.api.DuplicateGroup

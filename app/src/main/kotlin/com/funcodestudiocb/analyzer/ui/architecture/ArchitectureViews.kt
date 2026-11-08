@@ -32,7 +32,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.funcodestudiocb.analyzer.R
-import com.funcodestudiocb.analyzer.analysis.AnalysisReport
+import com.funcodestudiocb.analyzer.engine.report.AnalysisReport
 import com.funcodestudiocb.analyzer.engine.api.ArchLayer
 import com.funcodestudiocb.analyzer.engine.api.Diagram
 import com.funcodestudiocb.analyzer.engine.api.DiagramNodeKind

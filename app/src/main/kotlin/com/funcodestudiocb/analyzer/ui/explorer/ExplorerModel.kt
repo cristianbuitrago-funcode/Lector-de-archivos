@@ -1,6 +1,6 @@
 package com.funcodestudiocb.analyzer.ui.explorer
 
-import com.funcodestudiocb.analyzer.analysis.AnalysisReport
+import com.funcodestudiocb.analyzer.engine.report.AnalysisReport
 import com.funcodestudiocb.analyzer.engine.api.EntryPoint
 import com.funcodestudiocb.analyzer.engine.api.ExcludedDirectory
 import com.funcodestudiocb.analyzer.engine.api.FileEntry

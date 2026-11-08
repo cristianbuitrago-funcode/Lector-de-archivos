@@ -26,8 +26,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import com.funcodestudiocb.analyzer.R
-import com.funcodestudiocb.analyzer.analysis.AnalysisOutcome
-import com.funcodestudiocb.analyzer.analysis.AnalysisReport
+import com.funcodestudiocb.analyzer.engine.report.AnalysisOutcome
+import com.funcodestudiocb.analyzer.engine.report.AnalysisReport
 import com.funcodestudiocb.analyzer.engine.api.EncryptionState
 import com.funcodestudiocb.analyzer.engine.api.ExclusionReason
 import com.funcodestudiocb.analyzer.engine.api.FileRole

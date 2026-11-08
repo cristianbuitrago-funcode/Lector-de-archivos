@@ -33,6 +33,8 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.IOException
 import java.util.UUID
+import com.funcodestudiocb.analyzer.engine.report.AnalysisOutcome
+import com.funcodestudiocb.analyzer.engine.report.AnalysisReport
 
 /** Progreso de una etapa, tal como lo muestra la interfaz. */
 data class StageProgress(val title: String, val done: Boolean)

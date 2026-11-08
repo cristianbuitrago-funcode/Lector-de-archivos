@@ -23,7 +23,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.funcodestudiocb.analyzer.R
-import com.funcodestudiocb.analyzer.analysis.AnalysisReport
+import com.funcodestudiocb.analyzer.engine.report.AnalysisReport
 import com.funcodestudiocb.analyzer.engine.api.Confidence
 import com.funcodestudiocb.analyzer.engine.api.EvidenceKind
 import com.funcodestudiocb.analyzer.engine.api.LanguageCategory

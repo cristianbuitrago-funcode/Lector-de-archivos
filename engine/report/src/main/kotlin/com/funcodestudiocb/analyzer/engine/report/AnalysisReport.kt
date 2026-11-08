@@ -1,4 +1,4 @@
-package com.funcodestudiocb.analyzer.analysis
+package com.funcodestudiocb.analyzer.engine.report
 
 import com.funcodestudiocb.analyzer.engine.api.ArchiveRejected
 import com.funcodestudiocb.analyzer.engine.api.ArchitectureSummary
@@ -18,6 +18,9 @@ import com.funcodestudiocb.analyzer.engine.api.ExcludedDirectory
 import com.funcodestudiocb.analyzer.engine.api.ExcludedFile
 import com.funcodestudiocb.analyzer.engine.api.FileEntry
 import com.funcodestudiocb.analyzer.engine.api.FileGraph
+import com.funcodestudiocb.analyzer.engine.api.FileMetrics
+import com.funcodestudiocb.analyzer.engine.api.MaintenanceIndex
+import com.funcodestudiocb.analyzer.engine.api.MetricsSummary
 import com.funcodestudiocb.analyzer.engine.api.FileProfile
 import com.funcodestudiocb.analyzer.engine.api.FileStatus
 import com.funcodestudiocb.analyzer.engine.api.IngestFinding
@@ -107,7 +110,14 @@ data class AnalysisReport(
     val diagrams: List<Diagram> = emptyList(),
     val flows: List<InformationFlow> = emptyList(),
     val architecture: ArchitectureSummary? = null,
+    /** Métricas de cada archivo de código, del proyecto e índice de mantenimiento (Fase 9). */
+    val fileMetrics: List<FileMetrics> = emptyList(),
+    val metrics: MetricsSummary? = null,
+    val maintenance: MaintenanceIndex? = null,
 ) {
+    /** El análisis pasó por la etapa de métricas. */
+    val hasMetrics: Boolean get() = metrics != null || stages.any { it.stageId == "metrics" }
+
     /** El análisis pasó por la etapa de arquitectura. */
     val hasArchitecture: Boolean get() = architecture != null || stages.any { it.stageId == "architecture" }
 
@@ -182,6 +192,9 @@ data class AnalysisReport(
                 diagrams = records.filterIsInstance<Diagram>(),
                 flows = records.filterIsInstance<InformationFlow>(),
                 architecture = records.filterIsInstance<ArchitectureSummary>().lastOrNull(),
+                fileMetrics = records.filterIsInstance<FileMetrics>(),
+                metrics = records.filterIsInstance<MetricsSummary>().lastOrNull(),
+                maintenance = records.filterIsInstance<MaintenanceIndex>().lastOrNull(),
             )
 
         /** Etapas que no terminaron bien (para la cobertura). */

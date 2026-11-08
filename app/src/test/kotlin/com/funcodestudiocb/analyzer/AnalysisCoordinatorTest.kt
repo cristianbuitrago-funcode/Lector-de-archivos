@@ -3,7 +3,7 @@ package com.funcodestudiocb.analyzer
 import android.net.Uri
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import com.funcodestudiocb.analyzer.analysis.AnalysisOutcome
+import com.funcodestudiocb.analyzer.engine.report.AnalysisOutcome
 import com.funcodestudiocb.analyzer.analysis.AnalysisState
 import com.funcodestudiocb.analyzer.analysis.FailureReason
 import com.funcodestudiocb.analyzer.engine.api.ArchiveFormat
