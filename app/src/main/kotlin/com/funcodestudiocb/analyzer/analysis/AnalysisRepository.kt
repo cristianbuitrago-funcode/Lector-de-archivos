@@ -5,17 +5,26 @@ import com.funcodestudiocb.analyzer.data.db.AnalysisRecordEntity
 import com.funcodestudiocb.analyzer.data.db.FileContentEntity
 import com.funcodestudiocb.analyzer.data.db.HighlightCodec
 import com.funcodestudiocb.analyzer.data.db.SettingEntity
+import com.funcodestudiocb.analyzer.dashboard.AnalysisDigest
 import com.funcodestudiocb.analyzer.data.session.SessionManager
 import com.funcodestudiocb.analyzer.engine.api.CoverageNote
 import com.funcodestudiocb.analyzer.engine.api.CoverageReason
+import com.funcodestudiocb.analyzer.engine.api.DependencySummary
 import com.funcodestudiocb.analyzer.engine.api.ExclusionOptions
 import com.funcodestudiocb.analyzer.engine.api.FileStatus
+import com.funcodestudiocb.analyzer.engine.api.LanguageStats
+import com.funcodestudiocb.analyzer.engine.api.MaintenanceIndex
 import com.funcodestudiocb.analyzer.engine.api.ProtocolJson
 import com.funcodestudiocb.analyzer.engine.api.ResultRecord
+import com.funcodestudiocb.analyzer.engine.api.SecuritySummary
 import com.funcodestudiocb.analyzer.engine.api.SessionEnd
 import com.funcodestudiocb.analyzer.engine.api.SessionOutcome
+import com.funcodestudiocb.analyzer.engine.api.Technology
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.map
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -146,6 +155,35 @@ class AnalysisRepository(private val session: SessionManager) {
 
     fun count(): Flow<Int> = session.databaseOrNull()?.analyses()?.count() ?: flowOf(0)
 
+    /**
+     * Datos del Panel: los últimos [limit] análisis con sus registros de resumen (seguridad, dependencias, tecnologías,
+     * lenguajes e índice). Solo se leen esos tipos de registro, no el análisis entero. Se actualiza al guardar o borrar.
+     */
+    fun digests(limit: Int = DASHBOARD_LIMIT): Flow<List<AnalysisDigest>> {
+        val db = session.databaseOrNull() ?: return flowOf(emptyList())
+        return db.analyses().recent(limit).map { entities ->
+            val records = entities.map { it.id }.chunked(MAX_IDS_PER_QUERY)
+                .flatMap { ids -> db.analyses().recordsOfTypes(ids, DIGEST_TYPES) }
+                .groupBy({ it.analysisId }) { runCatching { ProtocolJson.decodeFromString(ResultRecord.serializer(), it.json) }.getOrNull() }
+            entities.map { e ->
+                val own = records[e.id].orEmpty().filterNotNull()
+                AnalysisDigest(
+                    id = e.id,
+                    archiveName = e.archiveName,
+                    startedAtEpochMs = e.startedAtEpochMs,
+                    outcome = runCatching { AnalysisOutcome.valueOf(e.status) }.getOrNull(),
+                    fileCount = e.fileCount,
+                    findingCount = e.findingCount,
+                    security = own.filterIsInstance<SecuritySummary>().lastOrNull(),
+                    dependencies = own.filterIsInstance<DependencySummary>().lastOrNull(),
+                    technologies = own.filterIsInstance<Technology>(),
+                    languages = own.filterIsInstance<LanguageStats>(),
+                    maintenance = own.filterIsInstance<MaintenanceIndex>().lastOrNull(),
+                )
+            }
+        }.flowOn(Dispatchers.IO)
+    }
+
     /** Carga un análisis guardado y reconstruye su informe. */
     suspend fun load(id: String): Pair<AnalysisEntity, AnalysisReport>? = loadWithRecords(id)?.let { it.entity to it.report }
 
@@ -180,6 +218,9 @@ class AnalysisRepository(private val session: SessionManager) {
         const val KEY_EXCLUSIONS = "analysis.exclusions"
         const val KEY_KEEP_COPY = "analysis.keepCodeCopy"
         const val KEY_FINGERPRINT = "security.fingerprintKey"
+        const val DASHBOARD_LIMIT = 300
+        const val MAX_IDS_PER_QUERY = 400 // SQLite admite como mucho 999 parámetros por consulta
+        val DIGEST_TYPES = listOf("security_summary", "dependency_summary", "technology", "language_stats", "maintenance_index")
     }
 }
 

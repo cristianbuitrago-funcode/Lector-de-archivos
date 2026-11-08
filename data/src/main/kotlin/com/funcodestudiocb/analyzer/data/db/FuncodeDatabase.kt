@@ -169,6 +169,10 @@ abstract class AnalysisDao {
     @Query("SELECT COUNT(*) FROM analyses")
     abstract fun count(): Flow<Int>
 
+    /** Registros de ciertos tipos de varios análisis (los resúmenes del Panel), sin leer el resto. */
+    @Query("SELECT * FROM analysis_records WHERE analysis_id IN (:ids) AND type IN (:types) ORDER BY analysis_id, seq")
+    abstract suspend fun recordsOfTypes(ids: List<String>, types: List<String>): List<AnalysisRecordEntity>
+
     @Query("DELETE FROM analysis_records WHERE analysis_id = :id")
     protected abstract suspend fun deleteRecords(id: String)
 

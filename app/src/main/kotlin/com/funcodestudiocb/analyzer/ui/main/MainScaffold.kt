@@ -1,10 +1,8 @@
 package com.funcodestudiocb.analyzer.ui.main
 
-import androidx.annotation.ArrayRes
 import androidx.annotation.StringRes
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -77,27 +75,27 @@ import com.funcodestudiocb.analyzer.ui.explorer.ExplorerScreen
 import com.funcodestudiocb.analyzer.ui.explorer.ExplorerViewModel
 import com.funcodestudiocb.analyzer.ui.security.SecurityScreen
 import com.funcodestudiocb.analyzer.ui.security.SecurityViewModel
+import com.funcodestudiocb.analyzer.ui.dashboard.DashboardActions
+import com.funcodestudiocb.analyzer.ui.dashboard.DashboardScreen
 import com.funcodestudiocb.analyzer.ui.settings.SettingsScreen
 import com.funcodestudiocb.analyzer.ui.settings.SettingsViewModel
 import com.funcodestudiocb.analyzer.ui.settings.VulnDbSettingsViewModel
 import com.funcodestudiocb.analyzer.ui.containerViewModel
 import kotlinx.coroutines.launch
 
-/** Pantallas principales. [phase] indica en qué fase se implementa cada una. */
+/** Pantallas principales. */
 enum class Destination(
     val route: String,
     @StringRes val title: Int,
     val icon: ImageVector,
-    val phase: Int,
-    @ArrayRes val planned: Int?,
 ) {
-    Dashboard("panel", R.string.nav_dashboard, Icons.Filled.Home, 10, R.array.placeholder_dashboard),
-    NewAnalysis("nuevo", R.string.nav_new_analysis, Icons.Filled.AddCircle, 2, R.array.placeholder_new_analysis),
-    Explorer("explorador", R.string.nav_explorer, Icons.AutoMirrored.Filled.List, 3, R.array.placeholder_explorer),
-    Architecture("arquitectura", R.string.nav_architecture, Icons.Filled.Build, 8, R.array.placeholder_architecture),
-    Security("seguridad", R.string.nav_security, Icons.Filled.Lock, 6, R.array.placeholder_security),
-    Reports("informes", R.string.nav_reports, Icons.Filled.DateRange, 9, R.array.placeholder_reports),
-    Settings("ajustes", R.string.nav_settings, Icons.Filled.Settings, 1, null),
+    Dashboard("panel", R.string.nav_dashboard, Icons.Filled.Home),
+    NewAnalysis("nuevo", R.string.nav_new_analysis, Icons.Filled.AddCircle),
+    Explorer("explorador", R.string.nav_explorer, Icons.AutoMirrored.Filled.List),
+    Architecture("arquitectura", R.string.nav_architecture, Icons.Filled.Build),
+    Security("seguridad", R.string.nav_security, Icons.Filled.Lock),
+    Reports("informes", R.string.nav_reports, Icons.Filled.DateRange),
+    Settings("ajustes", R.string.nav_settings, Icons.Filled.Settings),
 }
 
 const val ROUTE_DIAGNOSTICS = "ajustes/diagnostico"
@@ -279,7 +277,23 @@ private fun MainNavHost(navController: NavHostController, container: AppContaine
                         val vulnDb = containerViewModel("bases-vulnerabilidades") { VulnDbSettingsViewModel(container) }
                         SettingsScreen(vm, vulnDb, onOpenDiagnostics = { navController.navigate(ROUTE_DIAGNOSTICS) })
                     }
-                    Destination.Dashboard -> Box { DashboardScreen(container) }
+                    Destination.Dashboard -> {
+                        fun goTo(d: Destination) = navController.navigate(d.route) {
+                            popUpTo(Destination.Dashboard.route) { saveState = true }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                        DashboardScreen(
+                            container,
+                            DashboardActions(
+                                onNewAnalysis = { goTo(Destination.NewAnalysis) },
+                                onOpenAnalysis = { id -> navController.navigate("analisis/$id") },
+                                onOpenReport = { id -> navController.navigate(reportRoute(id)) },
+                                onOpenSecurity = { goTo(Destination.Security) },
+                                onOpenSettings = { goTo(Destination.Settings) },
+                            ),
+                        )
+                    }
                     Destination.NewAnalysis -> {
                         val vm = containerViewModel { NewAnalysisViewModel(container) }
                         NewAnalysisScreen(
@@ -308,7 +322,6 @@ private fun MainNavHost(navController: NavHostController, container: AppContaine
                         onOpenDependencies = { id -> navController.navigate(dependenciesRoute(id)) },
                     )
                     Destination.Reports -> ReportsScreen(containerViewModel("informes") { ReportsViewModel(container) })
-                    else -> PlaceholderScreen(destination)
                 }
             }
         }

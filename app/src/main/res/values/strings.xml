@@ -76,44 +76,84 @@
     <string name="nav_open_menu">Abrir menú</string>
     <string name="nav_lock">Bloquear</string>
 
-    <!-- Pantallas aún no implementadas -->
-    <string name="placeholder_badge">En construcción · Fase %1$d</string>
-    <string name="placeholder_intro">Esta pantalla todavía no está implementada. Cuando lo esté, mostrará:</string>
-    <string-array name="placeholder_dashboard">
-        <item>Proyectos analizados y últimos análisis</item>
-        <item>Vulnerabilidades encontradas por severidad</item>
-        <item>Tecnologías más utilizadas</item>
-    </string-array>
-    <string-array name="placeholder_new_analysis">
-        <item>Carga del ZIP o RAR (selector, «Abrir con…» y arrastrar en pantallas grandes)</item>
-        <item>Nombre, tamaño y formato del archivo</item>
-        <item>Configuración de exclusiones y límites</item>
-        <item>Progreso por etapas en tiempo real</item>
-    </string-array>
-    <string-array name="placeholder_explorer">
-        <item>Árbol interactivo de carpetas y archivos</item>
-        <item>Visor de código con los hallazgos marcados</item>
-        <item>Ficha de cada archivo: función, lenguaje, tecnologías y relaciones</item>
-    </string-array>
-    <string-array name="placeholder_architecture">
-        <item>Diagrama de arquitectura por capas</item>
-        <item>Mapa de conexiones entre archivos, con su nivel de verificación</item>
-        <item>Flujos de información y dependencias</item>
-    </string-array>
-    <string-array name="placeholder_security">
-        <item>Vulnerabilidades clasificadas por severidad y certeza</item>
-        <item>Ficha detallada con recomendación y ejemplo corregido</item>
-        <item>Pruebas dinámicas recomendadas</item>
-    </string-array>
-    <string-array name="placeholder_reports">
-        <item>Historial de análisis</item>
-        <item>Exportación en PDF, HTML y JSON</item>
-        <item>Comparación entre análisis del mismo proyecto</item>
-    </string-array>
+    <!-- Panel (Fase 10) -->
+    <string name="dash_loading">Cargando el historial…</string>
+    <string name="dash_welcome_title">Bienvenido a Funcode Code Analyzer</string>
+    <string name="dash_welcome_text">Todavía no hay ningún análisis. El análisis es estático y se hace en este teléfono: el código no se ejecuta ni se envía a ningún servicio.</string>
+    <string name="dash_welcome_step1">Elige el ZIP o RAR de un proyecto en «Nuevo análisis» (o ábrelo con Funcode desde otra app).</string>
+    <string name="dash_welcome_step2">Revisa las exclusiones y empieza el análisis; puedes seguir cada etapa en directo.</string>
+    <string name="dash_welcome_step3">Consulta el resultado en el Explorador, Arquitectura, Seguridad e Informes.</string>
+    <string name="dash_tile_last">Último análisis</string>
+    <string name="dash_today">Hoy</string>
+    <string name="dash_yesterday">Ayer</string>
+    <plurals name="dash_days_ago">
+        <item quantity="one">Hace %1$d día</item>
+        <item quantity="other">Hace %1$d días</item>
+        <item quantity="many">Hace %1$d días</item>
+    </plurals>
+    <plurals name="dash_tile_projects">
+        <item quantity="one">proyecto</item>
+        <item quantity="other">proyectos</item>
+        <item quantity="many">proyectos</item>
+    </plurals>
+    <plurals name="dash_tile_analyses">
+        <item quantity="one">análisis</item>
+        <item quantity="other">análisis</item>
+        <item quantity="many">análisis</item>
+    </plurals>
+    <plurals name="dash_tile_findings">
+        <item quantity="one">hallazgo de seguridad</item>
+        <item quantity="other">hallazgos de seguridad</item>
+        <item quantity="many">hallazgos de seguridad</item>
+    </plurals>
+    <string name="dash_findings_title">Hallazgos de seguridad por severidad</string>
+    <string name="dash_findings_none_evaluated">Ningún análisis terminado tiene auditoría de seguridad.</string>
+    <plurals name="dash_latest_of_projects">
+        <item quantity="one">Del último análisis terminado de %1$d proyecto.</item>
+        <item quantity="other">Del último análisis terminado de cada proyecto (%1$d proyectos).</item>
+        <item quantity="many">Del último análisis terminado de cada proyecto (%1$d proyectos).</item>
+    </plurals>
+    <string name="dash_open_security">Ver Seguridad</string>
+    <string name="dash_vulns_title">Vulnerabilidades de dependencias por severidad</string>
+    <plurals name="dash_vulns_checked">
+        <item quantity="one">Comprobadas en %1$d proyecto (último análisis terminado).</item>
+        <item quantity="other">Comprobadas en %1$d proyectos (último análisis terminado de cada uno).</item>
+        <item quantity="many">Comprobadas en %1$d proyectos (último análisis terminado de cada uno).</item>
+    </plurals>
+    <plurals name="dash_vulns_not_checked">
+        <item quantity="one">En %1$d proyecto no se pudieron comprobar: no había base de vulnerabilidades descargada para sus dependencias.</item>
+        <item quantity="other">En %1$d proyectos no se pudieron comprobar: no había base de vulnerabilidades descargada para sus dependencias.</item>
+        <item quantity="many">En %1$d proyectos no se pudieron comprobar: no había base de vulnerabilidades descargada para sus dependencias.</item>
+    </plurals>
+    <string name="dash_vulns_no_dependencies">Los proyectos analizados no declaran dependencias.</string>
+    <string name="dash_download_db">Descargar la base en Ajustes</string>
+    <string name="dash_projects">Proyectos</string>
+    <plurals name="dash_more_projects">
+        <item quantity="one">Y %1$d proyecto más (en Informes está el historial completo).</item>
+        <item quantity="other">Y %1$d proyectos más (en Informes está el historial completo).</item>
+        <item quantity="many">Y %1$d proyectos más (en Informes está el historial completo).</item>
+    </plurals>
+    <string name="dash_no_index">Sin índice</string>
+    <string name="dash_open_report">Abrir el informe</string>
+    <string name="dash_open_analysis">Abrir el análisis</string>
+    <string name="dash_trend_title">Tendencia del índice de mantenimiento</string>
+    <string name="dash_trend_description">Índice de mantenimiento de %1$s en sus análisis: %2$s</string>
+    <string name="dash_trend_note">Proyectos con dos o más análisis. Líneas guía en 50 (medio) y 70 (bueno). El índice es orientativo.</string>
+    <string name="dash_technologies_title">Tecnologías más utilizadas</string>
+    <string name="dash_technologies_none">No se reconoció ninguna tecnología con certeza.</string>
+    <string name="dash_technologies_note">Confirmadas o probables en el último análisis terminado de cada proyecto; las posibles no cuentan.</string>
+    <string name="dash_languages_title">Lenguajes por líneas de código</string>
+    <plurals name="dash_in_projects">
+        <item quantity="one">en %1$d proyecto</item>
+        <item quantity="other">en %1$d proyectos</item>
+        <item quantity="many">en %1$d proyectos</item>
+    </plurals>
+    <string name="dash_recent">Últimos análisis</string>
+    <string name="dash_vulndb_none">Sin base de vulnerabilidades descargada</string>
+    <string name="dash_vulndb_date">Base de vulnerabilidades del %1$s</string>
 
     <!-- Panel: estado actual -->
     <string name="status_title">Estado de la instalación</string>
-    <string name="status_phase">Fase 3 de 10: explorador y estructura del proyecto</string>
     <string name="status_access">Acceso exclusivo con contraseña propia</string>
     <string name="status_biometric_on">Acceso biométrico activado</string>
     <string name="status_biometric_off">Acceso biométrico desactivado</string>
@@ -305,7 +345,6 @@
     <string name="exclusion_reason_directory">Carpeta excluida</string>
     <string name="exclusion_reason_context">Generada por el motor</string>
     <string name="exclusion_reason_temporary">Temporal o de sistema</string>
-    <string name="status_analyses">Análisis de proyectos realizados: %1$d</string>
     <string name="wipe_notice">Se borraron todos los datos porque se superó el número máximo de contraseñas incorrectas. Configura de nuevo tu acceso.</string>
     <string name="open_with_label">Analizar con Funcode</string>
     <string name="action_understood">Entendido</string>
