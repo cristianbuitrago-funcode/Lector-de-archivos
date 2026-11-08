@@ -68,6 +68,8 @@ class ProjectConfigs {
  * configuración que afecta a su resolución. Trabaja sobre el texto ya redactado.
  */
 class RelationCollector : RedactedTextListener {
+
+    override val timingLabel = "símbolos e importaciones"
     val facts = LinkedHashMap<String, SourceFacts>()
     val configs = ProjectConfigs()
     private var identifierBudget = MAX_IDENTIFIER_CHARS

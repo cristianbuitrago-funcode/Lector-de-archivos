@@ -10,6 +10,7 @@ import com.funcodestudiocb.analyzer.engine.api.EvidenceKind
 import com.funcodestudiocb.analyzer.engine.api.FileEntry
 import com.funcodestudiocb.analyzer.engine.api.RecordValidator
 import com.funcodestudiocb.analyzer.engine.api.Technology
+import com.funcodestudiocb.analyzer.engine.api.TechnologyCategory
 import com.funcodestudiocb.analyzer.engine.core.Stage
 import com.funcodestudiocb.analyzer.engine.core.StageContext
 import com.funcodestudiocb.analyzer.engine.core.StageStoppedException
@@ -32,6 +33,8 @@ internal class Hit(
     val version: String? = null,
     /** Peso con el que suma; por defecto, el de la señal. */
     val weight: Double = signal?.weight ?: 0.0,
+    /** Está en un archivo de pruebas. */
+    val inTest: Boolean = false,
 )
 
 /** Indicios de una tecnología: se guardan los primeros y se cuentan todos. */
@@ -42,8 +45,12 @@ internal class Hits {
     val versions = LinkedHashSet<String>()
     val paths = LinkedHashSet<String>()
 
+    /** Algún indicio (no una mención) fuera de las pruebas. */
+    var outsideTests = false
+
     fun add(hit: Hit) {
         total++
+        if (hit.signal != null && !hit.inTest) outsideTests = true
         hit.signal?.let { signals[it.index] = maxOf(signals[it.index] ?: 0.0, hit.weight) }
         hit.version?.let { if (versions.size < RecordValidator.MAX_TECH_VERSIONS) versions += it }
         if (paths.size < MAX_PATHS) paths += hit.path
@@ -62,9 +69,14 @@ internal class Hits {
  */
 class TechnologySignalCollector(internal val catalog: TechnologyCatalog = TechnologyCatalog.default) : RedactedTextListener {
 
+    override val timingLabel = "señales de tecnologías"
+
     internal val hits = HashMap<String, Hits>()
     var scannedFiles = 0
         private set
+
+    /** Archivos que enumeran muchas tecnologías (catálogos, listas): sus textos cuentan como menciones, no como uso. */
+    internal val listFiles = ArrayList<Pair<String, Int>>()
 
     private val importSignals = catalog.rules.flatMap { rule -> rule.signals.filter { it.kind == SignalKind.IMPORT }.map { rule to it } }
     private val contentSignals = catalog.rules.flatMap { rule ->
@@ -106,7 +118,7 @@ class TechnologySignalCollector(internal val catalog: TechnologyCatalog = Techno
                 if (signal.languages != null && language !in signal.languages) continue
                 if (!importMatches(module, signal.value)) continue
                 if (!seen.add(rule.id to signal.index)) continue
-                hitsOf(rule).add(Hit(signal, EvidenceKind.IMPORT, "Importa ${shorten(module)}", file.path, ref.line))
+                hitsOf(rule).add(Hit(signal, EvidenceKind.IMPORT, "Importa ${shorten(module)}", file.path, ref.line, inTest = isTestPath(file.info)))
             }
         }
     }
@@ -124,6 +136,12 @@ class TechnologySignalCollector(internal val catalog: TechnologyCatalog = Techno
             }
             true
         }
+        // Un archivo con textos de muchas tecnologías distintas es un catálogo o una lista (de reglas, de dominios, de
+        // ejemplos), no un proyecto que las use todas: sus coincidencias cuentan como menciones, nunca como uso.
+        val inCodeRules = HashSet<String>()
+        for (index in literals.indices) if (inCode[index] >= 0) signalsByLiteral[index].forEach { inCodeRules += it.first.id }
+        val listing = inCodeRules.size >= LIST_THRESHOLD
+        if (listing && listFiles.size < MAX_LIST_FILES) listFiles += file.path to inCodeRules.size
         for (index in literals.indices) {
             if (inCode[index] < 0 && inComments[index] < 0) continue
             for ((rule, signal) in signalsByLiteral[index]) {
@@ -147,9 +165,12 @@ class TechnologySignalCollector(internal val catalog: TechnologyCatalog = Techno
                 }
                 val shown = if (signal.pattern != null) "un patrón de ${rule.name}" else "«${shorten(signal.value)}»"
                 when {
+                    codeAt >= 0 && listing -> hitsOf(rule).add(
+                        Hit(null, EvidenceKind.MENTION, "Un archivo que enumera ${inCodeRules.size} tecnologías (catálogo o lista) contiene $shown", file.path, lineOf(file.lineStarts, codeAt)),
+                    )
                     codeAt >= 0 && isTestPath(file.info) -> hitsOf(rule).add(
                         // Un texto en una prueba suele ser un dato de ejemplo: indica menos que en el código del producto.
-                        Hit(signal, EvidenceKind.CONTENT, "Una prueba contiene $shown", file.path, lineOf(file.lineStarts, codeAt), weight = signal.weight * TEST_FACTOR),
+                        Hit(signal, EvidenceKind.CONTENT, "Una prueba contiene $shown", file.path, lineOf(file.lineStarts, codeAt), weight = signal.weight * TEST_FACTOR, inTest = true),
                     )
                     codeAt >= 0 -> hitsOf(rule).add(Hit(signal, EvidenceKind.CONTENT, "El código contiene $shown", file.path, lineOf(file.lineStarts, codeAt)))
                     commentAt >= 0 -> hitsOf(rule).add(Hit(null, EvidenceKind.MENTION, "Comentario que menciona $shown", file.path, lineOf(file.lineStarts, commentAt)))
@@ -179,6 +200,10 @@ class TechnologySignalCollector(internal val catalog: TechnologyCatalog = Techno
 
     internal companion object {
         const val TEST_FACTOR = 0.5
+
+        /** Tecnologías distintas a partir de las cuales un archivo se considera un catálogo o una lista. */
+        const val LIST_THRESHOLD = 12
+        private const val MAX_LIST_FILES = 20
         private val TEST_DIRS = setOf("test", "tests", "__tests__", "androidtest", "spec", "specs", "testing", "testdata", "test-data", "fixtures", "e2e", "cypress")
 
         /** Archivo de pruebas por su carpeta o su nombre (`FooTest.kt`, `test_foo.py`, `foo.spec.ts`). */
@@ -243,6 +268,14 @@ class TechnologyStage(private val signals: TechnologySignalCollector?) : Stage {
             "Tecnologías reconocidas con el catálogo v${catalog.version} (${catalog.rules.size} tecnologías): una tecnología que no está en el catálogo no se detecta. " +
                 "Las menciones en documentación o comentarios se listan como no concluyentes y nunca cuentan como uso.",
         )
+        if (collector.listFiles.isNotEmpty()) {
+            val shown = collector.listFiles.take(3).joinToString(", ") { (path, n) -> "${path.substringAfterLast('/')} ($n)" }
+            context.coverage(
+                CoverageReason.UNSUPPORTED,
+                "${collector.listFiles.size} archivo(s) enumeran ${TechnologySignalCollector.LIST_THRESHOLD} o más tecnologías distintas y parecen un catálogo " +
+                    "o una lista: sus textos se tratan como menciones, no como uso ($shown).",
+            )
+        }
     }
 
     private fun dependencySignals(dependencies: List<DeclaredDependency>) {
@@ -287,6 +320,9 @@ class TechnologyStage(private val signals: TechnologySignalCollector?) : Stage {
         if (hits.kept.isEmpty()) return null
         val score = hits.signals.values.sum().coerceAtMost(1.0)
         val confidence = when {
+            // Solo aparece en pruebas (datos de ejemplo, proyectos de prueba): no demuestra que el producto la use. Las
+            // herramientas de pruebas son la excepción: es ahí donde se usan.
+            !hits.outsideTests && rule.category != TechnologyCategory.TESTING -> Confidence.POSSIBLE
             score >= rule.confirmed - EPSILON -> Confidence.CONFIRMED
             score >= rule.probable - EPSILON -> Confidence.PROBABLE
             else -> Confidence.POSSIBLE

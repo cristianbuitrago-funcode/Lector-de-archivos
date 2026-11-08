@@ -97,7 +97,7 @@ internal object Context {
     private val EXAMPLE_DIRS = setOf("example", "examples", "sample", "samples", "demo", "demos", "docs", "doc", "tutorial", "tutorials")
     private val DEV_WORDS = listOf("dev", "local", "development", "test", "testing", "debug", "example", "sample")
 
-    /** Motivo de rebaja por la ubicación del archivo, o `null`. */
+    /** Motivo de rebaja por la ubicación del archivo, o `null`. El informe (engine:report) reconoce «archivo de pruebas». */
     fun location(path: String?): String? {
         if (path == null) return null
         val parts = path.lowercase().split('/')

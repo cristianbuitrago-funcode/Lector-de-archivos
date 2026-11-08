@@ -6,6 +6,7 @@ import com.funcodestudiocb.analyzer.engine.api.IngestOptions
 import com.funcodestudiocb.analyzer.engine.api.RecordValidator
 import com.funcodestudiocb.analyzer.engine.api.ResultRecord
 import com.funcodestudiocb.analyzer.engine.api.SessionEnd
+import com.funcodestudiocb.analyzer.engine.api.StageEvent
 import com.funcodestudiocb.analyzer.engine.core.Attributes
 import com.funcodestudiocb.analyzer.engine.core.CollectingSink
 import com.funcodestudiocb.analyzer.engine.core.PipelineRunner
@@ -83,10 +84,12 @@ class ReportTest {
 
     private class Analysis(val records: List<ResultRecord>, val report: AnalysisReport, val meta: ReportMeta)
 
-    private fun analyze(version: Int): Analysis {
+    private fun analyze(version: Int): Analysis = analyze(project(version), version)
+
+    private fun analyze(entries: Map<String, String>, version: Int = 1): Analysis {
         val file = File(dir, "tienda.zip")
         ZipOutputStream(file.outputStream()).use { out ->
-            project(version).forEach { (name, text) ->
+            entries.forEach { (name, text) ->
                 out.putNextEntry(ZipEntry(name))
                 out.write(text.toByteArray())
                 out.closeEntry()
@@ -137,6 +140,63 @@ class ReportTest {
         val metadata = doc.sections.last().blocks.filterIsInstance<Block.Facts>().single().items.toMap()
         assertEquals(a.meta.archiveSha256, metadata["Huella SHA-256 del comprimido"])
         assertEquals("v10", metadata["Esquema de resultados"])
+    }
+
+    /**
+     * Lo que enseñó el informe de este repositorio hecho en un teléfono real (Fase 10): las claves de ejemplo de las
+     * pruebas no son «lo más urgente», las tecnologías solo mencionadas no se cuentan como usadas y una carpeta de
+     * código con algunas pruebas es «Código fuente», no «Pruebas».
+     */
+    @Test
+    fun `hallazgos en pruebas, tecnologias solo posibles y funcion de cada carpeta`() {
+        val header = "-----BEGIN RSA " + "PRIVATE KEY-----"
+        val key = "$header\nMIIEowIBAAKCAQEAu1SU1LfVLPHCozMxH2Mo4lgOEePzNm0tRgeLezV6ffAt0gun\n-----END RSA " + "PRIVATE KEY-----\n"
+        val catalog = listOf("mongodb://", "redis://", "neo4j://", "api.stripe.com", "api.paypal.com", "api.openai.com", "api.twilio.com",
+            "api.sendgrid.com", "api.mailgun.net", ".supabase.co", "jdbc:mysql:", "jdbc:sqlserver:").joinToString("\n") { "- \"$it\"" }
+        val a = analyze(
+            buildMap {
+                put("tienda/package.json", """{"name": "tienda", "dependencies": {"express": "4.19.2"}, "devDependencies": {"jest": "29.7.0"}}""")
+                put("tienda/server/app.js", "const express = require('express');\nconst app = express();\napp.listen(3000);\n")
+                (1..3).forEach { put("tienda/server/modulo$it.js", "module.exports = (a) => a > $it ? a : -a;\n") }
+                put("tienda/server/test/claves.test.js", "const pem = `$key`;\ntest('firma', () => expect(pem).toBeTruthy());\n")
+                put("tienda/server/test/app.test.js", "test('arranca', () => expect(1).toBe(1));\n")
+                put("tienda/server/catalogo.yaml", "servicios:\n$catalog\n")
+            },
+        )
+        val doc = ReportBuilder.build(a.report, a.meta)
+        val statements = doc.sections.flatMap { s -> s.blocks.filterIsInstance<Block.Statements>().flatMap { it.items } }.map { it.text }
+        // La clave de ejemplo: se informa, pero diciendo dónde está y sin presentarla como lo más urgente.
+        assertTrue(statements.any { "en un archivo de pruebas" in it && "crítica o alta" in it }, statements.toString())
+        assertTrue(statements.none { it.startsWith("Lo más urgente es la seguridad") }, statements.toString())
+        assertTrue(statements.any { it.startsWith("Revisar el hallazgo crítico o alto, que está en un archivo de pruebas") }, statements.toString())
+        assertTrue(ReportBuilder.problems(a.report).any { "en un archivo de pruebas" in it.text })
+        // Las del catálogo solo son posibles: no salen en las tablas, sino en una línea aparte.
+        fun texts(number: String) = doc.sections.first { it.number == number }.blocks.flatMap { b ->
+            when (b) {
+                is Block.Paragraph -> listOf(b.text)
+                is Block.Table -> b.rows.flatten()
+                else -> emptyList()
+            }
+        }
+        val technologies = doc.sections.first { it.number == "3" }.blocks.filterIsInstance<Block.Table>().flatMap { it.rows }.map { it.first() }
+        assertTrue("Express" in technologies && "Stripe" !in technologies && "MongoDB" !in technologies, technologies.toString())
+        assertTrue(texts("3").any { it.startsWith("Solo posibles") && "Stripe" in it }, texts("3").toString())
+        assertTrue(texts("8").any { it.startsWith("Solo posibles") && "MongoDB" in it }, texts("8").toString())
+        assertTrue(texts("9").none { it == "Stripe" }, texts("9").toString())
+        assertTrue(statements.any { "solo son posibles" in it }, statements.toString())
+        // Carpetas: el rol mayoritario y, si llega a una cuarta parte, también el secundario.
+        val folders = doc.sections.first { it.number == "5" }.blocks.filterIsInstance<Block.Table>().first().rows.associate { it[0] to it[3] }
+        assertEquals("Servidor; pruebas (29 %)", folders["tienda/server"], folders.toString())
+    }
+
+    @Test
+    fun `el anexo A dice en que se fue el tiempo de las etapas largas`() {
+        val a = analyze(1)
+        val records = a.records.map { if (it is StageEvent && it.stageId == "ingest.read") it.copy(message = "redactor de secretos 1.200 ms; envío de resultados a la app 300 ms") else it }
+        val report = AnalysisReport.from(records, records.filterIsInstance<SessionEnd>().lastOrNull()?.outcome, null)
+        val annex = ReportBuilder.build(report, a.meta).sections.first { it.number == "A" }.blocks.filterIsInstance<Block.Paragraph>().map { it.text }
+        assertTrue(annex.any { it == "En qué se fue el tiempo de «Lectura de los archivos»: redactor de secretos 1.200 ms; envío de resultados a la app 300 ms." }, annex.toString())
+        assertEquals(1, annex.count { it.startsWith("En qué se fue el tiempo") }, "Solo las etapas con desglose")
     }
 
     @Test

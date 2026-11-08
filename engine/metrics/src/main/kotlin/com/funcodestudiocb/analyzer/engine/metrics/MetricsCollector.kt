@@ -20,6 +20,8 @@ import com.google.re2j.Pattern
  */
 class MetricsCollector : RedactedTextListener {
 
+    override val timingLabel = "métricas"
+
     internal class FileData(
         val path: String,
         val languageId: String,

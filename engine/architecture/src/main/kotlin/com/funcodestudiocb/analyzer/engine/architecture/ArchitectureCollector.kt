@@ -13,6 +13,8 @@ import com.funcodestudiocb.analyzer.engine.languages.LanguageKind
  */
 class ArchitectureCollector : RedactedTextListener {
 
+    override val timingLabel = "capas de arquitectura"
+
     /** Archivos de código o marcado (los que pueden tener capa), con su lenguaje. */
     internal val codeFiles = HashMap<String, String>()
 

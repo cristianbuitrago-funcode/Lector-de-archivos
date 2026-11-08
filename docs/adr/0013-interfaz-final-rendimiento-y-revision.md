@@ -52,6 +52,34 @@ gama media), las **pruebas de extremo a extremo** con un proyecto desconocido, l
    final: el compilador trata todos los avisos como errores y Android Lint no tiene ningún hallazgo; añadirlos ahora
    supondría dependencias nuevas sin verificar y reformatear cientos de archivos sin ganar corrección. La arquitectura
    se corrige para no decir que la CI los ejecuta.
+9. **Lo que enseñó el informe del propietario en su teléfono.** El propietario analizó este mismo repositorio en su
+   teléfono y el informe tenía cuatro defectos de interpretación (no de lectura), que se corrigen sin cambiar el
+   esquema de resultados:
+   - **Tecnologías inventadas desde un catálogo.** El catálogo de reglas (`catalog.yaml`) contiene las señales de más
+     de cien tecnologías, y el informe decía que el proyecto usaba PostgreSQL, Stripe, Slack, Supabase… Ahora, si un
+     archivo contiene como texto las señales de **12 o más tecnologías distintas**, se trata como un catálogo o una
+     lista: sus coincidencias son **menciones** (no uso) y la cobertura lo dice con el número de archivos. El umbral
+     es una heurística: un archivo de configuración real rara vez nombra tantas tecnologías a la vez.
+   - **Tecnologías vistas solo en pruebas** (cadenas de conexión de ejemplo, importaciones en pruebas) quedan como
+     **posibles**, salvo las de la categoría de pruebas (JUnit, Jest…), que se usan precisamente ahí.
+   - **El informe separa lo posible**: el resumen cuenta las tecnologías reconocidas y dice cuántas «solo son
+     posibles»; las tablas de tecnologías, bases de datos y servicios muestran solo las confirmadas y probables, y las
+     posibles van en una línea aparte. Los **hallazgos graves en archivos de pruebas** (la auditoría ya los rebajaba
+     y lo anotaba, Fase 6) se dicen como tales en el resumen, los problemas, las recomendaciones y las conclusiones,
+     en lugar de presentarse como «lo más urgente».
+   - **Función de cada carpeta y puntos de entrada.** La función de una carpeta es el rol de la mayoría de sus archivos
+     y, si otro rol llega a una cuarta parte, también ese («Servidor; pruebas (29 %)»); antes ganaba el rol concreto
+     más frecuente aunque fuera minoritario (una carpeta de C++ con tres documentos salía como «Documentación»). Los
+     puntos de entrada ya no se toman de un patrón escrito dentro de una cadena de texto (`"@SpringBootApplication"`)
+     ni de un `main` dentro de una carpeta de pruebas.
+10. **Desglose del tiempo en el propio informe.** En el teléfono del propietario la lectura y el examen de los
+    archivos se llevaron 40 de 45 s, y todas las etapas fueron entre 6 y 25 veces más lentas que en el PC (la APK era
+    la de depuración, que Android no compila por adelantado). Como en un teléfono no se puede perfilar, el motor mide
+    el **tiempo exclusivo** de cada parte de una etapa (lo anidado, como enviar un registro mientras se examina un
+    archivo, cuenta en su parte y no en la que la contiene) y lo pone en el mensaje de la etapa cuando dura más de un
+    segundo; el Anexo A lo muestra. Solo contiene nombres de partes escritos por el motor y milisegundos. No cambia el
+    esquema: el campo `message` de las etapas ya existía. El motor pasa a la versión **1.0.1** (sus resultados
+    cambian con estas correcciones).
 
 ## Consecuencias
 

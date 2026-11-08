@@ -140,7 +140,7 @@ private fun measure(file: File, password: CharArray?, vulndb: File?) {
     // La suma de los máximos de cada zona es una cota superior: no tienen por qué coincidir en el tiempo.
     val peak = heapPools.sumOf { it.peakUsage.used }
     val max = Runtime.getRuntime().maxMemory()
-    stages.forEach { println("%8d ms  %-20s %s".format(it.durationMs, it.stageId, it.status)) }
+    stages.forEach { println("%8d ms  %-20s %s".format(it.durationMs, it.stageId, it.status) + (it.message?.let { m -> "\n            $m" } ?: "")) }
     println("Total: $millis ms · ${end?.outcome ?: "sin final"} · $records registros · ${bytes / 1024} KB enviados")
     println("Memoria máxima (cota superior): ${peak / (1024 * 1024)} MB de ${max / (1024 * 1024)} MB")
 }

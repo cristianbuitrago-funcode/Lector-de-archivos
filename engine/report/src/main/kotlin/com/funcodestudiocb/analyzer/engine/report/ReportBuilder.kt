@@ -1,5 +1,6 @@
 package com.funcodestudiocb.analyzer.engine.report
 
+import com.funcodestudiocb.analyzer.engine.api.Confidence
 import com.funcodestudiocb.analyzer.engine.api.Certainty
 import com.funcodestudiocb.analyzer.engine.api.DiagramKind
 import com.funcodestudiocb.analyzer.engine.api.EolStatus
@@ -29,6 +30,8 @@ object ReportBuilder {
 
     const val TITLE = "Diagnóstico técnico del proyecto"
     private const val MAX_ROWS = 30
+    private const val MAX_POSSIBLE_NAMES = 12
+    private const val TEST_FILE_REASON = "archivo de pruebas"
 
     /** Problema encontrado, con su prioridad (0 = la más alta) y la sección donde está el detalle. */
     data class Problem(val priority: Int, val text: String, val where: String, val ref: String)
@@ -95,7 +98,16 @@ object ReportBuilder {
             out += Statement("El código suma ${count(totalCode, "línea", "líneas")} y está escrito sobre todo en $top.", "§3")
         }
         val techs = r.technologies.filter { it.category != TechnologyCategory.LANGUAGE_RUNTIME }.sortedBy { it.confidence.ordinal }
-        if (techs.isNotEmpty()) out += Statement("Se reconocen ${count(techs.size, "tecnología", "tecnologías")}, entre ellas ${techs.take(3).joinToString { it.name }}.", "§3")
+        val (strong, weak) = techs.partition { it.confidence != Confidence.POSSIBLE }
+        if (strong.isNotEmpty()) {
+            out += Statement(
+                "Se reconocen ${count(strong.size, "tecnología", "tecnologías")}, entre ellas ${strong.take(3).joinToString { it.name }}" +
+                    (if (weak.isEmpty()) "." else "; otras ${number(weak.size)} solo son posibles (menciones o indicios débiles)."),
+                "§3",
+            )
+        } else if (weak.isNotEmpty()) {
+            out += Statement("No se reconoce ninguna tecnología con certeza; ${count(weak.size, "es posible", "son posibles")} (menciones o indicios débiles).", "§3")
+        }
         r.architecture?.let { a ->
             val pattern = a.pattern?.let { "La arquitectura aparente es «$it»" } ?: "No se reconoce un patrón de arquitectura claro"
             val flows = if (a.flows > 0) "; ${a.completeFlows} de ${count(a.flows, "flujo", "flujos")} de la API llegan hasta la base de datos" else ""
@@ -106,7 +118,13 @@ object ReportBuilder {
             out += if (sec.findings == 0) {
                 Statement("La auditoría de seguridad no encontró hallazgos con las ${number(sec.rules)} reglas aplicadas.", "§11")
             } else {
-                val severe = if (critical == 0) "ninguno de severidad crítica o alta" else "$critical de severidad crítica o alta"
+                val inTests = severe(r).count(::inTests)
+                val where = when {
+                    critical == 0 || inTests == 0 -> ""
+                    inTests >= critical -> if (critical == 1) ", en un archivo de pruebas (probablemente un dato de ejemplo)" else ", todos en archivos de pruebas (probablemente datos de ejemplo)"
+                    else -> " (${number(inTests)} en archivos de pruebas)"
+                }
+                val severe = if (critical == 0) "ninguno de severidad crítica o alta" else "$critical de severidad crítica o alta$where"
                 Statement("La auditoría de seguridad encontró ${count(sec.findings, "hallazgo", "hallazgos")}, $severe.", "§11")
             }
         }
@@ -200,10 +218,11 @@ object ReportBuilder {
                 note = more(code.size, MAX_ROWS, "lenguajes"),
             )
         }
-        val techs = r.technologies.sortedWith(compareBy({ it.category.ordinal }, { it.confidence.ordinal }, { it.name }))
+        val (techs, possible) = r.technologies.sortedWith(compareBy({ it.category.ordinal }, { it.confidence.ordinal }, { it.name }))
+            .partition { it.confidence != Confidence.POSSIBLE }
         blocks += Block.Heading("Frameworks, bibliotecas y servicios")
         blocks += if (techs.isEmpty()) {
-            Block.Paragraph("No se reconoció ninguna tecnología con el catálogo de reglas.")
+            Block.Paragraph("No se reconoció ninguna tecnología con certeza con el catálogo de reglas.")
         } else {
             Block.Table(
                 listOf("Tecnología", "Categoría", "Versión", "Confianza", "Dónde se encontró"),
@@ -214,7 +233,33 @@ object ReportBuilder {
                 note = more(techs.size, MAX_ROWS * 2, "tecnologías"),
             )
         }
+        possibleLine(possible)?.let { blocks += it }
         return blocks
+    }
+
+    /** Tecnologías solo posibles (menciones, pruebas, indicios débiles): una línea, porque no cuentan como uso. */
+    private fun possibleLine(possible: List<com.funcodestudiocb.analyzer.engine.api.Technology>): Block? {
+        if (possible.isEmpty()) return null
+        val names = possible.map { it.name }.distinct()
+        val shown = names.take(MAX_POSSIBLE_NAMES).joinToString(", ") + if (names.size > MAX_POSSIBLE_NAMES) " y ${number(names.size - MAX_POSSIBLE_NAMES)} más" else ""
+        return Block.Paragraph(
+            "Solo posibles (aparecen en documentación, comentarios, pruebas o archivos que enumeran tecnologías; no cuentan como uso): $shown.",
+        )
+    }
+
+    /**
+     * Función principal de una carpeta: el rol que tienen más archivos y, si otro más concreto llega a una cuarta parte,
+     * también ese («Código fuente; pruebas (37 %)»). Antes ganaba el rol concreto más frecuente aunque fuera minoritario:
+     * una carpeta de C++ con tres archivos de documentación salía como «Documentación».
+     */
+    private fun folderFunction(paths: List<String>, rolesByPath: Map<String, List<FileRole>>): String {
+        val counts = paths.flatMap { rolesByPath[it].orEmpty().distinct() }.filter { it != FileRole.POSSIBLY_UNNECESSARY }
+            .groupingBy { it }.eachCount()
+        val main = counts.maxWithOrNull(compareBy<Map.Entry<FileRole, Int>> { it.value }.thenBy { if (it.key == FileRole.SOURCE) 1 else 0 })?.key
+            ?: return "Código fuente"
+        val second = counts.filterKeys { it != main && it != FileRole.SOURCE }.maxByOrNull { it.value }
+            ?.takeIf { it.value * 4 >= paths.size }
+        return Labels.role(main) + (second?.let { "; ${Labels.role(it.key).lowercase()} (${percent(it.value.toDouble() / paths.size)})" } ?: "")
     }
 
     // ------------------------------------------------------------------ 4. arquitectura
@@ -268,9 +313,7 @@ object ReportBuilder {
             if (parts.size <= depth) "(archivos sueltos)" else parts.take(depth).joinToString("/")
         }
         val rows = groups.entries.sortedByDescending { it.value.size }.take(MAX_ROWS).map { (folder, paths) ->
-            val main = paths.flatMap { rolesByPath[it].orEmpty() }.filter { it != FileRole.SOURCE && it != FileRole.POSSIBLY_UNNECESSARY }
-                .groupingBy { it }.eachCount().maxByOrNull { it.value }?.key
-            listOf(folder, number(paths.size), number(paths.sumOf { linesByPath[it] ?: 0 }), main?.let(Labels::role) ?: "Código fuente")
+            listOf(folder, number(paths.size), number(paths.sumOf { linesByPath[it] ?: 0 }), folderFunction(paths, rolesByPath))
         }
         val blocks = mutableListOf<Block>(
             Block.Table(listOf("Carpeta", "Archivos", "Líneas de código", "Función principal"), rows, note = more(groups.size, rows.size, "carpetas")),
@@ -353,7 +396,8 @@ object ReportBuilder {
     // ------------------------------------------------------------------ 8. bases de datos
 
     private fun databases(r: AnalysisReport): List<Block> {
-        val techs = r.technologies.filter { it.category == TechnologyCategory.DATABASE || it.category == TechnologyCategory.DATA_ACCESS }
+        val (techs, possible) = r.technologies.filter { it.category == TechnologyCategory.DATABASE || it.category == TechnologyCategory.DATA_ACCESS }
+            .partition { it.confidence != Confidence.POSSIBLE }
         val blocks = mutableListOf<Block>()
         if (techs.isNotEmpty()) {
             blocks += Block.Table(
@@ -373,6 +417,7 @@ object ReportBuilder {
         val access = r.relations.count { it.kind == RelationKind.DB_ACCESS }
         if (access > 0) blocks += Block.Paragraph("${count(access, "conexión", "conexiones")} de acceso a datos en el código (detalle en §7).")
         if (blocks.isEmpty()) blocks += Block.Paragraph("No se encontraron bases de datos, tablas ni accesos a datos.")
+        possibleLine(possible)?.let { blocks += it }
         return blocks
     }
 
@@ -390,7 +435,8 @@ object ReportBuilder {
                 note = more(api.size, shown.size, "rutas"),
             )
         }
-        val services = r.technologies.filter { it.category == TechnologyCategory.EXTERNAL_SERVICE || it.category == TechnologyCategory.CLOUD }
+        val (services, possibleServices) = r.technologies.filter { it.category == TechnologyCategory.EXTERNAL_SERVICE || it.category == TechnologyCategory.CLOUD }
+            .partition { it.confidence != Confidence.POSSIBLE }
         val hosts = r.relations.filter { it.kind == RelationKind.HTTP && it.external != null }.groupingBy { it.external!! }.eachCount()
             .entries.sortedByDescending { it.value }
         if (services.isNotEmpty() || hosts.isNotEmpty()) {
@@ -399,6 +445,7 @@ object ReportBuilder {
                 hosts.take(20).map { listOf(it.key, "Llamada HTTP", count(it.value, "llamada", "llamadas")) }
             blocks += Block.Table(listOf("Servicio", "Tipo", "Detalle"), rows)
         }
+        possibleLine(possibleServices)?.let { blocks += it }
         r.diagrams.firstOrNull { it.kind == DiagramKind.PROJECTS }?.let { blocks += Block.Figure(it, "Proyectos, servicios externos y dependencias principales.") }
         if (blocks.isEmpty()) blocks += Block.Paragraph("No se encontraron rutas de una API ni llamadas a servicios externos.")
         return blocks
@@ -505,6 +552,11 @@ object ReportBuilder {
     // ------------------------------------------------------------------ 12. problemas
 
     /** Problemas principales, del más al menos prioritario. */
+    private fun severe(r: AnalysisReport) = r.security.filter { it.severity == Severity.CRITICAL || it.severity == Severity.HIGH }
+
+    /** El hallazgo se rebajó por estar en un archivo de pruebas (motivo que pone la auditoría, Fase 6). */
+    private fun inTests(f: com.funcodestudiocb.analyzer.engine.api.SecurityFinding) = f.downgraded?.startsWith(TEST_FILE_REASON) == true
+
     fun problems(r: AnalysisReport): List<Problem> {
         val out = mutableListOf<Problem>()
         r.security.filter { it.severity == Severity.CRITICAL || it.severity == Severity.HIGH }
@@ -512,7 +564,8 @@ object ReportBuilder {
             .take(10)
             .forEach { f ->
                 val certainty = if (f.certainty == Certainty.CONFIRMED) "" else ", ${Labels.certainty(f.certainty).lowercase()}"
-                out += Problem(f.severity.ordinal, "${f.name} (severidad ${Labels.severity(f.severity).lowercase()}$certainty)", place(f.path, f.line), "§11")
+                val where = if (inTests(f)) "; en un archivo de pruebas" else ""
+                out += Problem(f.severity.ordinal, "${f.name} (severidad ${Labels.severity(f.severity).lowercase()}$certainty$where)", place(f.path, f.line), "§11")
             }
         r.resolvedDependencies.filter { d -> d.vulnerabilities.any { it.malicious } }.forEach {
             out += Problem(0, "Paquete malicioso: ${it.name} ${it.version.orEmpty()}".trim(), it.manifest ?: it.lockfile ?: "—", "§10")
@@ -559,8 +612,17 @@ object ReportBuilder {
 
     fun recommendationList(r: AnalysisReport): List<Statement> {
         val out = mutableListOf<Statement>()
-        val severe = r.security.count { it.severity == Severity.CRITICAL || it.severity == Severity.HIGH }
-        if (severe > 0) out += Statement("Corregir primero ${if (severe == 1) "el hallazgo crítico o alto" else "los $severe hallazgos críticos o altos"} de seguridad; cada ficha trae la corrección recomendada y un ejemplo.", "§11")
+        val severe = severe(r).size
+        val severeInTests = severe(r).count(::inTests)
+        when {
+            severe == 0 -> Unit
+            severeInTests >= severe -> out += Statement(
+                "Revisar ${if (severe == 1) "el hallazgo crítico o alto, que está en un archivo de pruebas" else "los $severe hallazgos críticos o altos, todos en archivos de pruebas"}: " +
+                    "si son datos de ejemplo no hay riesgo; si son reales, retíralos del repositorio y revócalos.",
+                "§11",
+            )
+            else -> out += Statement("Corregir primero ${if (severe == 1) "el hallazgo crítico o alto" else "los $severe hallazgos críticos o altos"} de seguridad; cada ficha trae la corrección recomendada y un ejemplo.", "§11")
+        }
         r.resolvedDependencies.filter { d -> d.vulnerabilities.any { it.malicious } }.forEach { out += Statement("Quitar el paquete malicioso ${it.name} y revisar el equipo donde se instaló.", "§10") }
         r.resolvedDependencies.filter { d -> d.vulnerabilities.any { !it.malicious } }
             .sortedBy { d -> d.vulnerabilities.minOf { it.severity.ordinal } }.take(5).forEach { d ->
@@ -663,10 +725,16 @@ object ReportBuilder {
     private fun conclusions(r: AnalysisReport, problems: List<Problem>): List<Block> {
         val out = mutableListOf<Statement>()
         r.maintenance?.score?.let { out += Statement("El nivel general de mantenimiento es ${Labels.maintenance(r.maintenance.level!!).lowercase()} ($it sobre 100).", "§14") }
-        val severe = r.security.count { it.severity == Severity.CRITICAL || it.severity == Severity.HIGH }
+        val severe = severe(r).size
+        val severeInTests = severe(r).count(::inTests)
         val malicious = r.dependencySummary?.malicious ?: 0
         when {
             malicious > 0 -> out += Statement("Lo más urgente: hay ${count(malicious, "paquete malicioso", "paquetes maliciosos")} entre las dependencias.", "§10")
+            severe > 0 && severeInTests >= severe -> out += Statement(
+                "${if (severe == 1) "El hallazgo crítico o alto de seguridad está en un archivo de pruebas" else "Los $severe hallazgos críticos o altos de seguridad están en archivos de pruebas"}: " +
+                    "conviene confirmar que son datos de ejemplo.",
+                "§11",
+            )
             severe > 0 -> out += Statement("Lo más urgente es la seguridad: ${count(severe, "hallazgo crítico o alto", "hallazgos críticos o altos")}.", "§11")
             r.securitySummary != null -> out += Statement("No hay hallazgos de seguridad críticos ni altos con las reglas aplicadas; los de menor severidad están en la auditoría.", "§11")
         }
@@ -703,6 +771,11 @@ object ReportBuilder {
                 r.stages.map { listOf(Labels.stage(it.stageId), Labels.stageStatus(it.status), "${number(it.durationMs)} ms") },
                 tones = r.stages.map { if (it.status == StageStatus.COMPLETED) Tone.NEUTRAL else Tone.WARNING },
             )
+            // Desglose del tiempo de las etapas largas (lo mide el propio motor: sirve para saber dónde se va el
+            // tiempo en el teléfono). Los análisis anteriores a la versión 1.0.1 no lo tienen.
+            r.stages.filter { it.status == StageStatus.COMPLETED && it.message != null }.forEach {
+                blocks += Block.Paragraph("En qué se fue el tiempo de «${Labels.stage(it.stageId)}»: ${it.message}.")
+            }
         }
         val notAnalyzed = r.notAnalyzedByStatus
         if (notAnalyzed.isNotEmpty()) {

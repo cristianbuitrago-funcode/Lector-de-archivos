@@ -157,8 +157,9 @@ class InventoryStage(private val collector: ContentCollector) : Stage {
         }
         context.coverage(
             CoverageReason.UNSUPPORTED,
-            "Las funciones y los puntos de entrada se deducen del nombre, la ubicación, los manifiestos y patrones de texto. " +
-                "El análisis de relaciones (Fase 5) los precisará y detectará los archivos que nada usa.",
+            "Las funciones y los puntos de entrada se deducen del nombre, la ubicación, los manifiestos y patrones del código " +
+                "(no los que están dentro de cadenas de texto, comentarios o carpetas de pruebas); los archivos que nada usa " +
+                "los señala el análisis de relaciones.",
         )
         context.emit(
             InventorySummary(

@@ -276,6 +276,9 @@ internal object PathRules {
 
     private fun loc(role: FileRole, detail: String) = RoleHint(role, Confidence.PROBABLE, EvidenceKind.LOCATION, detail)
 
+    /** El archivo está en una carpeta de pruebas. */
+    fun inTestDir(info: PathInfo): Boolean = info.lowerDirs.any { it in TEST_DIRS }
+
     private val TEST_DIRS = setOf("test", "tests", "__tests__", "spec", "specs", "androidtest", "testing", "e2e", "cypress", "integration_tests", "unittest", "unittests", "testfixtures")
     private val DB_DIRS = setOf("migrations", "migration", "db", "database", "databases", "seeds", "seeders", "schema", "schemas", "entities", "entity", "dao", "daos", "repositories", "repository", "persistence", "prisma")
     private val AUTH_DIRS = setOf("auth", "authentication", "authorization", "login", "oauth", "identity", "security", "accounts")

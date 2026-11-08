@@ -1059,7 +1059,7 @@ technologies:
       - { dependency: "@slack/*", ecosystem: npm, weight: 0.8 }
       - { dependency: slack_sdk, ecosystem: python, weight: 0.8 }
       - { dependency: slack-sdk, ecosystem: python, weight: 0.8 }
-      - { content: "hooks.slack.com", weight: 0.6 }
+      - { content: "hooks.slack.com/services/", weight: 0.6 }
   - id: telegram-bot
     name: Telegram Bot API
     category: external_service

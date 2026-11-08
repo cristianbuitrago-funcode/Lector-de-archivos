@@ -85,9 +85,12 @@ internal class DefaultStageContext(
     private val stageCount: Int,
     private val sink: RecordSink,
     private val listener: ProgressListener,
+    private val timings: StageTimings? = null,
 ) : StageContext {
 
-    override fun emit(record: ResultRecord) = sink.accept(record)
+    override fun emit(record: ResultRecord) {
+        if (timings == null) sink.accept(record) else timings.measure(StageTimings.SEND) { sink.accept(record) }
+    }
 
     override fun progress(fraction: Float, message: String?) {
         listener.onProgress(

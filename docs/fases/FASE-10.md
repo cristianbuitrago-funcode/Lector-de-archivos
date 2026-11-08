@@ -1,6 +1,6 @@
 # Fase 10 — Interfaz final, pruebas y optimización
 
-- **Estado:** terminada, pendiente de aprobación
+- **Estado:** terminada, pendiente de aprobación (versión **1.0.1** tras tu prueba en el teléfono)
 - **Criterio de aceptación:** proyecto desconocido → diagnóstico completo en el teléfono.
 
 ## Objetivo
@@ -31,8 +31,8 @@ ADR 0013.
 | Módulo | Pruebas | Qué cubren |
 |--------|---------|------------|
 | `app` (Robolectric) | 52 | Las 44 anteriores y 8 nuevas: **modelo del Panel** (4: nombre del proyecto sin extensión ni sufijos, totales del último análisis terminado de cada proyecto sin contar dos veces, vulnerabilidades no comprobadas que no se suman, tecnologías sin las posibles, lenguajes por líneas, tendencia solo con dos índices, Panel vacío); **pantalla del Panel** con análisis reales (2: bienvenida que lleva a Nuevo análisis; dos versiones de la tienda agrupadas como un proyecto con tendencia, totales, vulnerabilidades no comprobadas, tecnologías, últimos análisis y acceso al informe); **auditoría de accesibilidad** de las pantallas principales (1); **comprimidos de otras apps** (1: solo `content://` y nunca de un proveedor propio). |
-| Resto | 242 | Sin cambios respecto a la Fase 9. |
-| **Total** | **294** | **0 fallos** |
+| Resto | 246 | Las 242 de la Fase 9 y 4 nuevas tras tu prueba en el teléfono: **catálogos, pruebas y textos de ejemplo** que no inventan tecnologías ni puntos de entrada (motor completo); **hallazgos en pruebas, tecnologías solo posibles y función de cada carpeta** en el informe; **desglose del tiempo** de una etapa (sin contar dos veces lo anidado) y su párrafo en el Anexo A. |
+| **Total** | **298** | **0 fallos** |
 
 Además: **Android Lint sin ningún hallazgo** y APK de publicación con R8 correcto.
 
@@ -45,9 +45,13 @@ Además: **Android Lint sin ningún hallazgo** y APK de publicación con R8 corr
 | Emulador Android 8.0 (2 núcleos) | Sintético: 5 000 archivos analizados en el proceso aislado y guardados cifrados | **69 s** (59 s de análisis + 10 s de guardado) | app: 512 MB disponibles |
 | Emulador Android 15 (2 núcleos) | Ídem | **107 s** (93 s + 14 s) | app: 576 MB |
 | Emulador Android 16 (2 núcleos) | Ídem | **110 s** (97 s + 12 s) | app: 576 MB |
+| **Tu teléfono**, APK de depuración | Este repositorio: 525 archivos, 4,6 MB | **45 s** (40 s de lectura y examen) | — |
+| PC, CLI `--medir` | Ídem | 3,1 s (2,4 s de lectura y examen) | 82 MB |
 
-El objetivo de RNF-07 (menos de 5 minutos en un teléfono de gama media) se cumple con holgura en los emuladores; falta
-confirmarlo en tu teléfono. Casi todo el tiempo es la lectura y el análisis de cada archivo (el perfil en el PC señala
+El objetivo de RNF-07 (menos de 5 minutos en un teléfono de gama media) se cumple con holgura en los emuladores. En tu
+teléfono, este repositorio tardó 45 s con la **APK de depuración**: todas las etapas fueron entre 6 y 25 veces más
+lentas que en el PC, no solo una. Una app depurable no se compila por adelantado y Android la ejecuta en modo de
+depuración, así que esa cifra no representa la versión de publicación (ver «Tu prueba en el teléfono»). Casi todo el tiempo es la lectura y el análisis de cada archivo (el perfil en el PC señala
 las expresiones regulares de nombres de funciones, secretos y señales de tecnologías como lo más costoso).
 
 ### En emulador (CI de GitHub Actions)
@@ -91,10 +95,37 @@ archivos** y la de **extremo a extremo con el proyecto desconocido** (app: 8 pru
 8. **El diálogo del permiso de notificaciones** (Android 13+), que «Analizar» pide antes de empezar, quedaba fuera del
    alcance de la prueba y tapaba la app: se concede antes, como si ya se hubiera aceptado.
 
+## Tu prueba en el teléfono (versión 1.0.1)
+
+Analizaste este mismo repositorio en tu teléfono y enviaste el informe PDF. El análisis terminó **completo** (525
+archivos, índice 72), pero el informe tenía errores de interpretación que las pruebas no habían detectado, porque
+ningún proyecto de prueba se parecía a este (un analizador que contiene su propio catálogo de tecnologías y datos de
+ejemplo de secretos). Decisiones en el ADR 0013 (§9).
+
+| Lo que decía el informe | Causa | Corrección |
+|-------------------------|-------|------------|
+| «Se reconocen **53 tecnologías**, entre ellas Jetpack Compose, Android, **Microsoft SQL Server**» (y PostgreSQL, Stripe, Slack, Supabase…) | El catálogo de reglas (`catalog.yaml`) contiene como texto las señales de más de cien tecnologías | Un archivo con señales de 12 o más tecnologías distintas se trata como catálogo o lista: sus coincidencias son menciones y la cobertura lo dice. Lo visto solo en pruebas queda como posible (salvo JUnit, Jest…). Ahora: **9 reconocidas** y 44 solo posibles, en una línea aparte. Además, `hooks.slack.com` suelto ya no basta para Slack. |
+| «Lo más urgente es la seguridad: 2 hallazgos críticos o altos» | Eran claves privadas **de ejemplo** dentro de las pruebas del redactor de secretos; la auditoría ya las rebajaba y lo anotaba, pero el informe no lo decía | El resumen, los problemas, las recomendaciones y las conclusiones dicen que están en archivos de pruebas (probablemente datos de ejemplo) y qué hacer si fueran reales. |
+| Carpetas de C++ como «Documentación» | Ganaba el rol concreto más frecuente aunque fuera minoritario (3 documentos entre decenas de fuentes) | Rol de la mayoría y, si otro llega a una cuarta parte, también ese («Servidor; pruebas (29 %)»). |
+| Puntos de entrada falsos | Un patrón escrito dentro de una cadena de texto (`"@SpringBootApplication"` en las reglas del motor) y funciones `main` de las pruebas | Se ignoran los patrones dentro de cadenas y las carpetas de pruebas. Ahora: la app Android, la CLI, el `main` de UnRAR y un script de la CI. |
+| Nota de cobertura «El análisis de relaciones (Fase 5) los precisará» | Texto escrito en la Fase 3 | Reescrita con lo que hace hoy el motor. |
+
+**El tiempo.** La lectura y el examen de los archivos se llevaron 40 de los 45 s. Para saber en qué se va ese tiempo
+en un teléfono, donde no se puede perfilar, el motor mide ahora cada parte del examen (descompresión, redactor de
+secretos, análisis sintáctico, tecnologías, seguridad, métricas, envío de resultados a la app…) y el **Anexo A** lo
+dice en las etapas de más de un segundo: «En qué se fue el tiempo de «Lectura de los archivos»: …». Solo son nombres de
+partes del motor y milisegundos, nunca datos del proyecto. En el PC, con este repositorio, ninguna parte destaca: la
+mayor es la de símbolos e importaciones (0,6 s de 2,4 s).
+
+Lo que **no** se resolvió: una consulta de Windows escrita en el código C++ de UnRAR
+(`SELECT … FROM Win32_OperatingSystem`) sigue apareciendo como tabla de base de datos (§8 del informe).
+
 ## Limitaciones conocidas (honestidad del resultado)
 
-- **El rendimiento en un teléfono real está por confirmar**: el requisito habla de un teléfono de gama media; aquí se
-  midió en el PC y en los emuladores de la CI.
+- **El rendimiento de la versión de publicación en un teléfono real está por medir**: tu medición (45 s para este
+  repositorio) fue con la APK de depuración, más lenta; los emuladores de la CI también usan la de depuración.
+- **Detección por texto**: una consulta SQL-like que no es de una base de datos (la de WMI de Windows en UnRAR) se
+  toma como tabla; un archivo real que nombre 12 o más tecnologías se trata como lista (sus usos pasan a posibles).
 - **La biometría solo se ha probado con simulación** (Robolectric y emulador sin sensor).
 - **Las contraseñas pasan por `String` en la interfaz** (Compose no ofrece un campo de texto que se pueda borrar de
   memoria); la clave derivada sí se borra.
@@ -106,8 +137,8 @@ archivos** y la de **extremo a extremo con el proyecto desconocido** (app: 8 pru
 
 Ninguno conocido en el código. Quedan dos comprobaciones que solo puedes hacer tú, en tu teléfono:
 
-1. **Rendimiento real** (RNF-07): analizar un proyecto grande tuyo y ver el tiempo (el Anexo A del informe da la
-   duración de cada etapa).
+1. **Rendimiento real** (RNF-07) con la **versión de publicación**: analizar un proyecto grande tuyo y ver el tiempo
+   (el Anexo A da la duración de cada etapa y, desde la 1.0.1, en qué se fue el tiempo de la lectura).
 2. **Biometría real**: activar la huella o el rostro en Ajustes, bloquear y entrar con ella.
 
 Y una decisión tuya: si quieres usar la **versión de publicación** firmada con tu clave (manual, §1).

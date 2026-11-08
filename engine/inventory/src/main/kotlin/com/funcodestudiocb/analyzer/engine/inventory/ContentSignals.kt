@@ -203,6 +203,8 @@ internal object ContentSignals {
             val main = firstUncommentedMatch(GO_FUNC_MAIN, text, lineStarts)
             if (pkg != null && main != null) hits += SignalHit(null, EntryPointKind.MAIN_FUNCTION, "paquete main con func main()", main)
         }
+        // Un `main` o un arranque dentro de las pruebas no es un punto de entrada del producto (suele ser un ejemplo).
+        if (PathRules.inTestDir(info)) return hits.filter { it.role != null }.map { it.copy(entry = null) }
         return hits
     }
 
@@ -215,9 +217,26 @@ internal object ContentSignals {
             val start = lineStarts[line - 1]
             var i = start
             while (i < text.length && (text[i] == ' ' || text[i] == '\t')) i++
-            if (COMMENT_PREFIXES.none { text.startsWith(it, i) }) return line
+            // Ni en una línea comentada ni dentro de una cadena (el patrón como dato: reglas, ejemplos, pruebas).
+            if (COMMENT_PREFIXES.none { text.startsWith(it, i) } && !insideString(text, start, m.start())) return line
         }
         return null
+    }
+
+    /** La posición [at] está dentro de una cadena que se abre en la misma línea (desde [from]). */
+    internal fun insideString(text: String, from: Int, at: Int): Boolean {
+        var quote = 0.toChar()
+        var i = from
+        while (i < at) {
+            val c = text[i]
+            when {
+                c == '\\' -> i++
+                quote.code != 0 -> if (c == quote) quote = 0.toChar()
+                c == '"' || c == '\'' || c == '`' -> quote = c
+            }
+            i++
+        }
+        return quote.code != 0
     }
 
     fun lineOf(lineStarts: IntArray, offset: Int): Int {

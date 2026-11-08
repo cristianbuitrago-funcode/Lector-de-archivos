@@ -172,7 +172,8 @@ class PipelineRunner(private val engineVersion: String) {
             return StageStatus.SKIPPED
         }
 
-        val context = DefaultStageContext(config, attributes, stage, index, count, sink, listener)
+        val timings = StageTimings().also { attributes[StageTimings.KEY] = it }
+        val context = DefaultStageContext(config, attributes, stage, index, count, sink, listener, timings)
         val mark = TimeSource.Monotonic.markNow()
         context.progress(0f)
         val status = try {
@@ -208,7 +209,7 @@ class PipelineRunner(private val engineVersion: String) {
             sink.accept(StageEvent(stage.id, StageStatus.TIMED_OUT, elapsed, detail))
             sink.accept(CoverageNote(stage.id, CoverageReason.STAGE_TIMED_OUT, detail))
         } else {
-            sink.accept(StageEvent(stage.id, StageStatus.COMPLETED, elapsed))
+            sink.accept(StageEvent(stage.id, StageStatus.COMPLETED, elapsed, timings.describe(elapsed)))
         }
         context.progress(1f)
         return status

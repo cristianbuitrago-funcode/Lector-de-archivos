@@ -156,6 +156,14 @@ Los análisis hechos sin base dicen «no evaluado» en vez de dar por buenas las
 - **Comparar** dos análisis del mismo proyecto: hallazgos nuevos y resueltos, archivos añadidos, eliminados y
   modificados, dependencias añadidas, eliminadas y actualizadas, y la evolución de las cifras.
 
+Cómo leer dos casos frecuentes:
+
+- **Tecnologías «solo posibles»**: las que aparecen únicamente en documentación, comentarios, pruebas o en un archivo
+  que enumera muchas tecnologías (por ejemplo, un catálogo de reglas o una lista de proveedores) se listan aparte, en
+  una línea, y **no cuentan como uso**. Las tablas muestran solo las confirmadas y probables.
+- **Hallazgos en archivos de pruebas**: se informan igual, pero el resumen, los problemas y las recomendaciones dicen
+  que están en pruebas (suelen ser datos de ejemplo). Si son reales, retíralos del repositorio y revócalos.
+
 > **Ojo:** lo exportado **ya no está cifrado**: sale de la protección de la app cuando tú lo decides. Los secretos
 > siguen enmascarados.
 
@@ -218,7 +226,8 @@ comparar análisis del mismo proyecto.
 
 - **Certeza** (hallazgos y conexiones): *confirmada/verificada* (el código lo muestra sin duda), *probable* (lo indica
   con alta probabilidad), *posible/no verificada* (hay indicios, pero falta información).
-- **Confianza** (tecnologías): *confirmada* (manifiesto o código inequívoco), *probable*, *posible* (solo indicios).
+- **Confianza** (tecnologías): *confirmada* (manifiesto o código inequívoco), *probable*, *posible* (solo indicios:
+  menciones, pruebas o archivos que enumeran tecnologías; no cuenta como uso).
 - **Severidad**: impacto si el problema es real (crítica, alta, media, baja, informativa).
 - **Copia redactada**: copia del código con los posibles secretos ocultos, guardada cifrada.
 - **Proceso aislado**: proceso de Android sin permisos ni red donde se ejecuta el análisis.

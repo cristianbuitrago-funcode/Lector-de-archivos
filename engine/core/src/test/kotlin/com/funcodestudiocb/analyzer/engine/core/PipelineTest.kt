@@ -51,6 +51,24 @@ class PipelineTest {
     private fun stageEvents(sink: CollectingSink) = sink.records.filterIsInstance<StageEvent>().associate { it.stageId to it.status }
 
     @Test
+    fun `el desglose del tiempo de una etapa cuenta cada parte una sola vez`() {
+        val timings = StageTimings().apply { restLabel = "lectura" }
+        timings.measure("examen") {
+            Thread.sleep(40)
+            timings.measure(StageTimings.SEND) { Thread.sleep(60) }
+        }
+        val parts = timings.parts().toMap()
+        assertTrue(parts.getValue(StageTimings.SEND) >= 60, parts.toString())
+        // Tiempo exclusivo: el envío anidado no se suma al examen (si se sumara, pasaría de 100 ms).
+        assertTrue(parts.getValue("examen") in 40..95, parts.toString())
+        val text = timings.describe(1_500)
+        assertTrue(text != null && text.startsWith("lectura 1.") && "${StageTimings.SEND} " in text, text)
+        // Nada que desglosar: etapas cortas o con solo el envío de resultados.
+        assertEquals(null, timings.describe(500))
+        assertEquals(null, StageTimings().apply { measure(StageTimings.SEND) {} }.describe(5_000))
+    }
+
+    @Test
     fun `el registro ordena por dependencias y detecta errores de definicion`() {
         val order = StageRegistry()
             .register(TestStage("c", setOf("b")))

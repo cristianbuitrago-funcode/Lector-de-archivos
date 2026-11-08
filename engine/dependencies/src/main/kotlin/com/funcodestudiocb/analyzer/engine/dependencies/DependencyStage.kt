@@ -22,6 +22,8 @@ object DependencyKeys {
 
 /** Reúne los manifiestos y los archivos de bloqueo durante el recorrido del comprimido (sobre el texto ya redactado). */
 class DependencyCollector : RedactedTextListener {
+
+    override val timingLabel = "dependencias declaradas"
     val manifests = mutableListOf<ParsedManifest>()
     val lockfiles = mutableListOf<ParsedLockfile>()
 

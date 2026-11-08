@@ -23,6 +23,8 @@ class RuntimeHint(
  * Gradle, Unity, Godot…). Las de los frameworks salen de las dependencias en la etapa.
  */
 class RuntimeCollector : RedactedTextListener {
+
+    override val timingLabel = "entornos de ejecución"
     val hints = mutableListOf<RuntimeHint>()
 
     override fun onText(context: StageContext, file: RedactedText) {

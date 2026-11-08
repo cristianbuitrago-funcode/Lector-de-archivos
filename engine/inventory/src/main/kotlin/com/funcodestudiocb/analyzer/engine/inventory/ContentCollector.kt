@@ -11,6 +11,7 @@ import com.funcodestudiocb.analyzer.engine.api.LineMethod
 import com.funcodestudiocb.analyzer.engine.api.RecordValidator
 import com.funcodestudiocb.analyzer.engine.api.Redaction
 import com.funcodestudiocb.analyzer.engine.core.StageContext
+import com.funcodestudiocb.analyzer.engine.core.StageTimings
 import com.funcodestudiocb.analyzer.engine.ingest.FileContentConsumer
 import com.funcodestudiocb.analyzer.engine.ingest.IngestKeys
 import com.funcodestudiocb.analyzer.engine.ingest.ReadFile
@@ -57,6 +58,9 @@ class RedactedText(
 /** Recibe el texto redactado de cada archivo examinado, en el mismo recorrido del comprimido. */
 fun interface RedactedTextListener {
     fun onText(context: StageContext, file: RedactedText)
+
+    /** Nombre de esta parte en el desglose del tiempo de la lectura (Anexo A del informe). */
+    val timingLabel: String get() = javaClass.simpleName
 }
 
 /** Totales de un lenguaje mientras se recorre el comprimido. */
@@ -138,16 +142,19 @@ class ContentCollector(private val listeners: List<RedactedTextListener> = empty
             facts[file.path] = FileFacts(null, ContentState.TOO_LARGE, 0, emptyList())
             return
         }
+        val timings = context.attributes[StageTimings.KEY]?.also { it.restLabel = "descompresión, huellas y tipo de cada archivo" }
+        fun <T> part(name: String, block: () -> T): T = timings?.measure(name, block) ?: block()
         val info = PathInfo(file.path)
-        val text = decode(bytes, file.encoding)
+        val text = part("decodificación del texto") { decode(bytes, file.encoding) }
         val lineStarts = SafeXmlReader.computeLineStarts(text)
         val lineCount = if (text.isEmpty()) 0 else lineStarts.size - if (text.endsWith('\n')) 1 else 0
         val language = Languages.detect(file.path, text.take(DETECTION_HEAD), isCppProject(context))
 
-        val signals = ContentSignals.scan(info, text, lineStarts)
-        readManifest(info, text, lineStarts)
+        val signals = part("funciones y puntos de entrada") {
+            ContentSignals.scan(info, text, lineStarts).also { readManifest(info, text, lineStarts) }
+        }
 
-        val redaction = SecretRedactor.redact(text, info.name, fingerprintKey(context))
+        val redaction = part("redactor de secretos") { SecretRedactor.redact(text, info.name, fingerprintKey(context)) }
         redaction.secrets.take(MAX_REDACTIONS_PER_FILE).forEach {
             context.emit(Redaction(file.path, it.line, it.type, it.length, it.masked))
         }
@@ -171,9 +178,9 @@ class ContentCollector(private val listeners: List<RedactedTextListener> = empty
         }
         // El análisis de lenguaje trabaja sobre el texto redactado (misma longitud que el original): lo que se
         // obtiene de él (importaciones, nombres) nunca contiene un secreto completo.
-        val analysis = language?.let { analyzeLanguage(context, file.path, it, redaction.text, state) }
+        val analysis = language?.let { part("análisis sintáctico y resaltado") { analyzeLanguage(context, file.path, it, redaction.text, state) } }
         if (state == ContentState.STORED) {
-            emitChunks(context, file.path, redaction.text, analysis?.highlight)
+            part("copia redactada para el visor") { emitChunks(context, file.path, redaction.text, analysis?.highlight) }
             storedFiles++
             storedChars += text.length
         }
@@ -187,7 +194,7 @@ class ContentCollector(private val listeners: List<RedactedTextListener> = empty
         facts[file.path] = FileFacts(lineCount, state, redaction.secrets.size, signals, fileLanguage)
         if (listeners.isNotEmpty()) {
             val redacted = RedactedText(file.path, info, redaction.text, lineStarts, language, analysis, state, redaction.secrets)
-            listeners.forEach { it.onText(context, redacted) }
+            listeners.forEach { listener -> part(listener.timingLabel) { listener.onText(context, redacted) } }
         }
     }
 

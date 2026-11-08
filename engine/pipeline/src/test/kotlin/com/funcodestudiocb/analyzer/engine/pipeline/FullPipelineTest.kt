@@ -241,6 +241,41 @@ class FullPipelineTest {
         assertTrue(run.all<CoverageNote>().none { it.detail.contains("catálogo de versiones de Gradle no se pudieron resolver") })
     }
 
+    /**
+     * Casos encontrados al analizar este repositorio en un teléfono real (Fase 10): un catálogo de reglas que nombra
+     * muchas tecnologías, datos de ejemplo en las pruebas, un patrón como texto y un `main` dentro de una prueba no
+     * cuentan como uso ni como punto de entrada.
+     */
+    @Test
+    fun `catalogos, pruebas y textos de ejemplo no inventan tecnologias ni puntos de entrada`() {
+        val catalog = listOf(
+            "jdbc:postgresql:", "jdbc:mysql:", "jdbc:sqlserver:", "mongodb://", "redis://", "neo4j://", "api.stripe.com",
+            "api.paypal.com", "api.openai.com", "api.twilio.com", "api.sendgrid.com", "api.mailgun.net", ".supabase.co",
+        ).joinToString("\n") { "  - { content: \"$it\", weight: 0.9 }" }
+        val run = run(
+            mapOf(
+                "proyecto/build.gradle.kts" to "plugins { kotlin(\"jvm\") }\ndependencies { testImplementation(\"junit:junit:4.13.2\") }\n",
+                "proyecto/src/main/resources/reglas/catalogo.yaml" to "reglas:\n$catalog\n",
+                "proyecto/src/main/kotlin/Reglas.kt" to "val reglas = listOf(\"@SpringBootApplication\", \"hooks.slack.com\")\n",
+                "proyecto/src/test/kotlin/ConexionTest.kt" to "val url = \"postgres://usuario:clave@localhost/db\"\nval otra = \"jdbc:postgresql://localhost/db\"\nfun main() = println(url)\n",
+                "proyecto/src/test/kotlin/EjemploTest.kt" to "import org.junit.Test\nclass EjemploTest { @Test fun prueba() {} }\n",
+            ),
+        )
+        val strong = run.all<Technology>().filter { it.confidence != Confidence.POSSIBLE }.map { it.id }
+        // Del catálogo: solo menciones (posibles), con su nota en la cobertura.
+        listOf("postgresql", "mysql", "mongodb", "stripe", "openai").forEach { id ->
+            assertTrue(id !in strong, "$id no se usa: está en un catálogo o en una prueba ($strong)")
+        }
+        assertEquals(Confidence.POSSIBLE, run.tech("postgresql").confidence, "Solo en pruebas y en un catálogo")
+        assertTrue(run.all<CoverageNote>().any { "catálogo o una lista" in it.detail && "catalogo.yaml" in it.detail })
+        assertTrue(!run.has("slack-api") || run.tech("slack-api").confidence == Confidence.POSSIBLE, "Un dominio suelto no es un webhook")
+        // Las herramientas de pruebas sí se usan en las pruebas.
+        assertTrue("junit" in strong, strong.toString())
+        // Ni el texto «@SpringBootApplication» ni el main de una prueba son puntos de entrada.
+        val entries = run.all<com.funcodestudiocb.analyzer.engine.api.EntryPoint>().mapNotNull { it.path }
+        assertTrue(entries.none { it.endsWith("Reglas.kt") || it.endsWith("ConexionTest.kt") }, entries.toString())
+    }
+
     @Test
     fun `sin codigo reconocible no hay tecnologias y se explica el alcance`() {
         val run = run(mapOf("notas/lista.csv" to "a,b\n1,2\n"))

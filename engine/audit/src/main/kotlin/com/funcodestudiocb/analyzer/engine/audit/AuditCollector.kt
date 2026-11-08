@@ -105,6 +105,8 @@ internal class ProjectSignals {
  * señales que solo se pueden decidir al final. No ejecuta nada del proyecto.
  */
 class AuditCollector : RedactedTextListener {
+
+    override val timingLabel = "auditoría de seguridad"
     internal val findings = ArrayList<Finding>()
     internal val signals = ProjectSignals()
     internal val access = HashMap<String, FileMarkers>()
