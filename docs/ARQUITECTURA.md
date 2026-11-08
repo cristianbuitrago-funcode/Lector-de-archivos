@@ -204,7 +204,7 @@ informes y las métricas).
 
 ### 3.3 Construcción y calidad
 
-**Gradle (Kotlin DSL)** con catálogo de versiones y **verificación de dependencias por checksum**; **Android Gradle Plugin**; **NDK + CMake** para tree-sitter y UnRAR; **detekt**, **ktlint**, **Android Lint**; **JUnit 5 + Kotest** (motor), **Robolectric + pruebas de Compose** (UI en la JVM), pruebas instrumentadas en emulador; **GitHub Actions** compila el APK en cada fase.
+**Gradle (Kotlin DSL)** con catálogo de versiones y **verificación de dependencias por checksum**; **Android Gradle Plugin**; **NDK + CMake** para tree-sitter y UnRAR; **Android Lint** y el compilador de Kotlin con los avisos tratados como errores (detekt y ktlint no se adoptaron: ADR 0013); **JUnit 6 (Jupiter) + kotlin.test** (motor), **Robolectric + pruebas de Compose** (UI en la JVM), pruebas instrumentadas en emulador; **GitHub Actions** compila el APK en cada fase.
 
 ### 3.4 Identidad visual (tokens iniciales, ajustables)
 
@@ -606,7 +606,7 @@ añadidos/eliminados/modificados (por hash) y evolución de métricas.
 | **Instrumentadas** | Emulador en GitHub Actions y tu dispositivo | Proceso aislado (sin red, sin acceso a archivos), Keystore, bloqueo, extremo a extremo |
 | **Seguridad de la app** | JVM + instrumentadas | XSS en el informe HTML; XXE; bomba YAML; cadenas ReDoS; registros de resultados manipulados rechazados; terminación por tiempo |
 | **Aceptación** | Tu dispositivo | Al final de cada fase instalas el APK generado por CI y compruebas la funcionalidad |
-| **CI** | GitHub Actions | detekt, ktlint, Lint, pruebas JVM, pruebas en emulador, compilación del APK, verificación de dependencias |
+| **CI** | GitHub Actions | Lint, pruebas JVM, pruebas en emulador (Android 8.0, 15 y 16, comprobando que se ejecutan todas), compilación del APK, verificación de dependencias |
 
 ---
 
