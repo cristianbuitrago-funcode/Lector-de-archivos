@@ -21,8 +21,9 @@ auditoría de seguridad, exportable en PDF, HTML y JSON.
 | 7. Dependencias | ✅ Terminada y aprobada ([informe](docs/fases/FASE-7.md)) |
 | 8. Diagramas | ✅ Terminada y aprobada ([informe](docs/fases/FASE-8.md)) |
 | 9. Informes | ✅ Terminada y aprobada ([informe](docs/fases/FASE-9.md)) |
-| 10 | Pendiente |
+| 10. Interfaz final, pruebas y optimización | ✅ Terminada, pendiente de aprobación ([informe](docs/fases/FASE-10.md)) |
 
+- **Manual de uso: [`docs/MANUAL.md`](docs/MANUAL.md)**
 - Arquitectura: [`docs/ARQUITECTURA.md`](docs/ARQUITECTURA.md)
 - Decisiones técnicas: [`docs/adr/`](docs/adr/)
 - Licencias de terceros: [`docs/LICENCIAS-TERCEROS.md`](docs/LICENCIAS-TERCEROS.md)
@@ -83,6 +84,7 @@ Para probar el motor en el PC (sin aislamiento: úsalo solo con archivos de conf
 ./gradlew :engine:cli:run --args="/ruta/proyecto.zip"                      # un registro por línea
 ./gradlew :engine:cli:run --args="/ruta/proyecto.rar --password X --json"  # los mismos registros en JSON
 ./gradlew :engine:cli:run --args="/ruta/proyecto.zip --informe informe.html" # además, el informe en HTML (o .json)
+./gradlew :engine:cli:run --args="/ruta/proyecto.zip --medir"                 # tiempos por etapa y memoria, sin guardar registros
 ```
 
 El APK de prueba de cada ejecución del CI se puede descargar en GitHub → *Actions* → ejecución → artefacto
