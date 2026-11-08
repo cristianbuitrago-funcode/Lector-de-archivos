@@ -68,6 +68,8 @@ archivos** y la de **extremo a extremo con el proyecto desconocido** (app: 8 pru
 - **Ejecución n.º 49**: **todos los trabajos en verde; 17 de 17 en Android 8.0, 15 y 16** (proceso aislado 3, app 8,
   data 6). La prueba de 5 000 archivos tardó **62 s, 84 s y 111 s** (análisis + guardado cifrado). El proyecto
   desconocido (161 archivos) salió **completo** en los tres, con su informe PDF de 11 páginas sin títulos huérfanos.
+- **Ejecución n.º 54** (versión 1.0.1, tras tu prueba en el teléfono): **todos los trabajos en verde; 17 de 17 en
+  Android 8.0, 15 y 16** (proceso aislado 3, app 8, data 6).
 
 ## Incidentes y cómo se resolvieron
 
