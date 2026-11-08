@@ -177,6 +177,66 @@ class FullAnalysisInstrumentedTest {
     }
 
     @Test
+    fun informesPdfHtmlYJsonEnElDispositivo() {
+        val secret = "abcd1234" + "efgh5678ijkl"
+        val file = File(context.cacheDir, "informe.zip")
+        ZipOutputStream(file.outputStream()).use { out ->
+            mapOf(
+                "web/package.json" to "{\"dependencies\": {\"express\": \"^4.19.0\"}}",
+                "web/server.js" to "const express = require(\"express\");\nconst app = express();\napp.get(\"/api/ping\", (req, res) => res.send(req.query.a && req.query.b ? \"si\" : \"no\"));\n",
+                "web/config.js" to "const apiKey = \"$secret\";\nmodule.exports = { apiKey };\n",
+                "README.md" to "# Prueba\n",
+            ).forEach { (name, text) ->
+                out.putNextEntry(ZipEntry(name))
+                out.write(text.toByteArray())
+                out.closeEntry()
+            }
+        }
+        val finished = analyze(Uri.fromFile(file)) as? AnalysisState.Finished ?: fail("Estado inesperado: ${coordinator.state.value}")
+        runBlocking { withTimeoutOrNull(10_000) { coordinator.state.first { (it as? AnalysisState.Finished)?.saved == true } } }
+            ?: fail("No se guardó en el historial")
+        // Las métricas y el índice se calculan en el proceso aislado (Fase 9).
+        val metrics = finished.report.metrics ?: fail("Sin métricas: ${finished.report.stages}")
+        assertTrue(metrics.functions >= 1, "La función flecha de la ruta se mide en el árbol sintáctico")
+        assertTrue(finished.report.maintenance?.score != null)
+        finished.report.fileMetrics.forEach { assertTrue(RecordValidator.validate(it).isEmpty()) }
+
+        val id = finished.analysisId
+        val pdf = runBlocking { container.reports.export(id, com.funcodestudiocb.analyzer.reports.ReportFormat.PDF) } ?: fail("Sin PDF")
+        assertEquals("%PDF-", pdf.bytes.copyOfRange(0, 5).toString(Charsets.US_ASCII))
+        // Muestra para revisarla fuera del emulador: AGP la recoge de la salida adicional de las pruebas y la CI la adjunta.
+        InstrumentationRegistry.getArguments().getString("additionalTestOutputDir")?.let { dir ->
+            runCatching { File(dir, "informe-muestra.pdf").writeBytes(pdf.bytes) }
+        }
+        val pdfFile = File(context.cacheDir, "informe.pdf").apply { writeBytes(pdf.bytes) }
+        android.os.ParcelFileDescriptor.open(pdfFile, android.os.ParcelFileDescriptor.MODE_READ_ONLY).use { fd ->
+            android.graphics.pdf.PdfRenderer(fd).use { renderer ->
+                assertTrue(renderer.pageCount >= 5, "Portada, índice y secciones: ${renderer.pageCount} páginas")
+                renderer.openPage(0).use { page ->
+                    assertEquals(595, page.width)
+                    assertEquals(842, page.height)
+                    val bitmap = android.graphics.Bitmap.createBitmap(page.width, page.height, android.graphics.Bitmap.Config.ARGB_8888)
+                    bitmap.eraseColor(android.graphics.Color.WHITE)
+                    page.render(bitmap, null, null, android.graphics.pdf.PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+                    val top = bitmap.getPixel(20, 20)
+                    assertTrue(android.graphics.Color.red(top) < 40 && android.graphics.Color.blue(top) > 30, "La portada lleva la banda azul marino de Funcode")
+                }
+            }
+        }
+        pdfFile.delete()
+
+        val html = runBlocking { container.reports.export(id, com.funcodestudiocb.analyzer.reports.ReportFormat.HTML) }!!.bytes.toString(Charsets.UTF_8)
+        assertTrue("Content-Security-Policy" in html && "<script" !in html.lowercase())
+        assertFalse(secret in html, "El secreto no aparece completo en el HTML")
+        InstrumentationRegistry.getArguments().getString("additionalTestOutputDir")?.let { dir ->
+            runCatching { File(dir, "informe-muestra.html").writeText(html) }
+        }
+        val json = runBlocking { container.reports.export(id, com.funcodestudiocb.analyzer.reports.ReportFormat.JSON) }!!.bytes.toString(Charsets.UTF_8)
+        assertTrue("\"schema_version\": \"funcode-report/1\"" in json)
+        assertFalse(secret in json, "El secreto no aparece completo en el JSON")
+    }
+
+    @Test
     fun rarConUnrarNativoEnElProcesoAislado() {
         val finished = analyze(asset("test_read_format_rar5_compressed.rar")) as? AnalysisState.Finished
             ?: fail("Estado inesperado: ${coordinator.state.value}")

@@ -73,6 +73,17 @@
             android:exported="false"
             android:foregroundServiceType="dataSync" />
 
+        <!-- Compartir un informe por acción explícita del usuario: solo la carpeta temporal de informes, sin escritura. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.informes"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/report_paths" />
+        </provider>
+
         <!-- Sin EmojiCompat: podría pedir fuentes descargables a Google Play Services. -->
         <provider
             android:name="androidx.startup.InitializationProvider"

@@ -66,6 +66,8 @@ import com.funcodestudiocb.analyzer.ui.analysis.AnalysisDetailViewModel
 import com.funcodestudiocb.analyzer.ui.analysis.NewAnalysisScreen
 import com.funcodestudiocb.analyzer.ui.analysis.NewAnalysisViewModel
 import com.funcodestudiocb.analyzer.ui.architecture.ArchitectureScreen
+import com.funcodestudiocb.analyzer.ui.reports.ReportsScreen
+import com.funcodestudiocb.analyzer.ui.reports.ReportsViewModel
 import com.funcodestudiocb.analyzer.ui.architecture.ArchitectureViewModel
 import com.funcodestudiocb.analyzer.ui.dependencies.DependenciesScreen
 import com.funcodestudiocb.analyzer.ui.dependencies.DependenciesViewModel
@@ -103,6 +105,9 @@ const val ROUTE_ANALYSIS_DETAIL = "analisis/{id}"
 const val ROUTE_EXPLORER_ANALYSIS = "explorador/{id}?archivo={archivo}"
 const val ROUTE_DEPENDENCIES = "dependencias/{id}?archivo={archivo}"
 const val ROUTE_ARCHITECTURE = "arquitectura/{id}?archivo={archivo}"
+const val ROUTE_REPORT = "informes/{id}"
+
+fun reportRoute(id: String): String = "informes/${android.net.Uri.encode(id)}"
 
 /** Ruta de la arquitectura de un análisis, opcionalmente con el foco en un archivo. */
 fun architectureRoute(id: String, file: String? = null): String =
@@ -129,6 +134,7 @@ fun MainScaffold(container: AppContainer, widthDp: Int) {
         ROUTE_EXPLORER_ANALYSIS -> Destination.Explorer
         ROUTE_DEPENDENCIES -> Destination.Security
         ROUTE_ARCHITECTURE -> Destination.Architecture
+        ROUTE_REPORT -> Destination.Reports
         else -> Destination.Dashboard
     }
     val titleOverride = when (currentRoute) {
@@ -283,6 +289,7 @@ private fun MainNavHost(navController: NavHostController, container: AppContaine
                             onOpenFile = { id, path -> navController.navigate(explorerRoute(id, path)) },
                             onOpenDependencies = { id -> navController.navigate(dependenciesRoute(id)) },
                             onOpenArchitecture = { id -> navController.navigate(architectureRoute(id)) },
+                            onOpenReports = { id -> navController.navigate(reportRoute(id)) },
                         )
                     }
                     Destination.Explorer -> ExplorerScreen(
@@ -300,6 +307,7 @@ private fun MainNavHost(navController: NavHostController, container: AppContaine
                         onOpenFile = { id, path -> navController.navigate(explorerRoute(id, path)) },
                         onOpenDependencies = { id -> navController.navigate(dependenciesRoute(id)) },
                     )
+                    Destination.Reports -> ReportsScreen(containerViewModel("informes") { ReportsViewModel(container) })
                     else -> PlaceholderScreen(destination)
                 }
             }
@@ -314,6 +322,7 @@ private fun MainNavHost(navController: NavHostController, container: AppContaine
                 onOpenFile = { id, path -> navController.navigate(explorerRoute(id, path)) },
                 onOpenDependencies = { id -> navController.navigate(dependenciesRoute(id)) },
                 onOpenArchitecture = { id -> navController.navigate(architectureRoute(id)) },
+                onOpenReports = { id -> navController.navigate(reportRoute(id)) },
             )
         }
         composable(
@@ -368,6 +377,10 @@ private fun MainNavHost(navController: NavHostController, container: AppContaine
                 onOpenFile = { analysisId, path -> navController.navigate(explorerRoute(analysisId, path)) },
                 onOpenDependencies = { analysisId -> navController.navigate(dependenciesRoute(analysisId)) },
             )
+        }
+        composable(ROUTE_REPORT) { entry ->
+            val id = entry.arguments?.getString("id").orEmpty()
+            ReportsScreen(containerViewModel(key = "informes-$id") { ReportsViewModel(container, id) })
         }
         composable(ROUTE_DIAGNOSTICS) {
             val vm = containerViewModel { DiagnosticsViewModel(container) }

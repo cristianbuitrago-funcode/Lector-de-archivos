@@ -146,7 +146,12 @@ class AnalysisRepository(private val session: SessionManager) {
     fun count(): Flow<Int> = session.databaseOrNull()?.analyses()?.count() ?: flowOf(0)
 
     /** Carga un análisis guardado y reconstruye su informe. */
-    suspend fun load(id: String): Pair<AnalysisEntity, AnalysisReport>? {
+    suspend fun load(id: String): Pair<AnalysisEntity, AnalysisReport>? = loadWithRecords(id)?.let { it.entity to it.report }
+
+    /** Análisis guardado con su informe y los registros de los que sale (para exportar el JSON completo). */
+    class StoredAnalysis(val entity: AnalysisEntity, val report: AnalysisReport, val records: List<ResultRecord>)
+
+    suspend fun loadWithRecords(id: String): StoredAnalysis? {
         val db = session.databaseOrNull() ?: return null
         val entity = db.analyses().get(id) ?: return null
         val records = db.analyses().records(id).mapNotNull {
@@ -154,7 +159,7 @@ class AnalysisRepository(private val session: SessionManager) {
         }
         val end = records.filterIsInstance<SessionEnd>().lastOrNull()
         val problem = if (entity.status == AnalysisOutcome.FAILED.name) entity.message else null
-        return entity to AnalysisReport.from(records, end?.outcome, problem)
+        return StoredAnalysis(entity, AnalysisReport.from(records, end?.outcome, problem), records)
     }
 
     suspend fun delete(id: String) {

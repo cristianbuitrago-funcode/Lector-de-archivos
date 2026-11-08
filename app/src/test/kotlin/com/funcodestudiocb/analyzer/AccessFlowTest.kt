@@ -85,7 +85,9 @@ class AccessFlowTest {
         compose.onNodeWithTag("nav_informes").performScrollTo().performClick()
         compose.waitForIdle()
         compose.onNode(hasTestTag("screen_title") and hasText("Informes")).assertIsDisplayed()
-        compose.onNodeWithText("En construcción · Fase 9").assertIsDisplayed()
+        // Informes ya está construida (Fase 9): sin análisis, lo dice.
+        awaitCondition { compose.onAllNodesWithTagExists("reports_no_analyses") }
+        compose.onNodeWithTag("reports_no_analyses").assertIsDisplayed()
 
         // Arquitectura ya está construida (Fase 8): sin análisis, lo dice.
         compose.onNodeWithTag("open_menu").performClick()

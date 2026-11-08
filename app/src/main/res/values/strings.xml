@@ -924,4 +924,31 @@
     <string name="arch_via_call">llama</string>
     <string name="arch_via_import">importa</string>
     <string name="arch_via_uses">usa</string>
+    <!-- Fase 9: informes -->
+    <string name="reports_privacy">Los informes se generan en el teléfono con los datos guardados. Al guardarlos o compartirlos salen del almacenamiento cifrado de la app: guárdalos en un lugar seguro. Los posibles secretos van enmascarados.</string>
+    <string name="reports_history">Historial</string>
+    <string name="reports_no_analyses">Todavía no hay ningún análisis. Analiza un proyecto desde «Nuevo análisis» y su informe aparecerá aquí.</string>
+    <string name="reports_loading">Preparando el informe…</string>
+    <string name="reports_unavailable">No se pudo preparar el informe de este análisis.</string>
+    <string name="reports_save">Guardar</string>
+    <string name="reports_share">Compartir</string>
+    <string name="reports_share_title">Compartir informe</string>
+    <string name="reports_read">Ver informe completo</string>
+    <string name="reports_compare">Comparar con…</string>
+    <string name="reports_compare_none">No hay otro análisis con el que comparar.</string>
+    <string name="reports_back">Volver al historial</string>
+    <string name="reports_working">Generando el %1$s…</string>
+    <string name="reports_saved">Guardado: %1$s</string>
+    <string name="reports_failed">No se pudo exportar: %1$s</string>
+    <string name="reports_comparing">Comparando…</string>
+    <string name="reports_comparison_failed">No se pudo comparar: alguno de los análisis ya no existe.</string>
+    <string name="reports_summary">Resumen ejecutivo</string>
+    <string name="reports_index">Índice de mantenimiento: %1$s</string>
+    <string name="reports_files_findings">%1$s archivos · %2$s avisos del comprimido</string>
+    <string name="reports_formats">Formatos: PDF para leer e imprimir, HTML para el navegador (sin JavaScript) y JSON con todos los datos.</string>
+    <!-- Fase 9: índice de mantenimiento en el informe -->
+    <string name="maint_title">Índice de mantenimiento</string>
+    <string name="maint_lowest">Lo que más lo baja: %1$s.</string>
+    <string name="maint_not_evaluated">No se pudo calcular: no hay código que medir.</string>
+    <string name="maint_open_reports">Informe completo y exportación</string>
 </resources>

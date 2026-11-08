@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Lo único que se puede compartir: la copia temporal del informe que el usuario decide compartir. -->
+<paths>
+    <cache-path name="informes" path="informes-compartidos/" />
+</paths>

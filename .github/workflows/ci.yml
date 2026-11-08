@@ -100,5 +100,6 @@ jobs:
           name: informes-emulador-api-${{ matrix.api-level }}
           path: |
             **/build/reports/androidTests/
+            **/build/outputs/connected_android_test_additional_output/
             emulator-logcat.txt
           retention-days: 14

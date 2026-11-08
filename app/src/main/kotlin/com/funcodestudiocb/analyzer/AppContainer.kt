@@ -25,6 +25,7 @@ import com.funcodestudiocb.analyzer.vulndb.HttpsDownloader
 import com.funcodestudiocb.analyzer.vulndb.VulnDbStore
 import com.funcodestudiocb.analyzer.vulndb.VulnDbUpdateService
 import com.funcodestudiocb.analyzer.vulndb.VulnDbUpdater
+import com.funcodestudiocb.analyzer.reports.ReportExporter
 import java.io.File
 
 /**
@@ -56,6 +57,7 @@ class AppContainer(
         onWipe = { reason ->
             coordinator.forgetEverything()
             vulnDbUpdater.cancel()
+            reports.clearShared()
             session.lock()
             wiper.wipeAppData()
             if (reason == WipeReason.FAILED_ATTEMPTS) runCatching { wipeNoticeFile.writeText("1") }
@@ -72,6 +74,9 @@ class AppContainer(
     val diagnostics: IsolationDiagnostics? = diagnosticsFactory?.invoke(appContext)
 
     val repository = AnalysisRepository(session)
+
+    /** Informes PDF, HTML y JSON de los análisis guardados y comparación entre ellos (Fase 9). */
+    val reports = ReportExporter(appContext, repository)
 
     /** Base de vulnerabilidades (datos públicos) y su actualizador, que solo se ejecuta cuando el usuario lo pide. */
     val vulnDbStore = VulnDbStore(File(appContext.noBackupFilesDir, "vulnerabilidades"))
