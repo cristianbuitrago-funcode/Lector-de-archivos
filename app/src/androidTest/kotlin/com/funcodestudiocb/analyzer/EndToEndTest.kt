@@ -1,6 +1,8 @@
 package com.funcodestudiocb.analyzer
 
+import android.Manifest
 import android.net.Uri
+import android.os.Build
 import androidx.compose.ui.test.ComposeTimeoutException
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
@@ -46,6 +48,12 @@ class EndToEndTest {
         object : Statement() {
             override fun evaluate() {
                 app.container.vault.wipe()
+                // Android 13+: «Analizar» pide antes el permiso de notificaciones y el diálogo del sistema queda fuera de
+                // la app (la prueba no puede pulsarlo). Se concede antes, como si el usuario ya lo hubiera aceptado.
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    InstrumentationRegistry.getInstrumentation().uiAutomation
+                        .grantRuntimePermission(app.packageName, Manifest.permission.POST_NOTIFICATIONS)
+                }
                 base.evaluate()
             }
         }
